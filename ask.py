@@ -117,11 +117,30 @@ def render_evidence_block(items: list[EvidenceItem]) -> str:
     return "\n\n".join(lines)
 
 
-def call_model(question: str, items: list[EvidenceItem]) -> tuple[dict, str]:
-    system_prompt = settings.prompt_path.read_text(encoding="utf-8")
-    prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:12]
+_client: Anthropic | None = None
+_prompt_cache: tuple[str, str] | None = None
 
-    client = Anthropic(api_key=settings.anthropic_api_key)
+
+def _get_client() -> Anthropic:
+    """One client for the process — main.py's loop must not rebuild it per question."""
+    global _client
+    if _client is None:
+        _client = Anthropic(api_key=settings.anthropic_api_key)
+    return _client
+
+
+def _get_prompt() -> tuple[str, str]:
+    global _prompt_cache
+    if _prompt_cache is None:
+        text = settings.prompt_path.read_text(encoding="utf-8")
+        _prompt_cache = (text, hashlib.sha256(text.encode("utf-8")).hexdigest()[:12])
+    return _prompt_cache
+
+
+def call_model(question: str, items: list[EvidenceItem]) -> tuple[dict, str]:
+    system_prompt, prompt_hash = _get_prompt()
+
+    client = _get_client()
     response = client.messages.create(
         model=settings.llm_model,
         max_tokens=settings.llm_max_tokens,
@@ -303,6 +322,44 @@ def render(question: str, result: dict, items: list[EvidenceItem], verbose: bool
 
 
 # ---------------------------------------------------------------------------
+# The one pipeline. ask.py (single question) and main.py (interactive loop)
+# are both thin shells over run_query — retrieval, generation, validation and
+# citation resolution exist in exactly one place.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class QueryOutcome:
+    question: str
+    result: dict
+    items: list[EvidenceItem]
+    failures: list[str]
+    prompt_hash: str
+
+    @property
+    def grounded(self) -> bool:
+        return not self.failures
+
+    def rendered(self, verbose: bool = False) -> str:
+        return render(self.question, self.result, self.items, verbose)
+
+
+def run_query(
+    question: str,
+    vectors: np.ndarray,
+    chunks: list[dict],
+    top_k: int | None = None,
+) -> QueryOutcome:
+    """Retrieve -> ground -> validate. No printing, no process control."""
+    items = retrieve(question, vectors, chunks, top_k or settings.top_k)
+    result, prompt_hash = call_model(question, items)
+    return QueryOutcome(
+        question=question,
+        result=result,
+        items=items,
+        failures=validate(result, items),
+        prompt_hash=prompt_hash,
+    )
 
 
 def main() -> int:
@@ -315,9 +372,9 @@ def main() -> int:
     args = parser.parse_args()
 
     vectors, chunks, manifest = load_index()
-    items = retrieve(args.question, vectors, chunks, args.top_k)
-    result, prompt_hash = call_model(args.question, items)
-    failures = validate(result, items)
+    outcome = run_query(args.question, vectors, chunks, args.top_k)
+    result, items, failures = outcome.result, outcome.items, outcome.failures
+    prompt_hash = outcome.prompt_hash
 
     if args.json:
         print(json.dumps(
@@ -338,7 +395,7 @@ def main() -> int:
         ))
         return 1 if failures else 0
 
-    print(render(args.question, result, items, args.verbose_provenance))
+    print(outcome.rendered(args.verbose_provenance))
 
     # A validation failure is a recorded research result, not a silent retry.
     if failures:
