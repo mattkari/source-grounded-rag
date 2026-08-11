@@ -1,0 +1,21 @@
+{
+ "document_id": "sonmez-2014-transparency",
+ "document_title": "The Role of Better Transparency Law in Corporate Governance and Financial Markets, and Its Practicability in Legal Systems: A Comparative Study Between the EU and Turkey",
+ "document_author": "S\u00f6nmez, M.",
+ "document_year": "2014",
+ "source_pdf": "thesis.pdf",
+ "pages_total": 320,
+ "pages_with_text": 319,
+ "pages_without_printed_number": [
+  1,
+  2
+ ],
+ "chunk_count": 249,
+ "embedding_provider": "openai",
+ "embedding_model": "text-embedding-3-large",
+ "embedding_dim": 3072,
+ "normalised": true,
+ "chunk_target_tokens": 700,
+ "chunk_overlap_tokens": 100,
+ "corpus_text_sha256": "74be49cf27902f14adab5870b86370bb3a61e91b001a03851fd824a42e82ccef"
+}
