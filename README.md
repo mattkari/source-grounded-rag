@@ -294,6 +294,24 @@ under `.github/workflows/`; until then the suite is run locally. The live run is
 - **Page-level gold.** A gold page counts as retrieved or cited when it lies in a passage's stored
   page range. That shows the right page was reached, not that the right sentence was used.
 
+## Presentations
+
+| File | Venue |
+|---|---|
+| [`docs/presentations/ITCC-2026-Source-Grounded-Research-Assistant.pptx`](docs/presentations/ITCC-2026-Source-Grounded-Research-Assistant.pptx) | 28th International Turkish Cooperative Congress (ITCC-2026), 14 August 2026 — 20-minute online session |
+| [`docs/presentations/ITCC-2026-speaker-notes.md`](docs/presentations/ITCC-2026-speaker-notes.md) | The same speaker notes, exported as a run sheet with timings |
+
+Sixteen slides covering the problem, the grounding and refusal design, the three demonstration
+questions, the evaluator view, and current status. Three things to know before reusing it:
+
+- The title and closing slides carry `[ Affiliation ]` and `[ email ]` placeholders.
+- The interface screenshots come from the Streamlit web UI (`app.py`). They were captured on
+  12 August 2026, the day before the corpus was changed (see the Task Log), so they show the
+  earlier demonstration thesis, not the current one.
+- Those screenshots were captured with the model call stubbed. Page numbers, citations, section
+  titles and retrieval scores in them are real — read from the index — but the generated prose is
+  representative rather than a recorded model output.
+
 ## Task Log
 
 Chronological record of completed and approved work. Rows are appended after each sprint is
@@ -307,6 +325,7 @@ implemented and approved — existing rows are never removed or reordered.
 | 2026-08-12 | — (Demo slice) | Add `app.py`, a Streamlit web chat UI for the conference demo — the third shell over `ask.run_query()`, adding no retrieval, generation, citation or validation logic of its own. Index loaded once per process (`st.cache_resource`); conversation history in `st.session_state` only. Renders a sufficient answer as prose with a `Sources:` line and collapsible full citations, a refusal as a plain non-alarming notice, `[AI INTERPRETATION]` as a distinct labelled callout, and retrieval scores collapsed into "Technical details (for evaluators)" captioned as diagnostics rather than confidence. Provider/auth/network errors and validation failures are reported in plain language, never as a traceback. Verified: the real index loads and the provider-failure path renders correctly; the three demo questions were exercised through the real provenance, citation and validation code with the model call stubbed — **the live end-to-end run against the API is still outstanding and must be done before the demo**. | Implemented; pushed to `claude/streamlit-web-ui-eyheeg` (`3d5b62f`) — awaiting review | `app.py`, `README.md` |
 | 2026-08-13 | — (Corpus swap) | Replace the Sönmez corpus with Karimov (2017), *The Qur’anic Concept of Justice (al-ʿAdl) from a Nursian Perspective* (Durham, 288 pp). Lifted the layout constants measured from one PDF out of `ingest.py` into a layout profile in `config.py`, added `chapter_source` (running header or chapter heading) and chapter runs built from page slices so hard rule 8 holds by construction, and excluded reference apparatus from evidence via `excluded_chapter_prefixes`. Fixed three latent extraction defects found by calibrating against a second document: the caption filter swallowed `"Table of contents"`, heading-merge fused a chapter title with the section beneath it, and pages with text but no body text were indistinguishable from blank pages. Swapping to the new thesis was then configuration only — no pipeline code changed. 288 pages → 266 chunks. Provenance audited against the PDF itself: 266/266 chunks carry the page label actually printed on their pages, and every word of every chunk appears on the pages it claims. All three entry points re-verified live against the API, including the refusal path. A second calibrated corpus (Leung 2019) is kept on `feature/swap-corpus-leung` as a fallback. | Implemented and approved; on `feature/swap-corpus-karimov` (`5468662`) — deliberately **not** merged, under test on the branch | `config.py`, `ingest.py`, `README.md`, `docs/decisions/0001-corpus-swap-via-layout-profile.md`, `data/`, `index/` |
 | 2026-08-12 | — (Deployment) | Containerise the web UI for continuous self-hosting on a Raspberry Pi: `python:3.11-slim` image running as an unprivileged user, runtime dependencies pinned in `requirements.txt` (ingestion dependencies deliberately excluded — the committed index means a deployed container never re-ingests), Streamlit health endpoint wired to a Docker `HEALTHCHECK`, `restart: unless-stopped`, and capped json-file logging so an SD card cannot fill. Credentials are read at run time from a host `.env` and never enter an image layer; `data/` is excluded from the build context so the source PDF is not baked in. Published to loopback by default, since the app has no authentication and every question spends API credit. **Not build-tested — no Docker daemon was available in the authoring environment; verification is `docker compose up -d --build` on the target Pi.** | Implemented; pushed to `claude/docker-deploy` — awaiting review | `Dockerfile`, `compose.yaml`, `.dockerignore`, `.env.example`, `requirements.txt`, `docs/deployment/raspberry-pi.md`, `README.md` |
+| 2026-08-12 | — (Dissemination) | Prepare the 20-minute ITCC-2026 conference deck: 16 slides in English covering the hallucination and audit-trail problem, relevance to cooperative governance, the grounding pipeline, the opaque-handle mechanism that makes a fabricated page reference structurally impossible, the three outcome types, the three demonstration questions as UI screenshots, the evaluator view, and current status including what is not yet done. Speaker notes with per-slide timings on every slide, plus anticipated questions; notes also exported as a standalone run sheet. Screenshots captured from the web UI with the model call stubbed — provenance, citations and retrieval diagnostics in them are read from the real index. | Committed to `claude/itcc-2026-deck` | `docs/presentations/ITCC-2026-Source-Grounded-Research-Assistant.pptx`, `docs/presentations/ITCC-2026-speaker-notes.md`, `README.md` |
 
 ## Companion: Work Brain template
 
