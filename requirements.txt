@@ -1,0 +1,14 @@
+# Runtime dependencies — what the query path and the web UI need.
+#
+# ingest.py additionally needs `pymupdf` and `tiktoken`. They are deliberately
+# absent here: the index is committed to the repository, so a deployed
+# container never re-ingests, and leaving them out keeps the image small.
+#
+# Pinned to the versions this deployment was written against. To move them,
+# bump here and rebuild — never let a container resolve versions at run time.
+
+anthropic==0.121.0
+numpy==2.4.6
+openai==3.0.0
+python-dotenv==1.2.2
+streamlit==1.61.1
