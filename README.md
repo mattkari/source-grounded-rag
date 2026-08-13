@@ -3,8 +3,9 @@
 A research prototype investigating whether Retrieval-Augmented Generation can support scholarly
 research and literature reviews while reducing — and helping researchers detect — AI-generated
 hallucination. The system is a **scholarly research assistant, not a general-purpose chatbot**: it
-answers questions using evidence retrieved from an authorised research collection (initially one
-doctoral thesis by Melih Sönmez and one selected academic article, English only), preserves
+answers questions using evidence retrieved from an authorised research collection (currently one
+doctoral thesis — Karimov (2017), *The Qur’anic Concept of Justice (al-ʿAdl) from a Nursian
+Perspective*, Durham — English only), preserves
 attribution and qualification, presents disagreement rather than resolving it, labels its own
 interpretation as interpretation, and provides citations traceable to a specific page. Its central
 commitment is **source-grounded refusal**: when the collection does not contain sufficient evidence,
@@ -23,10 +24,15 @@ All three entry points are on `main`: the single-question CLI (`ask.py`), the in
 (`main.py`) and the Streamlit web UI (`app.py`, merged in PR #1). The full Sprint 1–7 structure in
 `PLAN_V2.md` remains outstanding.
 
+The corpus is swappable: which document is indexed, and the measured layout constants needed to
+extract it, are a profile in `config.py` — see [`docs/decisions/`](docs/decisions/). A second
+calibrated corpus (Leung (2019), *Who Will Govern Artificial Intelligence?*) is kept on
+`feature/swap-corpus-leung` as a working fallback.
+
 **Command reference:**
 
 ```bash
-python ingest.py                                  # build index/ from data/thesis.pdf (run once)
+python ingest.py                                  # build index/ from the configured PDF (run once)
 streamlit run app.py                              # web chat UI (conference demo)
 python main.py                                    # interactive question loop
 python ask.py "<question>"                        # single question
@@ -76,11 +82,12 @@ prompts, logs or run records.
 python ingest.py
 ```
 
-Reads `data/thesis.pdf`, writes the canonical per-page extraction to `data/canonical/` and the index
-to `index/` (`vectors.npy`, `chunks.json`, `manifest.json`). It prints what it found — pages,
-chapter runs, section segments, chunk count — and flags any page whose printed number could not be
-resolved rather than guessing it. Embedding is batched (64 chunks per API call), so this is the one
-step that takes a noticeable while; the reference run is 320 pages → 249 chunks.
+Reads the PDF named by `pdf_path` in `config.py`, writes the canonical per-page extraction to
+`data/canonical/` and the index to `index/` (`vectors.npy`, `chunks.json`, `manifest.json`). It
+prints what it found — pages, chapters, section segments, chunk count — and flags any page whose
+printed number could not be resolved rather than guessing it. Embedding is batched (64 chunks per
+API call), so this is the one step that takes a noticeable while; the current run is 288 pages →
+266 chunks.
 
 Run this once. Re-run it only after changing the PDF, the chunking parameters or the embedding
 model — the query entry points refuse to start if the index was built with a different embedding

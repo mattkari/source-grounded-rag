@@ -33,41 +33,44 @@ ROOT = Path(__file__).resolve().parent
 @dataclass(frozen=True)
 class Settings:
     # --- paths -------------------------------------------------------------
-    pdf_path: Path = ROOT / "data" / "leung-2019-ai-governance.pdf"
+    pdf_path: Path = ROOT / "data" / "karimov-2017-quranic-justice.pdf"
     index_dir: Path = ROOT / "index"
     canonical_dir: Path = ROOT / "data" / "canonical"
     prompt_path: Path = ROOT / "prompts" / "system_grounded_v1.md"
 
     # --- document identity (from the title page, not inferred) -------------
-    document_id: str = "leung-2019-ai-governance"
-    document_author: str = "Leung, J."
-    document_year: str = "2019"
+    # Taken from the title page, not from the PDF metadata: that metadata
+    # names a second author inherited from the template it was written in,
+    # and an unverified field is not identity (hard rule 6).
+    document_id: str = "karimov-2017-quranic-justice"
+    document_author: str = "Karimov, D."
+    document_year: str = "2017"
     document_title: str = (
-        "Who Will Govern Artificial Intelligence? Learning from the History "
-        "of Strategic Politics in Emerging Technologies"
+        "The Qur’anic Concept of Justice (al-ʿAdl) from a Nursian Perspective"
     )
-    document_short_title: str = "Leung (2019), Who Will Govern AI? thesis"
+    document_short_title: str = "Karimov (2017), Qur’anic Concept of Justice thesis"
 
     # --- layout profile — MEASURED from this PDF, never guessed -------------
-    # Body text is 12.0pt Garamond. Footnotes are 10.0pt and carry ~22% of the
-    # document's characters; filtering at 11pt drops the whole footnote
-    # apparatus, which is what keeps reference lists out of quotable evidence.
+    # Body text is 12.0pt TimesNewRomanPSMT. Block quotations — the Qur’anic
+    # passages the whole argument is built on — are 11.0pt and indented, so
+    # the threshold sits at 11.0 to keep them. The footnote apparatus is
+    # 9-10pt and its reference markers 7pt, all of which this drops.
     body_min_size: float = 11.0
 
-    # This thesis prints NO running header — there is no text above y=60 on any
-    # page. The band is kept (and stays empty) so that a document which does
-    # print one still records it as provenance.
+    # Running headers print the chapter title at y=36; body text starts at
+    # y=71 at the earliest.
     header_band_y: float = 60.0
 
-    # Printed page numbers sit at y0=780; the highest genuine body block starts
-    # at y0=755. 770 separates them. Getting this wrong costs every citation:
-    # at 780 the number is read as body text and no page resolves at all.
+    # Printed page numbers sit at y0=794. The lowest-starting genuine block is
+    # a footnote at y0=757. Getting this wrong costs every citation its page.
     footnote_band_y: float = 770.0
 
-    # Heading scale, measured: 24pt = chapter, 16pt = section, 14pt bold =
-    # subsection, 12pt bold = sub-subsection.
+    # Heading scale, measured: 16pt bold = chapter title, 14pt bold = the
+    # "Chapter N" line, 12pt bold = numbered section headings. The 12pt
+    # headings are below heading_min_size, so the bold face is what
+    # distinguishes them from body text.
     heading_min_size: float = 13.0
-    heading_fonts: tuple[str, ...] = ("Garamond-Bold",)
+    heading_fonts: tuple[str, ...] = ("TimesNewRomanPS-BoldMT",)
     chapter_heading_min_size: float = 20.0
     section_heading_min_size: float = 15.0
 
@@ -75,14 +78,16 @@ class Settings:
     #   "heading"        — chapter titles printed at chapter_heading_min_size
     #   "running_header" — the header printed on every page
     # Both read structure the document itself prints; neither infers one.
-    chapter_source: str = "heading"
+    # This thesis prints the chapter title as a running header on every page,
+    # which is the stronger signal: it is stored provenance, not inference.
+    chapter_source: str = "running_header"
 
     # Chapters excluded from the evidence index. Reference apparatus is not a
-    # source claim (hard rule 5), and a 64-page bibliography would otherwise
+    # source claim (hard rule 5), and a 20-page bibliography would otherwise
     # surface reference lists as quotable evidence. Excluded pages are still
     # extracted into the canonical record and are listed in the manifest —
     # dropped from evidence, never silently discarded.
-    excluded_chapter_prefixes: tuple[str, ...] = ("Appendix B",)
+    excluded_chapter_prefixes: tuple[str, ...] = ("Bibliography",)
 
     # --- embedding role ----------------------------------------------------
     # "openai" (hosted) or "local" (sentence-transformers, offline).
