@@ -19,66 +19,184 @@ scholar's thesis, articles, books, or policy documents without rewriting the cor
 
 **Status:** Demo vertical slice implemented and running end to end — PDF ingestion, chunking with
 page-accurate provenance, embeddings, brute-force retrieval, and grounded generation with refusal.
-An interactive CLI (`main.py`) is implemented and on `main`; a Streamlit web UI (`app.py`) for the
-conference demo is on `claude/streamlit-web-ui-eyheeg`. The full Sprint 1–7 structure in
+All three entry points are on `main`: the single-question CLI (`ask.py`), the interactive CLI
+(`main.py`) and the Streamlit web UI (`app.py`, merged in PR #1). The full Sprint 1–7 structure in
 `PLAN_V2.md` remains outstanding.
 
-**Commands:**
+**Command reference:**
 
 ```bash
-python ingest.py                      # build index/ from data/thesis.pdf
-python ask.py "<question>"            # single question
+python ingest.py                                  # build index/ from data/thesis.pdf (run once)
+streamlit run app.py                              # web chat UI (conference demo)
+python main.py                                    # interactive question loop
+python ask.py "<question>"                        # single question
 python ask.py --verbose-provenance "<question>"   # + chunk ids and verbatim passages
-python main.py                        # interactive question loop
-streamlit run app.py                  # web chat UI (conference demo)
+python ask.py --json "<question>"                 # raw run record for evaluation
 ```
 
 `ask.py`, `main.py` and `app.py` are three shells over one pipeline — `ask.run_query()`. Retrieval,
 grounded generation, validation and citation resolution exist in exactly one place; the entry points
-differ only in how they present the result.
+differ only in how they present the result. The same question therefore produces the same retrieval
+diagnostics and the same sufficiency verdict in all three, whatever the surface.
 
-## Running the web interface
+---
 
-A minimal Streamlit chat UI for demonstrating the assistant to a non-technical audience. It runs
-locally on the presenter's machine: no authentication, no deployment configuration, and no
-persistence beyond the browser session.
+## Getting started
 
-**Prerequisites** — the index must already be built (`python ingest.py`), and both model roles need
-credentials in the environment, since the UI embeds the question and calls the generation model on
-every turn:
+Steps 1–3 are needed once, whichever interface you intend to use.
+
+### 1. Install the dependencies
 
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install streamlit anthropic openai numpy python-dotenv
+pip install streamlit anthropic openai numpy python-dotenv pymupdf tiktoken
 ```
 
+Python 3.11+. `pymupdf` and `tiktoken` are used by ingestion only; the three query entry points need
+the rest.
+
+### 2. Provide credentials
+
+Two independent model roles, so two keys. Put them in a `.env` file at the repository root (never
+committed) or export them in the shell:
+
 ```bash
-# .env (never committed) or exported in the shell
+# .env
 OPENAI_API_KEY=...        # embedding role — the index is built with text-embedding-3-large
 ANTHROPIC_API_KEY=...     # generation role
 ```
 
-**Start it:**
+Anthropic offers no embeddings endpoint, so the two roles necessarily use different vendors. Both
+keys are read at startup, from the environment only; nothing key-shaped is ever written to source,
+prompts, logs or run records.
+
+### 3. Build the index
+
+```bash
+python ingest.py
+```
+
+Reads `data/thesis.pdf`, writes the canonical per-page extraction to `data/canonical/` and the index
+to `index/` (`vectors.npy`, `chunks.json`, `manifest.json`). It prints what it found — pages,
+chapter runs, section segments, chunk count — and flags any page whose printed number could not be
+resolved rather than guessing it. Embedding is batched (64 chunks per API call), so this is the one
+step that takes a noticeable while; the reference run is 320 pages → 249 chunks.
+
+Run this once. Re-run it only after changing the PDF, the chunking parameters or the embedding
+model — the query entry points refuse to start if the index was built with a different embedding
+model than the one currently configured.
+
+### 4. Ask a question
+
+Pick whichever interface fits the audience: the web UI for a live demonstration, the interactive CLI
+for a working session, `ask.py` for a scripted or single question.
+
+---
+
+## Using the web chat UI (`app.py`)
+
+A minimal Streamlit chat interface for demonstrating the assistant to a non-technical audience. It
+runs locally on the presenter's machine: no authentication, no deployment configuration, and no
+persistence beyond the browser session.
+
+**Step 1 — check the prerequisites.** `index/` must exist (step 3 above) and both API keys must be
+in the environment (step 2). The UI embeds your question and calls the generation model on every
+turn, so it is not usable offline.
+
+**Step 2 — start the server.**
 
 ```bash
 streamlit run app.py                            # opens http://localhost:8501
-streamlit run app.py --server.port 8080         # if 8501 is taken
+streamlit run app.py --server.port 8080         # if 8501 is already taken
 streamlit run app.py --server.headless true     # start without opening a browser
 ```
 
-Stop the server with `Ctrl+C`. Conversation history lives in the browser session — reloading the
-page clears it. The index is loaded once per server process, so the first question is slower than
-the rest.
+Streamlit prints a Local URL and a Network URL. The Network URL works from another device on the
+same network — useful for driving the demo from a phone or a second laptop.
 
-**What the interface shows.** The answer renders as ordinary prose with superscript reference
-markers and a `Sources:` line resolved to printed page numbers from stored provenance. Full
-chapter/section/page citations sit behind *Show full citation details*. When the collection lacks
-evidence the assistant refuses in a plain, non-alarming notice — a refusal is correct behaviour, not
-a failure. Passages that are the assistant's own inference rather than the author's stated position
-appear in a separate, labelled *AI interpretation* callout. Retrieval similarity scores are
-diagnostics, never a confidence measure, and are collapsed into *Technical details (for
-evaluators)*. Provider, network and validation failures are reported in plain language, with the
-technical detail one click away rather than as a traceback.
+**Step 3 — confirm the collection loaded.** The page header shows the document short title and the
+number of indexed passages (`Sönmez (2014), Transparency Law thesis — 249 indexed passages`). If the
+index is missing or was built with a different embedding model you get a plain notice saying no
+questions can be answered yet, with the technical reason under *Technical details (for evaluators)*.
+Fix the index, then reload the page.
+
+**Step 4 — ask.** Type into the chat box at the bottom and press Enter. The first question is slower
+than the rest — the index is loaded once per server process and cached, not once per question. A
+typical grounded answer takes a few tens of seconds, most of it generation.
+
+**Step 5 — read the answer.** The default view carries the answer and its sources; the technical
+material is one click away rather than hidden:
+
+- **The answer** renders as ordinary prose with superscript reference markers, followed by a
+  `Sources:` line resolved to printed page numbers (`Sources: [1] pp. 22–24, [2] pp. 269–271`).
+  Every page number comes from stored provenance — the generation model never emits one.
+- **Show full citation details** expands each reference to author, year, chapter, section and pages.
+- **Limits of this answer** and **Not covered by the collection** state what the retrieved evidence
+  does and does not support.
+- **AI interpretation** appears as a separate labelled callout when the assistant draws its own
+  inference. That is the assistant reasoning, not the author's published position, and it is marked
+  as such rather than blended into the prose.
+- **A refusal** appears as a plain, non-alarming notice when the collection lacks sufficient
+  evidence. This is correct behaviour, not a failure — and it is phrased as a statement about the
+  collection, not about the world. Worth demonstrating deliberately: ask something the thesis does
+  not cover.
+- **Technical details (for evaluators)** holds the retrieval table (evidence handle, similarity
+  score, pages, chapter/section), the evidence-sufficiency verdict, the generation model, the prompt
+  hash and the passage count. Similarity scores are diagnostics; they are never a confidence
+  measure, and never the sole basis for a refusal.
+- **A validation failure** is reported in plain language above the technical section, with the
+  specific failed checks listed inside it. Provider, authentication and network errors are reported
+  the same way — a short sentence, with the exception text one click away rather than a traceback.
+
+**Step 6 — stop the server** with `Ctrl+C`. Conversation history lives in the browser session, so
+reloading the page clears it; that is the quickest way to start a demo from a clean slate.
+
+## Using the interactive CLI (`main.py`)
+
+A question loop over the same pipeline, for a working session rather than a presentation.
+
+```bash
+python main.py                              # start the session
+python main.py --verbose-provenance         # start with chunk ids and verbatim passages shown
+python main.py -k 8                         # retrieve 8 passages per question instead of 5
+```
+
+The banner confirms the collection, passage count, embedding model and vector dimension. Then type a
+question at the `>` prompt. In-session commands:
+
+| Input | Effect |
+|---|---|
+| `help`, `?`, `\h` | list the commands |
+| `verbose` | toggle chunk ids and verbatim passages under each footnote |
+| `exit`, `quit`, `q`, `:q`, `\q` | end the session |
+| anything else | treated as a question against the collection |
+
+`Ctrl+C` cancels the question in flight, `Ctrl+D` ends the session — both cleanly, without a stack
+trace. The index is loaded once for the whole session, so only the first question pays that cost.
+On exit the session reports how many questions were asked.
+
+## Asking a single question (`ask.py`)
+
+For scripted use, evaluation runs and quick checks.
+
+```bash
+python ask.py "What does the thesis say about the role of transparency in corporate governance?"
+python ask.py --verbose-provenance "<question>"   # chunk ids + verbatim passages under each footnote
+python ask.py -k 8 "<question>"                   # retrieve 8 passages instead of the default 5
+python ask.py --json "<question>"                 # raw run record instead of prose
+```
+
+The default output is the rendered answer with numbered footnotes resolving to chapter, section and
+printed pages. `--verbose-provenance` adds the chunk id and the verbatim retrieved passage under
+each footnote — use it when you need to check an answer against the source by eye.
+
+`--json` emits the full run record: question, generation model, embedding model, prompt hash, corpus
+text hash, every retrieved handle with its chunk id and score, the structured result and any
+validation failures. That is the form to keep as evidence of a run.
+
+**Exit codes:** `0` when the answer passed validation, `1` when it did not. A validation failure is
+a recorded research result, never a silent retry — the failed checks are printed under a
+`VALIDATION FAILED` banner, and the answer is not certified as source-grounded.
 
 ## Task Log
 
