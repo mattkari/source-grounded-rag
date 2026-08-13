@@ -28,17 +28,16 @@ import tiktoken
 from config import settings
 from embeddings import active_model_name, embed_texts
 
-# --- layout constants, measured from this document ------------------------
-# Body text is 12.0pt TimesNewRomanPSMT. Running headers and footnotes are
-# 9.8pt / 6.5pt; inline footnote reference markers are 7.9pt superscripts.
-# Filtering at 11pt drops all three, which is what keeps footnote apparatus
-# out of quotable evidence.
-BODY_MIN_SIZE = 11.0
-HEADER_BAND_Y = 60.0     # above this: running header
-FOOTNOTE_BAND_Y = 780.0  # below this: page-number footer
-HEADING_FONTS = ("Calibri-Bold", "Calibri-BoldItalic", "TimesNewRomanPS-BoldItal")
-HEADING_MIN_SIZE = 13.0  # any span this large is a heading regardless of font
-CAPTION_PREFIXES = ("Table ", "Figure ", "Chart ", "Diagram ")
+# --- layout ---------------------------------------------------------------
+# The measured, document-specific values (type sizes, band positions, which
+# printed feature carries the chapter) live in the layout profile in
+# config.py, so that changing the corpus is a settings change plus a
+# measurement run rather than a code edit. Only document-independent values
+# are constants here.
+# A caption is a label followed by a number ("Table 6.3-1: ..."). Matching on
+# the bare word instead would also swallow real headings such as "Table of
+# contents", costing that page its chapter.
+CAPTION_RE = re.compile(r"^(Table|Figure|Chart|Diagram)\s+\d")
 
 ROMAN_RE = re.compile(r"^[ivxlcdm]+$")
 ARABIC_RE = re.compile(r"^\d{1,4}$")
@@ -75,9 +74,16 @@ class Page:
 def _is_heading_span(span: dict) -> bool:
     size = round(span["size"], 1)
     font = span["font"]
-    if size >= HEADING_MIN_SIZE:
+    if size >= settings.heading_min_size:
         return True
-    return size >= 12.0 and font.startswith(HEADING_FONTS)
+    return size >= 12.0 and font.startswith(settings.heading_fonts)
+
+
+def _heading_level(size: float) -> int:
+    """1 = chapter, 2 = section, 3 = anything finer. Thresholds are measured."""
+    if size >= settings.chapter_heading_min_size:
+        return 1
+    return 2 if size >= settings.section_heading_min_size else 3
 
 
 def extract_page(page: pymupdf.Page, pdf_page: int) -> Page:
@@ -97,18 +103,18 @@ def extract_page(page: pymupdf.Page, pdf_page: int) -> Page:
         if not spans:
             continue
 
-        if y_top < HEADER_BAND_Y:
+        if y_top < settings.header_band_y:
             header_parts.append(normalise("".join(s["text"] for s in spans)))
             continue
 
-        if y_top > FOOTNOTE_BAND_Y:
+        if y_top > settings.footnote_band_y:
             for span in spans:
                 token = normalise(span["text"]).lower()
                 if ARABIC_RE.match(token) or ROMAN_RE.match(token):
                     printed_page = normalise(span["text"])
             continue
 
-        body_spans = [s for s in spans if round(s["size"], 1) >= BODY_MIN_SIZE]
+        body_spans = [s for s in spans if round(s["size"], 1) >= settings.body_min_size]
         if not body_spans:
             continue  # footnote apparatus at the foot of the text column
 
@@ -124,16 +130,17 @@ def extract_page(page: pymupdf.Page, pdf_page: int) -> Page:
             lead += 1
         title = normalise(" ".join(s["text"] for s in body_spans[:lead]))
         pure_heading = lead == len(body_spans)
-        is_heading = (
-            lead > 0
-            and len(title) < 250
-            and not title.startswith(CAPTION_PREFIXES)
-        )
+        is_heading = lead > 0 and len(title) < 250 and not CAPTION_RE.match(title)
 
-        if is_heading and pure_heading and prev_was_heading and headings:
-            # Continuation line of the heading immediately above it.
-            offset, level, title = headings[-1]
-            headings[-1] = (offset, level, f"{title} {text}")
+        level = _heading_level(round(body_spans[0]["size"], 1)) if is_heading else None
+
+        # A continuation line of the heading above it — but only if it is set
+        # at the same level. A smaller heading directly under a larger one is
+        # a heading in its own right, and merging the two would fuse a chapter
+        # title with the section beneath it.
+        if is_heading and pure_heading and prev_was_heading and headings and headings[-1][1] == level:
+            offset, lvl, title = headings[-1]
+            headings[-1] = (offset, lvl, f"{title} {text}")
             body_parts.append(" " + text)
             length += len(text) + 1
             continue
@@ -142,8 +149,6 @@ def extract_page(page: pymupdf.Page, pdf_page: int) -> Page:
             body_parts.append("\n")
             length += 1
         if is_heading:
-            size = round(body_spans[0]["size"], 1)
-            level = 1 if size >= 15 else (2 if size >= 13 else 3)
             headings.append((length, level, title))
         body_parts.append(text)
         length += len(text)
@@ -176,36 +181,80 @@ class Segment:
     pagemap: list[tuple[int, int, Page]]  # (char_start, char_end, page)
 
 
-def build_segments(pages: list[Page]) -> list[Segment]:
-    segments: list[Segment] = []
+Slice = tuple[Page, int, int]  # (page, char_start, char_end) into page.body
 
-    # A chapter run is a maximal span of consecutive pages printing the same
-    # running header. The header is printed by the document, so it is stored
-    # provenance, not inference.
-    runs: list[list[Page]] = []
+
+def chapter_runs(pages: list[Page]) -> list[tuple[str | None, list[Slice]]]:
+    """Group page slices into chapter runs, per the configured chapter source.
+
+    Both sources read structure the document itself prints; neither infers a
+    chapter that is not there (hard rule 6).
+
+      "running_header" — a run is a maximal span of consecutive pages printing
+                         the same header.
+      "heading"        — a run starts at a chapter-level printed heading. A
+                         chapter opening part-way down a page splits that page,
+                         so a run never contains text from two chapters.
+
+    Returning slices rather than whole pages is what keeps hard rule 8 exact:
+    chunks are built inside a run, so no chunk can cross a chapter boundary.
+    """
+    runs: list[tuple[str | None, list[Slice]]] = []
+
+    def add(chapter: str | None, piece: Slice) -> None:
+        if runs and runs[-1][0] == chapter:
+            runs[-1][1].append(piece)
+        else:
+            runs.append((chapter, [piece]))
+
+    if settings.chapter_source == "running_header":
+        for page in pages:
+            if page.body.strip():
+                add(page.running_header, (page, 0, len(page.body)))
+        return runs
+
+    if settings.chapter_source != "heading":
+        raise RuntimeError(f"Unknown chapter_source: {settings.chapter_source!r}")
+
+    chapter: str | None = None  # front matter before the first chapter heading
     for page in pages:
         if not page.body.strip():
             continue
-        if runs and runs[-1][-1].running_header == page.running_header:
-            runs[-1].append(page)
-        else:
-            runs.append([page])
+        opens = {off: title for off, lvl, title in page.headings if lvl == 1}
+        cuts = sorted({0, *opens, len(page.body)})
+        for lo, hi in zip(cuts, cuts[1:]):
+            if lo in opens:
+                chapter = opens[lo]
+            if page.body[lo:hi].strip():
+                add(chapter, (page, lo, hi))
+    return runs
 
-    for run in runs:
-        chapter = run[0].running_header
+
+def build_segments(pages: list[Page]) -> list[Segment]:
+    segments: list[Segment] = []
+
+    # When the chapter comes from a heading, that heading is the chapter — it
+    # must not also be recorded as the section beneath itself.
+    min_section_level = 2 if settings.chapter_source == "heading" else 1
+
+    for chapter, slices in chapter_runs(pages):
         text_parts: list[str] = []
         pagemap: list[tuple[int, int, Page]] = []
         heads: list[tuple[int, int, str]] = []
         cursor = 0
-        for page in run:
+        for page, lo, hi in slices:
             if text_parts:
                 text_parts.append("\n")
                 cursor += 1
             start = cursor
-            text_parts.append(page.body)
-            cursor += len(page.body)
+            text_parts.append(page.body[lo:hi])
+            cursor += hi - lo
             pagemap.append((start, cursor, page))
-            heads.extend((start + off, lvl, title) for off, lvl, title in page.headings)
+            heads.extend(
+                (start + off - lo, lvl, title)
+                for off, lvl, title in page.headings
+                if lo <= off < hi and lvl >= min_section_level
+            )
 
         text = "".join(text_parts)
         bounds = sorted({0, *(off for off, _, _ in heads), len(text)})
@@ -287,6 +336,25 @@ def pages_for(seg: Segment, lo: int, hi: int) -> list[Page]:
 # ---------------------------------------------------------------------------
 
 
+def is_excluded(chapter: str | None) -> bool:
+    """Reference apparatus is not a source claim (hard rule 5).
+
+    Excluded chapters are still extracted into the canonical record and are
+    listed in the manifest — dropped from evidence, never silently discarded.
+    """
+    return bool(chapter) and chapter.startswith(settings.excluded_chapter_prefixes)
+
+
+def partition(segments: list[Segment]) -> tuple[list[Segment], list[Segment]]:
+    kept = [s for s in segments if not is_excluded(s.chapter)]
+    return kept, [s for s in segments if is_excluded(s.chapter)]
+
+
+def page_span(segments: list[Segment]) -> tuple[int, int] | tuple[None, None]:
+    covered = [p.pdf_page for s in segments for _, _, p in s.pagemap]
+    return (min(covered), max(covered)) if covered else (None, None)
+
+
 def build_chunks(segments: list[Segment]) -> list[dict]:
     records: list[dict] = []
     for seg in segments:
@@ -349,6 +417,17 @@ def main() -> int:
     with_body = [p for p in pages if p.body.strip()]
     unresolved_pages = [p.pdf_page for p in with_body if p.printed_page is None]
 
+    # A page carrying text that yielded no body is a known gap, not a blank
+    # page: its text sits below body_min_size — typically a full-page table,
+    # set at the same size as the footnote apparatus and so inseparable from
+    # it by size alone. Recorded for human verification (hard rules 6 and 9).
+    raw = pymupdf.open(settings.pdf_path)
+    text_but_no_body = [
+        p.pdf_page
+        for p in pages
+        if not p.body.strip() and raw[p.pdf_page - 1].get_text().strip()
+    ]
+
     settings.canonical_dir.mkdir(parents=True, exist_ok=True)
     canonical = settings.canonical_dir / "pages.jsonl"
     with canonical.open("w", encoding="utf-8") as fh:
@@ -366,17 +445,40 @@ def main() -> int:
                 + "\n"
             )
 
-    segments = build_segments(pages)
+    all_segments = build_segments(pages)
+    segments, dropped = partition(all_segments)
     records = build_chunks(segments)
     chapters = sorted({s.chapter for s in segments if s.chapter})
+
+    excluded = []
+    for chapter in sorted({s.chapter for s in dropped if s.chapter}):
+        start, end = page_span([s for s in dropped if s.chapter == chapter])
+        excluded.append(
+            {
+                "chapter": chapter,
+                "pdf_page_start": start,
+                "pdf_page_end": end,
+                "reason": "excluded_chapter_prefix — reference apparatus, not a source claim",
+            }
+        )
 
     print(f"  pages in PDF          : {len(pages)}")
     print(f"  pages with body text  : {len(with_body)}")
     print(f"  pages w/o printed no. : {len(unresolved_pages)} (flagged, never guessed)")
-    print(f"  chapter runs (headers): {len(chapters)}")
+    if text_but_no_body:
+        print(f"  text but no body text : {len(text_but_no_body)} -> pdf pp. {text_but_no_body}")
+        print( "                          (below body_min_size — full-page tables; VERIFY)")
+    print(f"  chapters ({settings.chapter_source:<14}): {len(chapters)}")
+    for chapter in chapters:
+        print(f"      · {chapter[:66]}")
     print(f"  section segments      : {len(segments)}")
     print(f"  chunks                : {len(records)}")
     print(f"  canonical extraction  : {canonical}")
+    for item in excluded:
+        print(
+            f"  EXCLUDED from evidence: {item['chapter'][:44]!r} "
+            f"(pdf pp. {item['pdf_page_start']}–{item['pdf_page_end']}) — still extracted"
+        )
 
     print(f"Embedding with {settings.embedding_provider}:{active_model_name()} ...")
     vectors = embed_all(records)
@@ -400,6 +502,10 @@ def main() -> int:
                 "pages_total": len(pages),
                 "pages_with_text": len(with_body),
                 "pages_without_printed_number": unresolved_pages,
+                "pages_with_text_but_no_body": text_but_no_body,
+                "chapter_source": settings.chapter_source,
+                "chapters": chapters,
+                "excluded_from_evidence": excluded,
                 "chunk_count": len(records),
                 "embedding_provider": settings.embedding_provider,
                 "embedding_model": active_model_name(),
