@@ -36,7 +36,7 @@ class Settings:
     pdf_path: Path = ROOT / "data" / "karimov-2017-quranic-justice.pdf"
     index_dir: Path = ROOT / "index"
     canonical_dir: Path = ROOT / "data" / "canonical"
-    prompt_path: Path = ROOT / "prompts" / "system_grounded_v1.md"
+    prompt_path: Path = ROOT / "prompts" / "system_grounded_v2.md"
 
     # --- document identity (from the title page, not inferred) -------------
     # Taken from the title page, not from the PDF metadata: that metadata
@@ -82,12 +82,14 @@ class Settings:
     # which is the stronger signal: it is stored provenance, not inference.
     chapter_source: str = "running_header"
 
-    # Chapters excluded from the evidence index. Reference apparatus is not a
-    # source claim (hard rule 5), and a 20-page bibliography would otherwise
-    # surface reference lists as quotable evidence. Excluded pages are still
-    # extracted into the canonical record and are listed in the manifest —
-    # dropped from evidence, never silently discarded.
-    excluded_chapter_prefixes: tuple[str, ...] = ("Bibliography",)
+    # Chapters indexed as reference APPARATUS rather than as source claims.
+    # A bibliography entry asserts nothing about the thesis's subject: it can
+    # support "the thesis cites this work" and nothing else. Tagging rather
+    # than excluding keeps bibliographic questions answerable while stopping a
+    # cited title from being read as a claim the author made (hard rule 5).
+    # The tag reaches the model in the evidence block and the reader in the
+    # citation, so neither can mistake a reference list for an argument.
+    apparatus_chapter_prefixes: tuple[str, ...] = ("Bibliography",)
 
     # --- embedding role ----------------------------------------------------
     # "openai" (hosted) or "local" (sentence-transformers, offline).

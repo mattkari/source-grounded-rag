@@ -100,11 +100,16 @@ def marked(text: str, order: dict[str, int]) -> str:
 
 
 def sources_line(order: dict[str, int], items: list[ask.EvidenceItem]) -> str:
-    """"Sources: [1] pp. 88–89, [2] p. 86" — pages from provenance, never invented."""
+    """"Sources: [1] pp. 88–89, [2] p. 86" — pages from provenance, never invented.
+
+    A reference-list source is marked here too, not only in the full citation:
+    the short line is the one a reader actually reads.
+    """
     parts = []
     for handle, n in sorted(order.items(), key=lambda kv: kv[1]):
         item = next(i for i in items if i.handle == handle)
-        parts.append(f"**[{n}]** {ask.page_phrase(item.chunk)}")
+        tag = " *(reference list)*" if ask.is_apparatus(item.chunk) else ""
+        parts.append(f"**[{n}]** {ask.page_phrase(item.chunk)}{tag}")
     return "Sources: " + ", ".join(parts)
 
 

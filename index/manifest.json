@@ -16,6 +16,7 @@
   "Abstract",
   "Acknowledgment",
   "Appendix",
+  "Bibliography",
   "Conclusion",
   "Declaration and Copyrights",
   "Glossary",
@@ -30,20 +31,23 @@
   "The Concept of al-\u02bfadl in creation according to Said Nursi: Justice as Balance and Order",
   "Transliteration"
  ],
- "excluded_from_evidence": [
+ "apparatus_chapters": [
   {
    "chapter": "Bibliography",
    "pdf_page_start": 262,
    "pdf_page_end": 281,
-   "reason": "excluded_chapter_prefix \u2014 reference apparatus, not a source claim"
+   "chunk_count": 28,
+   "note": "indexed as reference apparatus \u2014 supports bibliographic claims only"
   }
  ],
- "chunk_count": 266,
+ "chunk_count": 294,
+ "chunk_count_source": 266,
+ "chunk_count_apparatus": 28,
  "embedding_provider": "openai",
  "embedding_model": "text-embedding-3-large",
  "embedding_dim": 3072,
  "normalised": true,
  "chunk_target_tokens": 700,
  "chunk_overlap_tokens": 100,
- "corpus_text_sha256": "e95e74458656331baffe1931051d835372a363471963f220c1bfa0744d37b972"
+ "corpus_text_sha256": "2a2152cb5d5818e8557ed39663f5be42ac7d6ef7c81526a0054262e2fe519b55"
 }

@@ -2,6 +2,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00000::deec13742e43",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": null,
   "section": "“The Qur’anic concept of Justice ( al-ʿAdl ) from a Nursian perspective”",
   "page_start": null,
@@ -17,6 +18,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00001::b7fdee59698e",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Abstract",
   "section": "ABSTRACT",
   "page_start": "i",
@@ -30,6 +32,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00002::b9ce8fb1cfbf",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Abstract",
   "section": "ABSTRACT",
   "page_start": "ii",
@@ -43,6 +46,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00003::9b4f14328224",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Table of Contents",
   "section": "Table of Contents",
   "page_start": "iii",
@@ -56,6 +60,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00004::0676b8caa77e",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Table of Contents",
   "section": "Table of Contents",
   "page_start": "v",
@@ -69,6 +74,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00005::f9cbadfbf789",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Transliteration",
   "section": "Transliteration",
   "page_start": "ix",
@@ -82,6 +88,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00006::9e881e2b9875",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Transliteration",
   "section": "ا",
   "page_start": "ix",
@@ -95,6 +102,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00007::58359a8572f8",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Declaration and Copyrights",
   "section": "Declaration",
   "page_start": "x",
@@ -108,6 +116,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00008::6113ff14cdfa",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Glossary",
   "section": "Glossary",
   "page_start": "xi",
@@ -121,6 +130,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00009::6963b97b3414",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Glossary",
   "section": "Glossary",
   "page_start": "xiv",
@@ -134,6 +144,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00010::6432eda82538",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Glossary",
   "section": "Glossary",
   "page_start": "xiv",
@@ -147,6 +158,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00011::82de36acf553",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Glossary",
   "section": "Glossary",
   "page_start": "xvii",
@@ -160,6 +172,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00012::f3ba81f27b60",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Glossary",
   "section": "Glossary",
   "page_start": "xviii",
@@ -173,6 +186,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00013::8ce3d5071b96",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Acknowledgment",
   "section": "Acknowledgment",
   "page_start": "xxi",
@@ -186,6 +200,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00014::5b7c168aec05",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Introduction",
   "page_start": "1",
@@ -199,6 +214,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00015::e98bb0b625cb",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Introduction",
   "page_start": "2",
@@ -212,6 +228,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00016::7ca0e6ed0134",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Introduction",
   "page_start": "3",
@@ -225,6 +242,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00017::90e49163a0a9",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Introduction",
   "page_start": "4",
@@ -238,6 +256,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00018::ccdcaa0a3c61",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Introduction",
   "page_start": "5",
@@ -251,6 +270,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00019::4c6e5da11aae",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "AIMS, OBJECTIVES, AND RESEARCH QUESTIONS",
   "page_start": "6",
@@ -264,6 +284,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00020::b48de3005c58",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "AIMS, OBJECTIVES, AND RESEARCH QUESTIONS",
   "page_start": "7",
@@ -277,6 +298,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00021::0bf99d7ef71d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "AIMS, OBJECTIVES, AND RESEARCH QUESTIONS",
   "page_start": "8",
@@ -290,6 +312,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00022::30eb06018d9a",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "NOTES ON SOURCES",
   "page_start": "8",
@@ -303,6 +326,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00023::b8ae0317f63d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "METHODOLOGY",
   "page_start": "9",
@@ -316,6 +340,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00024::7366b493e672",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "10",
@@ -329,6 +354,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00025::30ed6c5e3da4",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "11",
@@ -342,6 +368,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00026::22dd1b1d6cb5",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "12",
@@ -355,6 +382,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00027::4e58dd50096c",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "13",
@@ -368,6 +396,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00028::8790e9ac8daf",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "14",
@@ -381,6 +410,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00029::60c32d159b09",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "15",
@@ -394,6 +424,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00030::3fae84d09ccb",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "16",
@@ -407,6 +438,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00031::34965dd04b40",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "18",
@@ -420,6 +452,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00032::f37a689d5bac",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "19",
@@ -433,6 +466,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00033::cb2e7625bdec",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "20",
@@ -446,6 +480,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00034::79e8a19f98da",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "21",
@@ -459,6 +494,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00035::6f68464850de",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "22",
@@ -472,6 +508,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00036::63a4f055e3ad",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "Semantics of the Qur’ān: Izutsu’s method",
   "page_start": "23",
@@ -485,6 +522,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00037::82a2875b651b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "OVERVIEW OF THE RESEARCH",
   "page_start": "24",
@@ -498,6 +536,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00038::6ff5b4e6bca2",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Introduction",
   "section": "OVERVIEW OF THE RESEARCH",
   "page_start": "25",
@@ -511,6 +550,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00039::0a2ef0620acb",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.1 INTRODUCTION",
   "page_start": "26",
@@ -524,6 +564,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00040::6ecc831d4625",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.1 INTRODUCTION",
   "page_start": "27",
@@ -537,6 +578,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00041::6f9a3109012e",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.1 INTRODUCTION",
   "page_start": "27",
@@ -550,6 +592,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00042::69011883ffb3",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.2 LEXICAL MEANING OF AL-ʿADL (JUSTICE) AS PORTRAYED IN THE QUR’ĀN",
   "page_start": "28",
@@ -563,6 +606,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00043::fbfb68d33686",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.2 LEXICAL MEANING OF AL-ʿADL (JUSTICE) AS PORTRAYED IN THE QUR’ĀN",
   "page_start": "29",
@@ -576,6 +620,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00044::b745a1b9fceb",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.2 LEXICAL MEANING OF AL-ʿADL (JUSTICE) AS PORTRAYED IN THE QUR’ĀN",
   "page_start": "29",
@@ -589,6 +634,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00045::f23c08e73524",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.2 LEXICAL MEANING OF AL-ʿADL (JUSTICE) AS PORTRAYED IN THE QUR’ĀN",
   "page_start": "30",
@@ -602,6 +648,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00046::c92e4a7a6ea5",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.2 LEXICAL MEANING OF AL-ʿADL (JUSTICE) AS PORTRAYED IN THE QUR’ĀN",
   "page_start": "31",
@@ -615,6 +662,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00047::eaa26887917f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.3 AL-ʿADL IN JĀHILĪ POETRY",
   "page_start": "32",
@@ -628,6 +676,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00048::8f58e3a5aa3d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.3 AL-ʿADL IN JĀHILĪ POETRY",
   "page_start": "33",
@@ -641,6 +690,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00049::c2a68c868a21",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4 INNER STRUCTURE OF THE CONCEPT OF AL-ʿADL",
   "page_start": "33",
@@ -654,6 +704,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00050::5bc18b5c16db",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.1 ʿA-d-l as ransom and compensation (al-Baqarah 2:48, 123; al-An‘ām 6:70.)",
   "page_start": "33",
@@ -667,6 +718,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00051::4303e22cf777",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.1 ʿA-d-l as ransom and compensation (al-Baqarah 2:48, 123; al-An‘ām 6:70.)",
   "page_start": "34",
@@ -680,6 +732,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00052::3f29893c9411",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.2 ‘Adl as to act with equity and to observe justice and fairness.",
   "page_start": "35",
@@ -693,6 +746,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00053::58eda5b7fcd6",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.2 ‘Adl as to act with equity and to observe justice and fairness.",
   "page_start": "36",
@@ -706,6 +760,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00054::d520d72c0b59",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.2 ‘Adl as to act with equity and to observe justice and fairness.",
   "page_start": "37",
@@ -719,6 +774,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00055::cca37cd0c4cd",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.2 ‘Adl as to act with equity and to observe justice and fairness.",
   "page_start": "38",
@@ -732,6 +788,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00056::453d1dc8ab9f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.3 ‘Adl as “to swerve from the right path”",
   "page_start": "39",
@@ -745,6 +802,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00057::23f3894d55f2",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.3 ‘Adl as “to swerve from the right path”",
   "page_start": "40",
@@ -758,6 +816,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00058::ef790f05a3f8",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.4 ‘Adl as to equalize and to attribute partner to God",
   "page_start": "41",
@@ -771,6 +830,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00059::0a3eba48f1d0",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.4.4 ‘Adl as to equalize and to attribute partner to God",
   "page_start": "42",
@@ -786,6 +846,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00060::30fb302c7d49",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5 RELATIONAL MEANING OF AL-‘ADL: CONNECTED CONCEPTS TO ‘ADL",
   "page_start": "45",
@@ -799,6 +860,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00061::60f1d46cd4a6",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.1 Lexical meanings of Qist",
   "page_start": "46",
@@ -812,6 +874,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00062::f29b38d6e699",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.1 Lexical meanings of Qist",
   "page_start": "47",
@@ -825,6 +888,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00063::d7a6f40c29c7",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.1 Lexical meanings of Qist",
   "page_start": "48",
@@ -838,6 +902,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00064::16812d8bc44b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.2 Al-Qisṭ as a synonym of al-ʿAdl",
   "page_start": "49",
@@ -851,6 +916,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00065::6ace6475d258",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.2 Al-Qisṭ as a synonym of al-ʿAdl",
   "page_start": "50",
@@ -864,6 +930,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00066::cb2abff3c4a4",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.2 Al-Qisṭ as a synonym of al-ʿAdl",
   "page_start": "51",
@@ -877,6 +944,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00067::23ee53403ec7",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.2 Al-Qisṭ as a synonym of al-ʿAdl",
   "page_start": "52",
@@ -890,6 +958,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00068::9ee89388e120",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.2 Al-Qisṭ as a synonym of al-ʿAdl",
   "page_start": "53",
@@ -903,6 +972,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00069::da5a366bef09",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.2 Al-Qisṭ as a synonym of al-ʿAdl",
   "page_start": "55",
@@ -916,6 +986,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00070::a96e0610b354",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.2 Al-Qisṭ as a synonym of al-ʿAdl",
   "page_start": "56",
@@ -929,6 +1000,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00071::6479bcc12f45",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.2 Al-Qisṭ as a synonym of al-ʿAdl",
   "page_start": "57",
@@ -942,6 +1014,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00072::ba3385e3d50b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "59",
@@ -955,6 +1028,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00073::c032ba8a0188",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "59",
@@ -968,6 +1042,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00074::b145c4d69423",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "60",
@@ -981,6 +1056,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00075::7b83f0f5653a",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "61",
@@ -994,6 +1070,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00076::3e74ab5f4f82",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "63",
@@ -1007,6 +1084,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00077::84754bd4c8bf",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "64",
@@ -1020,6 +1098,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00078::8b13140e96fb",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "64",
@@ -1033,6 +1112,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00079::e96c37b2f625",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "65",
@@ -1046,6 +1126,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00080::626e5232fb37",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "66",
@@ -1059,6 +1140,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00081::785b9fe8576c",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "67",
@@ -1072,6 +1154,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00082::03113da37bd4",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.3 Al-ḥaqq, al-qist and al-ʿadl and their overlapping relationships",
   "page_start": "68",
@@ -1085,6 +1168,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00083::bace7c88d866",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "al-Ḥaqq al-ʿAdl al-Qisṭ",
   "page_start": "69",
@@ -1098,6 +1182,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00084::baadd37ea5a9",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.4 Al-mīzān",
   "page_start": "69",
@@ -1111,6 +1196,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00085::1823e467fa72",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.4 Al-mīzān",
   "page_start": "70",
@@ -1124,6 +1210,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00086::552f9c089f75",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.4 Al-mīzān",
   "page_start": "71",
@@ -1137,6 +1224,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00087::a07d272c4c4c",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.4 Al-mīzān",
   "page_start": "72",
@@ -1150,6 +1238,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00088::df8314f0c8ff",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.4 Al-mīzān",
   "page_start": "73",
@@ -1163,6 +1252,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00089::b70ed746baca",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.4 Al-mīzān",
   "page_start": "74",
@@ -1176,6 +1266,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00090::56d5cc35051d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.4 Al-mīzān",
   "page_start": "74",
@@ -1189,6 +1280,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00091::8a1f7b932206",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.4 Al-mīzān",
   "page_start": "75",
@@ -1202,6 +1294,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00092::ed7e58e4ef14",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.5 Al-Iḥsān",
   "page_start": "76",
@@ -1215,6 +1308,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00093::851361601a1a",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.6 Al-istiqāmah and al-qawām",
   "page_start": "77",
@@ -1228,6 +1322,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00094::d021e37fb340",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.6 Al-istiqāmah and al-qawām",
   "page_start": "78",
@@ -1241,6 +1336,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00095::2ab3e94a615e",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.5.7 Al-wasaṭ",
   "page_start": "78",
@@ -1254,6 +1350,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00096::9b6516363b0d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.6 RELATIONAL MEANING OF AL-ʿADL: SEMANTIC OPPOSITE CONCEPTS TO AL-ʿADL",
   "page_start": "79",
@@ -1267,6 +1364,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00097::fbb7eb95778e",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.6.1 Lexical opposite concepts to al-‘adl",
   "page_start": "80",
@@ -1280,6 +1378,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00098::9391af6d4fe5",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.6.1 Lexical opposite concepts to al-‘adl",
   "page_start": "80",
@@ -1293,6 +1392,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00099::4a96e52658fe",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.6.1 Lexical opposite concepts to al-‘adl",
   "page_start": "81",
@@ -1306,6 +1406,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00100::080ddcf07d93",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.6.1 Lexical opposite concepts to al-‘adl",
   "page_start": "82",
@@ -1319,6 +1420,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00101::895833934e7c",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.6.2 Semantic opposite concepts to the relational meanings of al-‘adl",
   "page_start": "83",
@@ -1332,6 +1434,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00102::efc49943e124",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.6.2 Semantic opposite concepts to the relational meanings of al-‘adl",
   "page_start": "84",
@@ -1345,6 +1448,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00103::50ba55d4f233",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.6.2 Semantic opposite concepts to the relational meanings of al-‘adl",
   "page_start": "85",
@@ -1358,6 +1462,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00104::750ea6cbd730",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.7 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "87",
@@ -1371,6 +1476,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00105::fb544c6bd0ad",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.7 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "88",
@@ -1384,6 +1490,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00106::3c1a05c78114",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) in the Qur’ān",
   "section": "1.7 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "89",
@@ -1397,6 +1504,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00107::f59154e1224b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.1 INTRODUCTION: HISTORICAL BACKGROUND",
   "page_start": "90",
@@ -1410,6 +1518,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00108::4fa5ffc96e99",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "90",
@@ -1423,6 +1532,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00109::58916f9cc555",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "91",
@@ -1436,6 +1546,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00110::48f6b31726c5",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "92",
@@ -1449,6 +1560,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00111::0d664e4ede51",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "93",
@@ -1462,6 +1574,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00112::12d850d59a9e",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "93",
@@ -1475,6 +1588,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00113::c0942ed87f8a",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "95",
@@ -1488,6 +1602,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00114::53156723c7d9",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "95",
@@ -1501,6 +1616,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00115::ca1b88759e9a",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "96",
@@ -1514,6 +1630,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00116::70263ab13278",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "97",
@@ -1527,6 +1644,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00117::b975f0bc6505",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "98",
@@ -1540,6 +1658,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00118::cdd91db1f5b6",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "99",
@@ -1553,6 +1672,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00119::39357c9c5937",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "100",
@@ -1566,6 +1686,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00120::d540b9af7fb8",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.2 THE OLD SAID",
   "page_start": "101",
@@ -1579,6 +1700,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00121::f6bcec24c987",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.3 THE PERIOD OF TRANSITION (1918-1925)",
   "page_start": "102",
@@ -1592,6 +1714,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00122::b9177da88827",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.3 THE PERIOD OF TRANSITION (1918-1925)",
   "page_start": "102",
@@ -1605,6 +1728,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00123::fe3021d2cd63",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.3 THE PERIOD OF TRANSITION (1918-1925)",
   "page_start": "103",
@@ -1618,6 +1742,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00124::5b602a995c99",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.4 THE NEW SAID",
   "page_start": "105",
@@ -1631,6 +1756,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00125::817c73884820",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.4 THE NEW SAID",
   "page_start": "106",
@@ -1644,6 +1770,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00126::d52acbd76297",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.4 THE NEW SAID",
   "page_start": "107",
@@ -1657,6 +1784,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00127::087d3058a4bd",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.4 THE NEW SAID",
   "page_start": "107",
@@ -1670,6 +1798,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00128::97eca5742ec3",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.5 THE THIRD SAID (1950-1960)",
   "page_start": "109",
@@ -1683,6 +1812,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00129::88f8443f53f1",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.5 THE THIRD SAID (1950-1960)",
   "page_start": "109",
@@ -1696,6 +1826,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00130::af6651806f7c",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.5 THE THIRD SAID (1950-1960)",
   "page_start": "110",
@@ -1709,6 +1840,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00131::c107e23badfd",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.6 DISTINCTIVE FEATURES BETWEEN THE WRITINGS OF THE OLD SAID AND THE NEW SAID",
   "page_start": "112",
@@ -1722,6 +1854,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00132::0fbadd821a73",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.6 DISTINCTIVE FEATURES BETWEEN THE WRITINGS OF THE OLD SAID AND THE NEW SAID",
   "page_start": "113",
@@ -1735,6 +1868,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00133::806f2f827229",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.6 DISTINCTIVE FEATURES BETWEEN THE WRITINGS OF THE OLD SAID AND THE NEW SAID",
   "page_start": "114",
@@ -1748,6 +1882,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00134::aa8dc1b63892",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.6 DISTINCTIVE FEATURES BETWEEN THE WRITINGS OF THE OLD SAID AND THE NEW SAID",
   "page_start": "114",
@@ -1761,6 +1896,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00135::c0007187a67f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.6.1 Thematic evolution of the notion of al-‘adl in Nursi’s writings",
   "page_start": "115",
@@ -1774,6 +1910,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00136::b4c1ab9c2523",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.6.1 Thematic evolution of the notion of al-‘adl in Nursi’s writings",
   "page_start": "116",
@@ -1787,6 +1924,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00137::370ce6800e8b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "No: Title Year",
   "page_start": "118",
@@ -1800,6 +1938,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00138::80fc9ca54661",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Intellectual Biography of Said Nursi",
   "section": "2.7 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "119",
@@ -1813,6 +1952,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00139::a304f593b390",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.1 INTRODUCTION",
   "page_start": "121",
@@ -1826,6 +1966,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00140::f84f23716040",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.2 DEGREES OF MANIFESTATIONS OF DIVINE NAMES INTERACTING WITH EACH OTHER: THE NURSIAN PERSPECTIVE",
   "page_start": "122",
@@ -1839,6 +1980,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00141::8baf48d890b5",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.2 DEGREES OF MANIFESTATIONS OF DIVINE NAMES INTERACTING WITH EACH OTHER: THE NURSIAN PERSPECTIVE",
   "page_start": "123",
@@ -1852,6 +1994,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00142::d1cdfa9b2d67",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.2 DEGREES OF MANIFESTATIONS OF DIVINE NAMES INTERACTING WITH EACH OTHER: THE NURSIAN PERSPECTIVE",
   "page_start": "124",
@@ -1865,6 +2008,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00143::0c87ae3e6bd7",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.3 THE CONCEPT OF ʿADL IN THE RISALE-I NUR : THE DEFINITIONS OF ‘ADL AS PRESENTED IN THE WRITINGS OF NURSI",
   "page_start": "125",
@@ -1878,6 +2022,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00144::a6e22db94aba",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.3 THE CONCEPT OF ʿADL IN THE RISALE-I NUR : THE DEFINITIONS OF ‘ADL AS PRESENTED IN THE WRITINGS OF NURSI",
   "page_start": "126",
@@ -1891,6 +2036,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00145::af2ac226f2ea",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.3 THE CONCEPT OF ʿADL IN THE RISALE-I NUR : THE DEFINITIONS OF ‘ADL AS PRESENTED IN THE WRITINGS OF NURSI",
   "page_start": "127",
@@ -1904,6 +2050,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00146::bd09aab02ae4",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4 BALANCE AND ORDER IN THE UNIVERSE. 3.4.1 Macrocosm: Kitāb-i Kabīr-i Kāināt (The Great Book of Universe)",
   "page_start": "127",
@@ -1917,6 +2064,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00147::5db85df84f7b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4 BALANCE AND ORDER IN THE UNIVERSE. 3.4.1 Macrocosm: Kitāb-i Kabīr-i Kāināt (The Great Book of Universe)",
   "page_start": "128",
@@ -1930,6 +2078,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00148::59ec1beb71de",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4 BALANCE AND ORDER IN THE UNIVERSE. 3.4.1 Macrocosm: Kitāb-i Kabīr-i Kāināt (The Great Book of Universe)",
   "page_start": "130",
@@ -1943,6 +2092,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00149::c9ba6bfaf82b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4 BALANCE AND ORDER IN THE UNIVERSE. 3.4.1 Macrocosm: Kitāb-i Kabīr-i Kāināt (The Great Book of Universe)",
   "page_start": "131",
@@ -1956,6 +2106,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00150::eb912756e894",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4 BALANCE AND ORDER IN THE UNIVERSE. 3.4.1 Macrocosm: Kitāb-i Kabīr-i Kāināt (The Great Book of Universe)",
   "page_start": "132",
@@ -1969,6 +2120,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00151::4d5f1719d742",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4 BALANCE AND ORDER IN THE UNIVERSE. 3.4.1 Macrocosm: Kitāb-i Kabīr-i Kāināt (The Great Book of Universe)",
   "page_start": "133",
@@ -1982,6 +2134,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00152::509918188771",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4 BALANCE AND ORDER IN THE UNIVERSE. 3.4.1 Macrocosm: Kitāb-i Kabīr-i Kāināt (The Great Book of Universe)",
   "page_start": "135",
@@ -1995,6 +2148,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00153::5e31c7c2c413",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4 BALANCE AND ORDER IN THE UNIVERSE. 3.4.1 Macrocosm: Kitāb-i Kabīr-i Kāināt (The Great Book of Universe)",
   "page_start": "136",
@@ -2008,6 +2162,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00154::d124b276c51d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4 BALANCE AND ORDER IN THE UNIVERSE. 3.4.1 Macrocosm: Kitāb-i Kabīr-i Kāināt (The Great Book of Universe)",
   "page_start": "137",
@@ -2021,6 +2176,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00155::4b545bfd6ef7",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4.2 Microcosm: Kitāb-i ṣagīr or insān",
   "page_start": "138",
@@ -2034,6 +2190,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00156::b258d8cda2f8",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4.2 Microcosm: Kitāb-i ṣagīr or insān",
   "page_start": "139",
@@ -2047,6 +2204,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00157::db8a07089406",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.4.2 Microcosm: Kitāb-i ṣagīr or insān",
   "page_start": "140",
@@ -2060,6 +2218,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00158::3e29308e2be4",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.5 NURSI’S ARGUMENT FOR RESURRECTION FROM JUSTICE",
   "page_start": "141",
@@ -2073,6 +2232,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00159::60c870c4ced3",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.5 NURSI’S ARGUMENT FOR RESURRECTION FROM JUSTICE",
   "page_start": "142",
@@ -2086,6 +2246,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00160::606c85677fd0",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.5 NURSI’S ARGUMENT FOR RESURRECTION FROM JUSTICE",
   "page_start": "143",
@@ -2099,6 +2260,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00161::a4a3d069e461",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.6 NURSI’S ARGUMENT FOR RESURRECTION AND THE HEREAFTER FROM THE DIVINE NAMES: ALL JUST, WISE, GENEROUS AND MERCIFUL",
   "page_start": "145",
@@ -2112,6 +2274,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00162::87bd2f437723",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.6 NURSI’S ARGUMENT FOR RESURRECTION AND THE HEREAFTER FROM THE DIVINE NAMES: ALL JUST, WISE, GENEROUS AND MERCIFUL",
   "page_start": "146",
@@ -2125,6 +2288,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00163::4e7a7b1f16ee",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.6 NURSI’S ARGUMENT FOR RESURRECTION AND THE HEREAFTER FROM THE DIVINE NAMES: ALL JUST, WISE, GENEROUS AND MERCIFUL",
   "page_start": "147",
@@ -2138,6 +2302,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00164::5f6d3333a065",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.6 NURSI’S ARGUMENT FOR RESURRECTION AND THE HEREAFTER FROM THE DIVINE NAMES: ALL JUST, WISE, GENEROUS AND MERCIFUL",
   "page_start": "149",
@@ -2151,6 +2316,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00165::b1407e45b90f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.7 SOME OBJECTIONS TO NURSI’S ARGUMENT",
   "page_start": "150",
@@ -2164,6 +2330,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00166::67aab14c2e69",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.7 SOME OBJECTIONS TO NURSI’S ARGUMENT",
   "page_start": "151",
@@ -2177,6 +2344,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00167::95ad0549afb2",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.7 SOME OBJECTIONS TO NURSI’S ARGUMENT",
   "page_start": "152",
@@ -2190,6 +2358,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00168::6fed404e895b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.8 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "153",
@@ -2203,6 +2372,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00169::2ffa5f4a7d98",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl in creation according to Said Nursi: Justice as Balance and Order",
   "section": "3.8 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "154",
@@ -2216,6 +2386,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00170::fc693a632a92",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.1 INTRODUCTION",
   "page_start": "155",
@@ -2229,6 +2400,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00171::e44e66d3b834",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2 THE BEGINNINGS OF THE DOCTRINE OF QADAR AND HUMAN RESPONSIBILITY",
   "page_start": "155",
@@ -2242,6 +2414,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00172::76e30483a21d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2 THE BEGINNINGS OF THE DOCTRINE OF QADAR AND HUMAN RESPONSIBILITY",
   "page_start": "157",
@@ -2255,6 +2428,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00173::3a45e21b29ae",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2 THE BEGINNINGS OF THE DOCTRINE OF QADAR AND HUMAN RESPONSIBILITY",
   "page_start": "158",
@@ -2268,6 +2442,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00174::72361aca2046",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.1 Upholders of Free Will",
   "page_start": "159",
@@ -2281,6 +2456,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00175::28d14592706f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.1 Upholders of Free Will",
   "page_start": "160",
@@ -2294,6 +2470,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00176::0cafeb7118b1",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.1 Upholders of Free Will",
   "page_start": "161",
@@ -2307,6 +2484,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00177::37cce2c3875f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.1 Upholders of Free Will",
   "page_start": "161",
@@ -2320,6 +2498,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00178::7cf8124329af",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.1 Upholders of Free Will",
   "page_start": "162",
@@ -2333,6 +2512,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00179::cf7a2fc97369",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.1 Upholders of Free Will",
   "page_start": "163",
@@ -2346,6 +2526,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00180::9342ecdb0443",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.1 Upholders of Free Will",
   "page_start": "164",
@@ -2359,6 +2540,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00181::d3dbc6f3fd49",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.1 Upholders of Free Will",
   "page_start": "165",
@@ -2372,6 +2554,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00182::dd920643d594",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.1 Upholders of Free Will",
   "page_start": "166",
@@ -2385,6 +2568,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00183::5a056f907e51",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.2 Upholders of Qadar (Divine Determining)",
   "page_start": "167",
@@ -2398,6 +2582,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00184::19528f1bb66f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.2 Upholders of Qadar (Divine Determining)",
   "page_start": "168",
@@ -2411,6 +2596,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00185::f1491ab34054",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.2 Upholders of Qadar (Divine Determining)",
   "page_start": "169",
@@ -2424,6 +2610,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00186::aa1de65d49d7",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.2.2 Upholders of Qadar (Divine Determining)",
   "page_start": "169",
@@ -2437,6 +2624,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00187::1fa10a095c07",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.3 AHLI SUNNAH AND WA AL-JAMAʿAH (THE PARTY OF MAINSTREAM SUNNI SCHOOL OF THOUGHT) 4.3.1 Al-Ashʿarī",
   "page_start": "170",
@@ -2450,6 +2638,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00188::fe78e156f90c",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.3 AHLI SUNNAH AND WA AL-JAMAʿAH (THE PARTY OF MAINSTREAM SUNNI SCHOOL OF THOUGHT) 4.3.1 Al-Ashʿarī",
   "page_start": "171",
@@ -2463,6 +2652,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00189::6be2c76b8df5",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.3 AHLI SUNNAH AND WA AL-JAMAʿAH (THE PARTY OF MAINSTREAM SUNNI SCHOOL OF THOUGHT) 4.3.1 Al-Ashʿarī",
   "page_start": "172",
@@ -2476,6 +2666,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00190::1631dcfbd75f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.3 AHLI SUNNAH AND WA AL-JAMAʿAH (THE PARTY OF MAINSTREAM SUNNI SCHOOL OF THOUGHT) 4.3.1 Al-Ashʿarī",
   "page_start": "173",
@@ -2489,6 +2680,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00191::3b2cb99e4a97",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.3.2 Al-Mātūridī",
   "page_start": "174",
@@ -2502,6 +2694,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00192::cdf7d94058af",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.3.2 Al-Mātūridī",
   "page_start": "174",
@@ -2515,6 +2708,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00193::d4806b82f919",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.3.2 Al-Mātūridī",
   "page_start": "175",
@@ -2528,6 +2722,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00194::8576800df1bc",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.3.2 Al-Mātūridī",
   "page_start": "176",
@@ -2541,6 +2736,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00195::b01f5eb0c159",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4 NURSI’S POSITION ON QADAR AND HUMAN RESPONSIBILITY 4.4.1 Introduction: Said Nursi’s understanding of ʿadl in relation to qadar",
   "page_start": "177",
@@ -2554,6 +2750,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00196::db5bb0daf7d1",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4 NURSI’S POSITION ON QADAR AND HUMAN RESPONSIBILITY 4.4.1 Introduction: Said Nursi’s understanding of ʿadl in relation to qadar",
   "page_start": "178",
@@ -2567,6 +2764,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00197::a970082d2588",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4 NURSI’S POSITION ON QADAR AND HUMAN RESPONSIBILITY 4.4.1 Introduction: Said Nursi’s understanding of ʿadl in relation to qadar",
   "page_start": "179",
@@ -2580,6 +2778,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00198::1b35657625a7",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4 NURSI’S POSITION ON QADAR AND HUMAN RESPONSIBILITY 4.4.1 Introduction: Said Nursi’s understanding of ʿadl in relation to qadar",
   "page_start": "180",
@@ -2593,6 +2792,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00199::badec02b99b9",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.2 Divine Determining: qadar, qaḍà and āṭà",
   "page_start": "181",
@@ -2606,6 +2806,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00200::23166cc2c479",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.2 Divine Determining: qadar, qaḍà and āṭà",
   "page_start": "182",
@@ -2619,6 +2820,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00201::80b1ff7a8cf5",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.2 Divine Determining: qadar, qaḍà and āṭà",
   "page_start": "183",
@@ -2632,6 +2834,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00202::eb9722e701ed",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.2 Divine Determining: qadar, qaḍà and āṭà",
   "page_start": "184",
@@ -2645,6 +2848,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00203::9d6656e8afe3",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.2 Divine Determining: qadar, qaḍà and āṭà",
   "page_start": "185",
@@ -2658,6 +2862,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00204::b2497473962c",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.3 Reconciliation of human free will with divine determining.",
   "page_start": "186",
@@ -2671,6 +2876,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00205::453473e45c43",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.3 Reconciliation of human free will with divine determining.",
   "page_start": "187",
@@ -2684,6 +2890,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00206::f91c698dbe6f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.3 Reconciliation of human free will with divine determining.",
   "page_start": "188",
@@ -2697,6 +2904,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00207::e59e01e30754",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.3 Reconciliation of human free will with divine determining.",
   "page_start": "189",
@@ -2710,6 +2918,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00208::e5ef3962e1fe",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4.3 Reconciliation of human free will with divine determining.",
   "page_start": "190",
@@ -2723,6 +2932,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00209::113beb8f8402",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "(acquisition).",
   "page_start": "191",
@@ -2736,6 +2946,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00210::d35646aac5a1",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "(acquisition).",
   "page_start": "192",
@@ -2749,6 +2960,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00211::c56ddce0413f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "existence",
   "page_start": "193",
@@ -2762,6 +2974,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00212::44d18d0f8acf",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4. CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "194",
@@ -2775,6 +2988,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00213::5afc6f4703bc",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿadl (justice) in relation to Qadar (Divine Determining)",
   "section": "4.4. CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "196",
@@ -2788,6 +3002,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00214::9ad8e64d66c5",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "THE CONCEPT OF AL-ʿADL (JUSTICE) AS THE DOCTRINE OF THE MEAN: NURSIAN DISCOURSE OF THE NOTION OF ‘BALANCE’ IN HUMAN LIFE",
   "page_start": "197",
@@ -2801,6 +3016,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00215::fcb973cf6ecb",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.1 INTRODUCTION",
   "page_start": "197",
@@ -2814,6 +3030,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00216::943ffed556ad",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.1 INTRODUCTION",
   "page_start": "198",
@@ -2827,6 +3044,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00217::5575a01fd3a6",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.2 THE STATE OF ʿADL AND THE DOCTRINE OF THE MEAN: NURSIAN APPROACH",
   "page_start": "199",
@@ -2840,6 +3058,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00218::09d4cf31afff",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.2 THE STATE OF ʿADL AND THE DOCTRINE OF THE MEAN: NURSIAN APPROACH",
   "page_start": "200",
@@ -2853,6 +3072,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00219::7fc6c529900e",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.2 THE STATE OF ʿADL AND THE DOCTRINE OF THE MEAN: NURSIAN APPROACH",
   "page_start": "201",
@@ -2866,6 +3086,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00220::ed0bb38a80f9",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.2 THE STATE OF ʿADL AND THE DOCTRINE OF THE MEAN: NURSIAN APPROACH",
   "page_start": "202",
@@ -2879,6 +3100,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00221::8f5d0a101920",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.2 THE STATE OF ʿADL AND THE DOCTRINE OF THE MEAN: NURSIAN APPROACH",
   "page_start": "202",
@@ -2892,6 +3114,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00222::2c423c7f6217",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.2 THE STATE OF ʿADL AND THE DOCTRINE OF THE MEAN: NURSIAN APPROACH",
   "page_start": "204",
@@ -2905,6 +3128,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00223::77366515d56d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.2 THE STATE OF ʿADL AND THE DOCTRINE OF THE MEAN: NURSIAN APPROACH",
   "page_start": "205",
@@ -2918,6 +3142,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00224::f8f82d66649d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.3 JIHĀD OF WORD AS POSITIVE ACTION AND IT’S SOCIAL IMPLICATIONS",
   "page_start": "205",
@@ -2931,6 +3156,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00225::e51c939cbcca",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.3 JIHĀD OF WORD AS POSITIVE ACTION AND IT’S SOCIAL IMPLICATIONS",
   "page_start": "206",
@@ -2944,6 +3170,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00226::604c9f97f390",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4 THE ṢALĀT (PRAYER) AND THE ʿIBĀDAH (WORSHIP) AS A FOUNDATION FOR THE AL-AʿDL (JUSTICE)",
   "page_start": "207",
@@ -2957,6 +3184,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00227::fced4f66a84c",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4.1 The prayer (Ṣalāh) as base for order and balance (‘adala)",
   "page_start": "208",
@@ -2970,6 +3198,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00228::60b81c08df88",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4.1 The prayer (Ṣalāh) as base for order and balance (‘adala)",
   "page_start": "209",
@@ -2983,6 +3212,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00229::1e948e694c83",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4.2 Worship as the cause of personal attainment and perfection and social justice",
   "page_start": "209",
@@ -2996,6 +3226,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00230::7d94e3a303f4",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4.2.1 Worship (ʿIbādah) as a generator of the state of mean (wasaṭ) in man’s personal life",
   "page_start": "210",
@@ -3009,6 +3240,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00231::b2f46de7790b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4.2.1 Worship (ʿIbādah) as a generator of the state of mean (wasaṭ) in man’s personal life",
   "page_start": "211",
@@ -3022,6 +3254,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00232::5b08a0bbf777",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4.2.2 Worship as a means of ordering life and the cause for balance in this world: Social ʿadala",
   "page_start": "212",
@@ -3035,6 +3268,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00233::0a4c3f1e3b29",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4.2.2 Worship as a means of ordering life and the cause for balance in this world: Social ʿadala",
   "page_start": "213",
@@ -3048,6 +3282,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00234::b12cfdc75eb4",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4.2.2 Worship as a means of ordering life and the cause for balance in this world: Social ʿadala",
   "page_start": "214",
@@ -3061,6 +3296,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00235::2cde19a3e30d",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.4.2.2 Worship as a means of ordering life and the cause for balance in this world: Social ʿadala",
   "page_start": "215",
@@ -3074,6 +3310,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00236::bc507d2451e4",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.5 THE QUESTION OF THE FISQ (SINFULNESS)",
   "page_start": "216",
@@ -3087,6 +3324,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00237::5f187cd81779",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.5 THE QUESTION OF THE FISQ (SINFULNESS)",
   "page_start": "217",
@@ -3100,6 +3338,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00238::df9eb705742a",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.5 THE QUESTION OF THE FISQ (SINFULNESS)",
   "page_start": "218",
@@ -3113,6 +3352,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00239::182760ec784b",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.6 ‘AL-ZAKĀT AS MEANS TO ATTAIN TO SOCIAL JUSTICE",
   "page_start": "219",
@@ -3126,6 +3366,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00240::69d47c97841a",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.6 ‘AL-ZAKĀT AS MEANS TO ATTAIN TO SOCIAL JUSTICE",
   "page_start": "219",
@@ -3139,6 +3380,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00241::9b8ef03c5f08",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.6 ‘AL-ZAKĀT AS MEANS TO ATTAIN TO SOCIAL JUSTICE",
   "page_start": "220",
@@ -3152,6 +3394,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00242::6b3481b2f8fd",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.6 ‘AL-ZAKĀT AS MEANS TO ATTAIN TO SOCIAL JUSTICE",
   "page_start": "221",
@@ -3165,6 +3408,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00243::97c863360837",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.7 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "222",
@@ -3178,6 +3422,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00244::fa51ba9f626f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.7 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "223",
@@ -3191,6 +3436,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00245::d3e468a88529",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.7 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "224",
@@ -3204,6 +3450,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00246::aeecedd90a3f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "The Concept of al-ʿAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of ‘balance’ in human life",
   "section": "5.7 CHAPTER SUMMARY AND CONCLUSION",
   "page_start": "225",
@@ -3217,6 +3464,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00247::fda6fa1255af",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "SUMMARY OF THE MAIN FINDINGS",
   "page_start": "226",
@@ -3230,6 +3478,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00248::41df5f6d6a04",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "Findings of Chapter 1",
   "page_start": "227",
@@ -3243,6 +3492,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00249::8315314056c9",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "Findings of Chapter 1",
   "page_start": "228",
@@ -3256,6 +3506,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00250::4c4aad2f8782",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "Findings of Chapter 1",
   "page_start": "229",
@@ -3269,6 +3520,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00251::284e39bb7cac",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "Findings of Chapter 1",
   "page_start": "230",
@@ -3282,6 +3534,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00252::47588ac958a4",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "Findings of Chapter 2",
   "page_start": "230",
@@ -3295,6 +3548,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00253::b3ae2b58c187",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "Findings of Chapter 3",
   "page_start": "231",
@@ -3308,6 +3562,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00254::0b5a0fbd5040",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "Findings of Chapter 3",
   "page_start": "232",
@@ -3321,6 +3576,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00255::7f744bd54d3e",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "Findings of Chapter 4",
   "page_start": "232",
@@ -3334,6 +3590,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00256::292161947ccb",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "Findings of Chapter 5",
   "page_start": "233",
@@ -3347,6 +3604,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00257::e8e825d1f5d0",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "MAIN CONTRIBUTIONS TO THE RELEVANT LITERATURE",
   "page_start": "234",
@@ -3360,6 +3618,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00258::96eed78dda97",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "MAIN CONTRIBUTIONS TO THE RELEVANT LITERATURE",
   "page_start": "235",
@@ -3373,6 +3632,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00259::ed61b0ad5323",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "MAIN CONTRIBUTIONS TO THE RELEVANT LITERATURE",
   "page_start": "236",
@@ -3386,6 +3646,7 @@
  {
   "chunk_id": "karimov-2017-quranic-justice::00260::581734c8a0bd",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Conclusion",
   "section": "LIMITATIONS OF THE CURRENT STUDY AND RECOMMENDATIONS FOR FURTHER RESEARCH",
   "page_start": "237",
@@ -3397,8 +3658,401 @@
   "text": "LIMITATIONS OF THE CURRENT STUDY AND RECOMMENDATIONS FOR FURTHER RESEARCH\nThe present research aimed to explore critically the notion of al-ʿadl in the view of\nNursi by using the Qur’ānic worldview on the concept of justice. This study, as well\nas the outline above, has shown that the debate is very comprehensive and\nmultifaceted. Considering this fact, a few important limitations need to be considered.\nFirst, this research covers the contextual analysis of Nursi’s understanding of al-ʿadl\n(justice) and how his account is in parallel with the Qur’ānic worldview. Therefore, it\ndid not attempt to examine the theory of justice in modern context. It also ignored\nNursi’s classification of concept justice such as al-ʿadalah al-maḥḍà (pure justice)\nand al-ʿadalah al-iḍāfiyya (relative justice).\nSecondly, some of Nursi’s answers and explanations have been partially given in this\nstudy. For example, Nursi’s understanding of free will and divine determining were\nnot thoroughly investigated in Chapter 4.\nThirdly, the present study attempted to examine ‘the doctrine of mean’ from Nursi’s\nperspective and how the mean state in human faculties can be achieved through\nworship and prayer. It also found that Nursi claims that the mean state in human\nbeings and the implementation of zakāt (charity) serve as a foundation for bringing\nabout social justice in society. However, this study was unable to answer how social\njustice is achieved in practice from Nursi’s perspective.\nIn the light of the abovementioned limitations, this research has indicated that there\nare many questions in need of further investigation. In this respect, it is suggested that\nthere are two main aspects of Nursi’s understanding of al-ʿadl (justice) need for\nfurther exploration.\nThe first aspect is the concept of positive action ( musbat ḥarakat ) which is Nursi’s\nunderstanding of Qadar (Divine Determining). For example, in Kastamonu Lahikasi ,\nNursi states that whatever happens to man can have two causes: (1) Apparent: mans’\nactions which are apparent and often bring about injustice; (2) Real; this is Divine\nDetermining by its results. This dual side of Nursi’s understanding of the binary\nnature of justice needs further research. This dual side of Nursi’s understanding of\nbinary nature of justice needs for further research.\nThe second aspect on which a more detailed study could be undertaken is social\njustice in Nursi’s writings.\nNursi, Kaynakli, Indeksli Risale-i Nur Külliyati: Işarat ü’l-Icâz, Mesnevî-i Nuriya, Barla Lahikasi, Kastamonu Lahikasi, Emirdag Lahikasi, Tarihçe Hayat ... ve Digerleri. , 2:1643."
  },
  {
-  "chunk_id": "karimov-2017-quranic-justice::00261::f9737a2ea8fa",
+  "chunk_id": "karimov-2017-quranic-justice::00261::807a40df1b88",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "239",
+  "page_end": "239",
+  "pdf_page_start": 262,
+  "pdf_page_end": 262,
+  "pages_unresolved": [],
+  "token_count": 715,
+  "text": "Bibliography BOOKS\n1. Abu `Udah, Udah Khalil. Al-Tatawwur Al-Dalali Bayna Lughat Al-Shi’r Al- Jahili Wa-Lughat Al-Qurān Al-Karim : Dirasah Dalaliyah Muqaranah . al- Zarqa, al-Urdun: Maktabat al-Munar, 1985. 2. Abu Daud Sulayman ibn al-Ash`ath, al-Sijistani. Sunan Abi Dawud . Hums: Muhammad Ali al-Sayyid, 1969. 3. Abū ʻUbaydah Maʻmar ibn al-Muthanná al-Taymī. Majāz Al-Qur’ā . Maktabat mishkāt al-Islamiyya, 1981. 4. Abu-Hilal al-`Askari, al-Hasan Ibn-Abdallah, and Husam-ad-Din al Qudsi. Mu’jam Al-Furūq Al-Lughawiya [Glossary of Linguistic Differences] . Bairut: Dar al-Kutub al-`Ilmiya, 1981. 5. Abul Quasem, Muhammad. The Ethics of Al-Ghazālī: A Composite Ethics in Islam . Selangor: published by the author, 1975. 6. Abu-Rabi, Ibrahim M., ed. Spiritual Dimensions of Bediuzzaman Said Nursi’s Risale-i Nur . Albany: State University of New York Press, 2008. 7. Abu-Rabiʻ, I. M., ed. Islam at the Crossroads: On the Life and Thought of Bediuzzaman Said Nursi . Albany, NY: State Univ of New York Pr, 2003. 8. Abu-Rabiʻ, Ibrahim M. Theodicy and Justice in Modern Islamic Thought the Case of Said Nursi . Farnham, Surrey; Burlington, VT: Ashgate Pub., 2010. http://public.eblib.com/choice/publicfullrecord.aspx?p=554558. 9. Ajluni, Ismail ibn Muhammad. Kashf Al-Khafa . Vol. II. Bayrut: Dar Ihya al- Turath al-`Arabi, 1932. 10. Al-Bukhari, Muhammad Ismail. Sahih Al-Bukhari , 1981. 11. Al-Ghazzali, M., and H.A. Homes. Alchemy of Happiness . Kessinger Pub, 2003. 12. Ali, A.Y. The Holy Qur’an: Translation and Commentary . Dar Al-Qiblah for Islamic Literature, 1934. 13. Al-Jawshan Al-Kabir : A Prayer for All, a Supplication of Prophet Muhammad . Somerset, N.J.: The Light, 2006. 14. Allen, Carleton Kemp. Aspects of Justice . London: Stevens, 1958. 15. al-Tusi. Fusul Al- Aqa Id . USA The Open School, n.d. 16. Alusi, Mahmud ibn Abd Allah. Ruh Al-Ma`ani Fi Tafsir Al-Quran Al-`azim Wa-Al-Sab` Al-Mathani ."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00262::41ecd8a47f31",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "239",
+  "page_end": "240",
+  "pdf_page_start": 262,
+  "pdf_page_end": 263,
+  "pages_unresolved": [],
+  "token_count": 705,
+  "text": "Somerset, N.J.: The Light, 2006. 14. Allen, Carleton Kemp. Aspects of Justice . London: Stevens, 1958. 15. al-Tusi. Fusul Al- Aqa Id . USA The Open School, n.d. 16. Alusi, Mahmud ibn Abd Allah. Ruh Al-Ma`ani Fi Tafsir Al-Quran Al-`azim Wa-Al-Sab` Al-Mathani . Bayrut: Dar Ihya al-Turath al-`Arabi, 1970. http://books.google.com/books?id=OPPXAAAAMAAJ. 17. ’Arabi, Muhyiddin Ibn. The Kernel of the Kernel , 2011. 18. Aristote, and WD Ross. Aristotle de Anima . Clarendon press, 1967. 19. Aristotle. Nicomachean Ethics . Translated by Roger Crisp. Cambridge, U.K.; New York: Cambridge University Press, 2000. 20. ———. The Ethics of Aristotle: The Nichomachaen Ethics . Revised Edition. New York: Viking, 1955.\n21. Aristotle, Kenelm Foster, Silvester Humphries, Ivo Thomas, and Aquinas Saint Thomas. Aristotle’s De Anima, in the Version of William of Moerbeke, and the Commentary of St. Thomas Aquinas. Translated by Kenelm Foster ... and Silvester Humphries ... With an Introduction by Ivo Thomas . pp. 504. Routledge & Kegan Paul: London, 1951. 22. Asad, Muhammad. The Message of the Qur’an . Gibraltar: Dar al-Andalus, 1980. 23. Ashʻarī, Abū al-Ḥasan ʻAlī ibn Ismāʻīl. Al-Ašʻarī’s Al-Ibānah ʻan Uṣūl Ad- Diyānah [the Elucidation of Islām’s Foundation] . Added t.-p.: American Oriental Series, v. 19. New Haven, Conn: American oriental society, 1940. 24. ———. Kitāb Maqālāt Al-Islāmīyīn Wa-Ikhtilāf Al-Muṣallīn . Al-Ṭabʻah 2. Nasharāt Al-Islāmīyah 1. Vīsbādin: Dār al-Nashr Frānz Shtāynir, 1382. 25. Asqalanī, Ibn Khajr. Itḥāh al-mahrah bi al-fawāid al-mubtakriah min aṭrāf al-ʿāsharah . Madinah: Islamic University of Madinah, 1994. 26. Aymaz, Abdullah. Münazarat üzerine . Istanbul: Şahdamar Yayınları, 2006. http://www.iikv.org/academy/index.php/books/article/view/682. 27. Badawi, Elsaid M., Muhammad Abdel Haleem, and Hartwig Altenm¸ller. Arabic-English Dictionary of Qur’anic Usage ."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00263::2560eefcc22f",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "240",
+  "page_end": "240",
+  "pdf_page_start": 263,
+  "pdf_page_end": 263,
+  "pages_unresolved": [],
+  "token_count": 715,
+  "text": "Madinah: Islamic University of Madinah, 1994. 26. Aymaz, Abdullah. Münazarat üzerine . Istanbul: Şahdamar Yayınları, 2006. http://www.iikv.org/academy/index.php/books/article/view/682. 27. Badawi, Elsaid M., Muhammad Abdel Haleem, and Hartwig Altenm¸ller. Arabic-English Dictionary of Qur’anic Usage . Leiden [u.a.]: Brill, 2008. 28. Baġdādī, ʻAbdalqāhir Ibn-Ṭāhir al-. al-Farq bayna al-Firaq . Bairūt: Dār al- āfāq al-jadīdah, 1977. 29. Baghawī, al-Ḥusayn ibn Mas‘ūd. Ma‘ālim Al-Tanzīl . al-Shāriqah: al- Muntadá al-Islāmī, 2007. 30. Baqi, Muhammad Fu’ad ’Abd al-. Al-Muʿjam Al-Mufahras Li-Alfāz Al- Qur’an Al-Karīm . Cairo: Dar al-Hadith, 1988. 31. Bayḍāwī, Abd Allāh ibn ʻUmar. Tafsīr Al-Bayḍāwī Al-Musammʹa Anwār Al- Tanzīl Wa-Asrār Al-Taʼwīl . Vol. 2. 2 vols. Bayrut: Dar al-Kutub al-`Ilmiyah, 1999. 32. Bayḍāwī, ʻAbd Allāh ibn ʻUmar, and Maḥmūd ibn ʻAbd al-Raḥmān Iṣfahānī. Nature, Man and God in Medieval Islam ʻAbd Allah Baydawi’s Text, Tawaliʻ Al-Anwar Min Mataliʻ Al-Anzar, along with Mahmud Isfahani’s Commentary, Mataliʻ Al-Anzar, Sharh Tawaliʻ Al-Anwar . Edited by James W Pollock. Translated by Edwin Elliott Calverley. Leiden; Boston: Brill, 2002. 33. Bayhaqī, Abū Bakr al-. Al-Asmā Wa Al-Ṣifāt . 1st ed. Vol. 2. 2 vols. Jiddah: Maktabah al-Suwādī, 1993. 34. Beki, Niyazi. Kur’an Ilimleri ve Tefsir Acısından Bediuzzaman Said Nursi’nin Eserleri . Istanbul: Timaş Yayınları, 1999. 35. Berk, B. Ithamlar Reddediyorum: Izmir Sık Yönetim Komutanl Askeri Mahkemesinde, Risale-i Nur Ile Ilgili Olarak Görülen Davada Ileri Surulen Ithamlara Verilen Cevaplar ."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00264::b247ed912d46",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "240",
+  "page_end": "241",
+  "pdf_page_start": 263,
+  "pdf_page_end": 264,
+  "pages_unresolved": [],
+  "token_count": 728,
+  "text": "Istanbul: Timaş Yayınları, 1999. 35. Berk, B. Ithamlar Reddediyorum: Izmir Sık Yönetim Komutanl Askeri Mahkemesinde, Risale-i Nur Ile Ilgili Olarak Görülen Davada Ileri Surulen Ithamlara Verilen Cevaplar . Istanbul: Yeni Asya Yayinlar, 1972. 36. Bukhari, Muhammad ibn Ismail. Sahih Al-Bukhari . Riyadh: Darussalam Pub. & Distr., 1997. 37. Bursawī, Ismail Hakki. Tafsiru Ruhul-Bayān . Istanbul: Eser Neşriyat, n.d. 38. Bustani, Butrus. Muhit Al-Muhit . Bayrut, 1867.\n39. Campbell, Tom. Justice . Houndmills, Basingstoke, Hampshire [England]; New York: Palgrave Macmillan, 2010. 40. Canan, I. brahim, and Said Nursi. Islam aleminin ana meselelerine Bediuzzamandan cozumleri . Istanbul: Yeni Asya, 1993. 41. Caspari, C. P. A Grammar of the Arabic Language . London: Williams and Norgate, 1896. 42. Chittick, William C. Sufism a Beginner’s Guide . Oxford: Oneworld Publications, 2008. 43. Cündioglu, Dücane. Kur’an’i Anlama’nin Anlami : Hermeneutik Bir Deneyim [Meaning of Understanding of the Quran] . Istanbul: Kapi, 2011. 44. Dāmaghānī, al-Ḥusayn ibn Muḥammad. Qāmūs Al-Qur’ān, Aw Iṣlāh Al- Wujūh Wa Al-Naẓāir Fī Al-Qur’ān . Bayrūt: Dar al-`Ilm lil-Malayin, 1977. 45. Davidson, Herbert A. Alfarabi, Avicenna, and Averroes on Intellect Their Cosmologies, Theories of the Active Intellect, and Theories of Human Intellect . New York: Oxford University Press, 1992. 46. Daylamī, Abū Shujāʿ al-. al-Firdaws bima`thūr al-Khiṭāb . Vol. 1. 5 vols. Bayrūt: Dār al-Kutub al-ʿilmiyyah, 1986. 47. De Cillis, Maria. Free Will and Predestination in Islamic Thought: Theoretical Compromises in the Works of Avicenna, Al-Ghāzālī and Ibn ’Arabī . London; New York: Routledge, 2014. 48. Demirli, Ekrem. Islam Metafiziginde Tanri ve Insan: Ibn Ul-Arabi ve Vahdet-i Vucud Gelenegi [God and Man in the Metaphysic of Islam: Ibn Al- Arabi and Institution of Unity of Existence ] ."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00265::be0a2fbdd94e",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "241",
+  "page_end": "242",
+  "pdf_page_start": 264,
+  "pdf_page_end": 265,
+  "pages_unresolved": [],
+  "token_count": 699,
+  "text": "London; New York: Routledge, 2014. 48. Demirli, Ekrem. Islam Metafiziginde Tanri ve Insan: Ibn Ul-Arabi ve Vahdet-i Vucud Gelenegi [God and Man in the Metaphysic of Islam: Ibn Al- Arabi and Institution of Unity of Existence ] . I. Cagaloglu, Istanbul: Kabalci Yayinevi, 2009. 49. Durrant, Michael, and anima Aristotle De. Aristotle’s De Anima in Focus . London: Routledge, 1993. 50. Esref Edip, and Fahrettin Gün. RisâLe-i Nur Müellifi Said Nur : Hayati, Eserleri, Meslegi . Istanbul: Beyan, 2011. 51. Fakhry, Majid. A History of Islamic Philosophy . New york: Columbia University Press, 2004. 52. ———. A Short Introduction to Islamic Philosophy, Theology and Mysticism . Oxford, England; Rockport, MA, USA: Oneworld, 1997. 53. ———. Al-Farabi: Founder of Islamic Neoplatonism ; His Life, Works and Influence . Oxford: Oneworld, 2002. 54. Ferrari, Giovanni R. F., ed. The Cambridge Companion to Plato’s Republic . New York: Cambridge University Press, 2010. 55. Fitts, William Howard. The Self Concept and Self-Actualization, by William H. Fitts and Jennie L. Adams [and Others] . Nashville, Dede Wallace Center, 1971. 56. Furuzanfar, Badi al-Zaman. Ahadith-i Mathnawi . Tehran: Intisharat-i Daneshgah-i Tehran, 1956. 57. Ġazzālī, Abū-Ḥāmid Muḥammad Ibn-Muḥammad al-. al-Munqizu min al- ḍalāl . Translated by Hilmi Güngör. Ankara: Maarif Basımevi, 1960. 58. Ġazzālī, Abū-Ḥāmid Muḥammad Ibn-Muḥammad al-, Marmura, Michael E.\nThe incoherence of the philosophers = Tahāfut al-falāsifa . Provo, Utah: Brigham Young Univ. Press, 2009. 59. Ghazālī, Abū Ḥāmid Muḥammad b. Muḥammad al-. Al-Maqsad Al-Asna Fi Sharh Ma`ani Asma Allah Al-Busna . Beyrouth: Dar el-Machreq, 1971. 60. ———. Al-Qistas Al-Mustaqim . Damascus: Matba`at al-’ilmiya, 1994. 61. ———. Kimya-i Saa’dat . Tihran: Firdus, 1386. 62. Ghazālī, Abū-Ḥāmid Muḥammad Ibn-Muḥammad al-."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00266::5e8da10056e5",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "242",
+  "page_end": "242",
+  "pdf_page_start": 265,
+  "pdf_page_end": 265,
+  "pages_unresolved": [],
+  "token_count": 710,
+  "text": "60. ———. Al-Qistas Al-Mustaqim . Damascus: Matba`at al-’ilmiya, 1994. 61. ———. Kimya-i Saa’dat . Tihran: Firdus, 1386. 62. Ghazālī, Abū-Ḥāmid Muḥammad Ibn-Muḥammad al-. Mīzān al-ʿamal [Ameller’de ilâhî saadet ] . Translated by Omer Donmez. İstanbul: Hisar Yayınevi, 1985. 63. Ghazzali. Yol, bilgi ve varlık [Eyyühel’l-veled-ledünni ilim risalesi- mişkatü’l-envar] . İstanbul: Sufi Kitap, 2010. 64. Ghazzālī, Abu Hāmed Mohammad ibn Mohammad al-. Minhaj Ul Abidin . Translated by Göçenli Ali Bayram. Istanbul: Ozdemir Basimevi, 1980. 65. ———. Rawdat Al-Talibin. Istanbul: Dehliz Yayinlari, 2009. 66. Ghazzālī, Abu Hāmid Mohammad ibn Mohammad al-. Al-Gazali’s Tahafut Al-Falasifah (Incoherence of the Philosophers) . Lahore: Pakistan Philosophical Congress, 1963. 67. ———. Iḥyā Al-ʿUlūm Al-Dīn . Istanbul: Bedir Yayinlari, 2002. 68. ———. Mishkatul Anwār . 3rd ed., 2010. 69. ———. The Ninety-Nine Beautiful Names of God : Al-Maqsad Al-Asna Fi Sharh Asma’ Allah Al-Husna . Cambridge: Islamic Texts Society, 2007. 70. Gök, Hakan, and Said Nursi. Selected Readings from Bediüzzaman Said Nursi’s Risale-i Nur , 2016. 71. Griffel, Frank. Al-Ghazālī’s Philosophical Theology . Oxford; New York: Oxford University Press, 2009. 72. Groff, Peter S, and Oliver Leaman. Islamic Philosophy A-Z . Edinburgh: Edinburgh University Press, 2007. http://site.ebrary.com/id/10435314. 73. Gülen, Fethullah. Cemre Beklentisi . Kırık testi 10. Istanbul: Nesil Yayinlari, 2011. 74. Gulen, Fethullah. Key Concepts in the Practice of Sufism Emerald Hills of the Heart . Vol. 1. 4 vols. East Sussex: Gardners Books, 2009. 75. Gulen, M. Fethullah. Key Concepts in the Practice of Sufism: Emerald Hills of the Heart . Translated by Ali. Unal. Vol. 3. 4 vols. Somerset, NJ: Tughra, 2009. 76. Hakim al-Nisaburi, Muhammad ibn Abd Allah."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00267::ac727e377ae7",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "242",
+  "page_end": "243",
+  "pdf_page_start": 265,
+  "pdf_page_end": 266,
+  "pages_unresolved": [],
+  "token_count": 703,
+  "text": "Vol. 1. 4 vols. East Sussex: Gardners Books, 2009. 75. Gulen, M. Fethullah. Key Concepts in the Practice of Sufism: Emerald Hills of the Heart . Translated by Ali. Unal. Vol. 3. 4 vols. Somerset, NJ: Tughra, 2009. 76. Hakim al-Nisaburi, Muhammad ibn Abd Allah. Al-Mustadrak `al· Al- Sahihayn . Bayrut: Dar al-Kutub al-`Ilmiyah, 2002. 77. Hakki, Ismail. Lubbu’l-Lubb [The Kernel of The Kernel] . Istanbul: Bahar Yayinlari, 2000. 78. Hick, John. The Existence of God; John Hick . New York: Macmillan, 1973. 79. Hirtenstein, Stephen, and Michael Tiernan, eds. Muḥyiddīn ibn ʻArabī: a commemorative volume . Shaftesbury, Dorset; Rockport, Mass.: Element, 1993. 80. Hobbes, Thomas. Leviathan: Or The Matter, Form, & Power of a Common- Wealth Ecclesiastical and Civil . London: Printed for Andrew Crooke, 1651.\n81. ———. Leviathan: Thomas Hobbes ; Edited with an Introduction by C.B. Macpherson. Edited by C. B Macpherson. Great Britain: Penguin Books, 1985. 82. Hourani, George Fadlo. Islamic Rationalism: The Ethics of Abd Al-Jabbar . Oxford: Clarendon Press, 1971. 83. Hume, David. A Treatise of Human Nature . 2nd ed. Oxford: Clarendon Press, 1978. 84. Hutton, Christopher. Linguistics and the Third Reich Mother-Tongue Fascism, Race, and the Science of Language . London; New York: Routledge, 1999. http://www.myilibrary.com?id=33318. 85. ʻAbd al-Qādir ibn Muḥyī al-Dīn, Michel Chodkiewicz, James Chrestensen, and Tom Manning. The Spiritual Writings of Amir ʻAbd Al-Kader . Albany, N.Y.: State University of New York Press, 1995. 86. Ibn al-ʻArabī, al-Arabi. Ismail Hakki Bursevi’s Translation of Kernel of the Kernel by Muhyiddin Ibn `Arabi . Translated by Ismail Hakki Bursevi. Sherborne: Beshara Publications, 1983. http://www.besharapublications.org.uk/pages/kernel.html. 87. Ibn al-ʻArabī, Muḥyiddīn. Fuṣūṣ Al-Ḥikam [The Wisdom of the Prophets] . Edited by Abu al-ʿAlā ʿAfīfī. 2 vols. Bayrūt: Dār al-Kitāb al-ʿArabī, 1946."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00268::c6a3a85a240e",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "243",
+  "page_end": "243",
+  "pdf_page_start": 266,
+  "pdf_page_end": 266,
+  "pages_unresolved": [],
+  "token_count": 701,
+  "text": "87. Ibn al-ʻArabī, Muḥyiddīn. Fuṣūṣ Al-Ḥikam [The Wisdom of the Prophets] . Edited by Abu al-ʿAlā ʿAfīfī. 2 vols. Bayrūt: Dār al-Kitāb al-ʿArabī, 1946. 88. Ibn al-Jawzī, Abū al-Faraj ʻAbd al-Raḥmān ibn ʻAlī. Nuzhat Al-‘Ayun Wa Al-Nawāẓir Fī ‘ilm Al-Wujūh Wa Al-Naẓāir . Baghdād: Mu’assasat al-risālah, 1974. 89. Ibn al-ʿArabī, Muḥyiddīn. Mirāt Al-ʿIrfān [Mirror of the Knowledge] . Istanbul: Kamer Neşriyat, 1984. 90. Ibn ’Arabi, Muhi al-Din, ’Utman Yahya, and Ibrahim Madkur. Al Futuhat Al Makkiyya [The Meccan Openings] . Al Qahira: Al Hay’a al Misriyya, 1972. 91. Ibn Bābawayh al-Qummī, Muḥammad Ibn ʻAlī. Man lā yaḥḍuruh al-faqīh . Tahrān: Dār al-kutub al-islāmiyyah, 1989. 92. Ibn Babawayh, Muhammad ibn Ali. `Uyun Akhbar Al-Rida . al-Najaf: al- Matba`ah al-Haydariyah, 1970. 93. ———. Man La Yahduruhu Al-Faqih [For Him Not in the Presence of a Jurisprudent] . Tihran: Dar al-Kutub al-Islamiyah, 1970. 94. Ibn Kathir, Ismail ibn Umar. Tafsir Al-Quran Al-`azim . al-Qahirah: Dar Ihya al-Kutub al-`Arabiyah, 1978. 95. Ibn Majah, Muhammad ibn Yazid. Sunan Ibn Majah . al-Qahirah: Dar al- Hadith, 1998. 96. Ibn Mujahid, Ahmad ibn Mus·, and Shawqi Dayf. Kitab Al-Sab`ah Fi Al- Qiraat . Misr: Dar al-Ma`arif, 1988. 97. Iṣfahānī, al-Rāghib al-. Al-Mufradāt Fī Gharīb Al-Qur’ān . Bayrūt: Dār al- maʿrifah, 1961. 98. Islam at the Crossroads : On the Life and Thought of Bediuzzaman Said Nursi . Albany: State University of New York Press, 2003. 99. Izutsu, Toshihiko."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00269::ce30e8955745",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "243",
+  "page_end": "244",
+  "pdf_page_start": 266,
+  "pdf_page_end": 267,
+  "pages_unresolved": [],
+  "token_count": 699,
+  "text": "Al-Mufradāt Fī Gharīb Al-Qur’ān . Bayrūt: Dār al- maʿrifah, 1961. 98. Islam at the Crossroads : On the Life and Thought of Bediuzzaman Said Nursi . Albany: State University of New York Press, 2003. 99. Izutsu, Toshihiko. A Comparative Study of the Key Philosophical Concepts in Sufism and Taoism: IbnʻArabı̄ and Lao-Tzŭ, Chuang-Tzŭ. Tokyo: Keio\nInstitute of Cultural and Linguistic Studies, 1966. 100. ———. Ethico-Religious Concepts in the Qur’ān . Montreal ; Ithaca, NY: McGill-Queen’s University Press, 2002. 101. ———. God and Man in the Qurʹan : Semantics of the Qurʹanic Weltanschauung . Kuala Lumpur: Ayer Company Publishers, Inc, 1987. 102. ———. Language and Magic. Studies in the Magical Function of Speech . Tokyo: Keio Institute of Philological Studies, 1956. 103. ———. The Structure of the Ethical Terms in the Koran . Tokyo: Keio University, 1959. 104. ———. The Structure of the Ethical Terms in the Koran : A Study in Semantics . Tokyo: Keio Institute of Philological Studies, 1959. 105. ———. Toward a Philosophy of Zen Buddhism . Tehran: Imperial Iranian Academy of Philosophy, 1977. 106. Izutsu, Toshihiko b. Sufism and Taoism : A Comparative Study of Key Philosophical Concepts . Tokyo: Iwanami Shoten, 1983. 107. Izutsu, Toshihiko, and Hellmut Wilhelm. On Images : Far Eastern Ways of Thinking . Dallas, Tex.: Spring Publications, 1988. 108. Jawharī, Ismāʻīl ibn Ḥammād. Al-Ṣiḥāḥ: Tāj Al-Lughah Wa-Ṣiḥāḥ Al- ʿArabīyah . Cairo: Dār al-Kutub al-ʻArabı̄, 1956. 109. Jurjani, Ali ibn Muhammad al-Sayyid al-Sharif. Al-Taʻrīfāt . Bayrut: Darul kutub al-ilmiyya, 2002. 110. Karabaşoğlu, Metin. Saidleri Ararken: Risale Okumaları İçin Entellektüel Bir Giriş . Istanbul: Karakalem Yayinlari, 2004. 111. Khadduri, M, and RK Ramazani. The Islamic Conception of Justice . Johns Hopkins Univ Pr, 2002. 112. Khare, R. S. Perspectives on Islamic Law, Justice, and Society . Lanham, Md.: Rowman & Littlefield, 1999."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00270::5f24945f1448",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "244",
+  "page_end": "245",
+  "pdf_page_start": 267,
+  "pdf_page_end": 268,
+  "pages_unresolved": [],
+  "token_count": 706,
+  "text": "Istanbul: Karakalem Yayinlari, 2004. 111. Khadduri, M, and RK Ramazani. The Islamic Conception of Justice . Johns Hopkins Univ Pr, 2002. 112. Khare, R. S. Perspectives on Islamic Law, Justice, and Society . Lanham, Md.: Rowman & Littlefield, 1999. 113. Kirkinci, Mehmed. Divine Determining: (Fate and Destiny) and Man’s Will in Islam . Translated by Şükran Vahide. Cağaloğlu, Istanbul, Turkey: Sözler Neşruyat A.Ş., 1993. 114. Lampe, GE. Justice and Human Rights in Islamic Law . Washington, D.C.: International Law Institute, 1997. 115. Lane, Edward William, and Stanley Lane-Poole. An Arabic-English Lexicon, Derived from the Best and the Most Copious Eastern Sources . Vol. 2011. London; Edinburgh: Williams and Norgate, 1863. http://www.tyndalearchive.com/TABS/Lane/index.htm. 116. Leonetti, Robert. Self-Concept and the School Child : How to Enchance Self-Confidence and Self-Esteem . New York: Philosophical Library Inc, 1980. 117. Lewis, Bernard. The Emergence of Modern Turkey. London, New York: Oxford University Press, 1961. 118. Macdonald, D. B. Development of Muslim Theology, Jurisprudence and Constitutional Theory. New Ed . Lahore: The Premier Book House, 1930. 119. Majid Khadduri, Ramazani. The Islamic Conception of Justice . Johns\nHopkins Univ Press, 2002. 120. Malaṭī, Muḥammad Ibn-Aḥmad al-. Kitāb at-Tanbīh wa’r-radd ʻalā ahl al- ahwāʼ wa’l-bidaʻ . Edited by Sven Dedering. Istanbul: Staatsdruckerei, 1936. 121. Malik, Imam. Muwatta’ . Edited by Muhammad Rahimuddin. Lahore: Sh. Muhammad Ashraf, 1985. 122. Mardin, Şerif. Religion and Social Change in Modern Turkey: The Case of Bediüzzaman Said Nursi . State University of New York Press, 1989. 123. Markham, I., and İ Özdemir. Globalization, Ethics and Islam: The Case of Bediuzzaman Said Nursi . Farnham, UK: Ashgate Pub Ltd, 2005. http://books.google.co.uk/books?hl=en&lr=&id=OIqlXtRtE7sC&oi=fnd&p g=PR7&dq=An+Introduction+to+Said+Nursi:+Life,+Thought,+and+Writin gs&ots=nNo1VbkWYw&sig=kZcVdZKdohFPL3MF85xKOQFGzo4. 124. Markham, I. S., and S. Birinci. An Introduction to Said Nursi: Life, Thought and Writings ."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00271::814d2cb4c680",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "245",
+  "page_end": "245",
+  "pdf_page_start": 268,
+  "pdf_page_end": 268,
+  "pages_unresolved": [],
+  "token_count": 760,
+  "text": "124. Markham, I. S., and S. Birinci. An Introduction to Said Nursi: Life, Thought and Writings . Farnham, UK: Ashgate Pub Co, 2011. 125. Markham, Ian, and İbrahim Özdemir. Globalization, Ethics, and Islam: The Case of Bediuzzaman Said Nursi . Farnham, UK: Ashgate Publishing, 2017. 126. Markham, Ian S. Engaging with Bediuzzaman Said Nursi: A Model of Interfaith Dialogue . London: Routledge, 2016. 127. Māturīdī, Muḥammad ibn Muḥammad. Islâm akaidine dair eski metinler; Ebu Mansur-i Matüridî’nin iki eseri, tevhid kitabi ve akaid risalesi. Edited by Yusuf Ziya Yörükân. İstanbul: Millî Egitim Basimevi, 1953. 128. ———. Kitāb Al-Tawḥīd . Bu̲ḥūth Wa-Dirāsāt Bi-Idārat Maʻhad Al-Ādab Al-Sharqīyah 50. Bayrūt: Dār al-Mashriq, 1970. 129. Maudoodi, Syed Abul Ala. Tafhim Al-Quran . Vol. 6. Kuwayt: Dar al- Qalam, 1978. 130. Maududi, A.A. The Meaning of the Qur’an . Vol. 2, n.d. 131. McAuliffe, Jane Dammen. Encyclopaedia of the Qur’an . Vol. 3. 6 vols. Leiden: Koninklijke Brill, 2003. 132. ———. Encyclopaedia of the Qur’an . Vol. 5. 6 vols. Leiden: Koninklijke Brill, 2003. 133. ———. Encyclopaedia of the Qur’an . Vol. 4. 6 vols. Leiden: Koninklijke Brill, 2003. 134. McDonough, Sheila D. Sir Muḥammad Iqbāl’, Encyclopedia Britannica . Vol. 2011. 25 August. Encyclopedia Britannica, n.d. 135. Mellers, Barbara A, and Jonathan Baron. Psychological Perspectives on Justice: Theory and Applications . Cambridge [England]; New York, NY, USA: Cambridge University Press, 1993. 136. Mürsel, Safâ. Bediüzzaman Said Nursî ve devlet felsefesi . İstanbul: Yeni Asya Yayınları, 1976. 137. Muslim, al- Husain ibn al-Ḥajjāj. Ṣaḥīḥ Muslim . Bayrūt: Dār al-Kutub al- ʻIlmīyah, 1998. 138. Muslim, ibn al-Ḥajjāj ibn Muslim al-Qushayrī al-Naysābūrī. al-Musnad al- ṣaḥīḥ al-mukhtaṣar min al-sunan bi-naql al-ʻadl ʻan al-ʻadl ʻan Rasūl Allāh ."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00272::eab6884b1454",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "245",
+  "page_end": "246",
+  "pdf_page_start": 268,
+  "pdf_page_end": 269,
+  "pages_unresolved": [],
+  "token_count": 711,
+  "text": "138. Muslim, ibn al-Ḥajjāj ibn Muslim al-Qushayrī al-Naysābūrī. al-Musnad al- ṣaḥīḥ al-mukhtaṣar min al-sunan bi-naql al-ʻadl ʻan al-ʻadl ʻan Rasūl Allāh . 5 vols. Bayrūt: Dār ul-Īḥyā al-Turāth al-ʿArabī, 1999.\n139. Mutaʿawwiq, Aḥmad Muḥammad. Al-Alfāz Al-Mushtarakah Al-Ma’ānī Fī Al-Lughat Al-‘arabiyya: Ṭabiʿatuhā, Ahamīyatuhā, Maṣādiruhā [Homonymous Polysemic Words in Arabic Language: Its Nature, Importance and Sources] , 2012. http://uqu.edu.sa/majalat/shariaramag/mag21/mg_012.htm. 140. Nursi, Bediuzzaman Said. The Miraculous Quran and Some of Its Mysteries . Lanham: Tughra Books, 2009. 141. Nursi, Said. Al-Mathnawi Al-Nuri : Seedbed of the Light . The Risale-i Nur Collection. Rutherford, NJ: Light, 2002. 142. ———. Al-Mathnawi Al-Nuri : Seedbed of the Light . Translated by Huseyin Akarsu. Somerset, N.J.: The Light, 2007. 143. ———. al-Mathnawī al-Nūriya[Epitomes Of Light] . Translated by Ihsan Salihi. Sözler, 2005. 144. ———. Barla LahikâSi . İstanbul: Söz Basım Yayın, 2004. 145. ———. Bediüzzaman Said Nursî’nin ilk dönem eserleri. (Lûgatli, kaynakli, indeksli). Istanbul: Söz, 2012. 146. ———. Bediüzzaman Said-i Nursî: tarihçe-i hayatı . İstanbul: Soz Basim, 2009. 147. ———. Emirdağ LahikâSi . Vol. 1. 2 vols. Envar Nesriyat, 2004. 148. ———. İşârâTü’l-İ’câZ . Istanbul: Söz Basım Yayın, 2006. 149. ———. Ishārāt Al-ʿijāz Fī Mīẓān Al-Ījāz [Signs of Miraculousness: The Inimitability of the Qurʿanic Conciseness] . Istanbul: Sözler, 2006. 150. ———. Kastamonu LâHikası . İstanbul: Söz Basım Yayın, 2004."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00273::4fa333efaa96",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "246",
+  "page_end": "247",
+  "pdf_page_start": 269,
+  "pdf_page_end": 270,
+  "pages_unresolved": [],
+  "token_count": 704,
+  "text": "149. ———. Ishārāt Al-ʿijāz Fī Mīẓān Al-Ījāz [Signs of Miraculousness: The Inimitability of the Qurʿanic Conciseness] . Istanbul: Sözler, 2006. 150. ———. Kastamonu LâHikası . İstanbul: Söz Basım Yayın, 2004. 151. ———. Kaynakli, Indeksli Risale-i Nur Külliyati: Işarat ü’l-Icâz, Mesnevî-i Nuriya, Barla Lahikasi, Kastamonu Lahikasi, Emirdag Lahikasi, Tarihçe Hayat ... ve Digerleri. Vol. 2. 2 vols. Istanbul: Yeni Asya Yayinlari, 1995. 152. ———. Kaynakli, Indeksli Risale-i Nur Külliyati: Sözler, Mektubat, Lemalar, Şualar . Vol. 1. 2 vols. Istanbul: Nesil Yayinlari, 1994. 153. ———. Lemalar . Istanbul: Envar Neşriyat, 2004. 154. ———. Mektubat . First. Istanbul: Soz Basim Yayinevi, 2003. 155. ———. Risale i Nur Müellifi Bediüzzaman Said Nursi: Tarihçe-i Hayatı . Istanbul: Sözler Neşriyati, 2004. 156. ———. Risalei Nur müellifi Bediüzzâman Said Nursi: tarihçe-i hayatı. İstanbul: Envar Neşriyat, 1996. 157. ———. Signs of Miraculousness: The Inimitability of the Qur’an’s Conciseness . Translated by Sükran Vahide. Vol. 6. Risale-i Nur Collection. Istanbul: Sözler Nesriyat, 2007. 158. ———. Signs of Miraculousness : The Inimitability of the Quran’s Conciseness . Istanbul: Sozler Publication, 2007. 159. ———. Sözler . Istanbul: Envar Neşriyat, 2004. 160. ———. Şualar . Istanbul: Envar Neşriyat, 2004. 161. ———. Ta’liqāt ‘alá Burhān al-Kalnabawī fī al-manṭiq . Istanbul: Sözler Nesriyat A. S., 1993. 162. ———. The Damascus Sermon . Istanbul: Sözler Nesriyat, 1996.\n163. ———. The Flashes . Translated by Sükran Vahide. Istanbul: Sözler, 2004. 164. ———. The Gleams: Reflections on Qur’anic Wisdom and Spirituality . Translated by Huseyin Akarsu. Somerset, N.J.: Tughra Books, 2008."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00274::8b31b99347dd",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "246",
+  "page_end": "247",
+  "pdf_page_start": 269,
+  "pdf_page_end": 270,
+  "pages_unresolved": [],
+  "token_count": 716,
+  "text": "162. ———. The Damascus Sermon . Istanbul: Sözler Nesriyat, 1996.\n163. ———. The Flashes . Translated by Sükran Vahide. Istanbul: Sözler, 2004. 164. ———. The Gleams: Reflections on Qur’anic Wisdom and Spirituality . Translated by Huseyin Akarsu. Somerset, N.J.: Tughra Books, 2008. 165. ———. The Letters . Translated by Sükran Vahide. Istanbul: Sözler Nesriyat, 1994. 166. ———. The Letters . Translated by Şükran Vahide. Vol. 2. London: Truestar, 2005. 167. ———. The Letters: Epistles on Islamic Thought, Belief, and Life . Translated by Huseyin. Akarsu. Somerset, N.J.: The Light, 2007. 168. ———. The Rays . Sözler Neşriyat, 2004. 169. ———. The Rays: Reflections on Islamic Belief, Thought, Worship, and Action . Translated by Huseyin. Akarsu. Clifton, N.J.: Tughra Books, 2010. 170. ———. The Reasonings : A Key to Understanding the Quran’s Eloquence . Translated by Huseyin Akarsu. New Jersey: Tughra, 2008. 171. ———. The Reconstruction of Islamic Thought in the Twentieth Century . Ist. 1993, n.d. 172. ———. The Words . Translated by Vahide Şükran. Istanbul: Sozler, 2005. 173. ———. The Words : The Reconstruction of Islamic Belief and Thought . Translated by Huseyin Akarsu. Somerset, N.J.: Light, 2005. 174. Olson, Robert W. The Emergence of Kurdish Nationalism and the Sheikh Said Rebellion, 1880-1925 . Austin: University of Texas Press, 1989. 175. Oppy, Graham Robert. Arguing about Gods . New York: Cambridge University Press, 2006. 176. Ozkan, Tubanur Yesilhark. A Muslim Response to Evil: Said Nursi on the Theodicy , 2015. http://search.ebscohost.com/login.aspx?direct=true&scope=site&db=nlebk& db=nlabk&AN=1062511. 177. Pakalin, Mehmet Z. Osmanli tarih deyimleri ve terimleri sözlügü 2. Vol. 2. 3 vols. Istanbul: Milli Egitim Basimevi, 1951. 178. Paley, William. Natural Theology; Selections . Indianapolis: Bobbs-Merrill, 1963. 179. Paley, William, Matthew Eddy, and David M Knight. Natural Theology or, Evidence of the Existence and Attributes of the Deity, Collected from the Appearances of Nature . Oxford; New York: Oxford University Press, 2006. http://site.ebrary.com/id/10177891. 180. Plato. The Republic ."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00275::61e1d5564f26",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "247",
+  "page_end": "248",
+  "pdf_page_start": 270,
+  "pdf_page_end": 271,
+  "pages_unresolved": [],
+  "token_count": 700,
+  "text": "Natural Theology; Selections . Indianapolis: Bobbs-Merrill, 1963. 179. Paley, William, Matthew Eddy, and David M Knight. Natural Theology or, Evidence of the Existence and Attributes of the Deity, Collected from the Appearances of Nature . Oxford; New York: Oxford University Press, 2006. http://site.ebrary.com/id/10177891. 180. Plato. The Republic . Translated by A. D Lindsay. London: Dent, 1908. 181. Polansky, Ronald M. Aristotle’s De Anima . Cambridge: Cambridge University Press, 2007. 182. Qurtubi, Muhammad ibn Ahmad. Tafsir Al-Qurtubi . London: Dar al-Taqwa, 2003. 183. Qutb, Sayyid. Fi Zilal Al-Qur’an . Bayrut: Dar Ihya al-Turath al-Arabi, 1971. 184. ———. Social Justice in Islam . Edited by Hamid Algar. New York: Islamic Publication International, 2000. 185. Qutb, Sayyid, M. A. Salahi, and A. A. Shamis. In the Shade of the Quran .\nMWH, 1979. http://catalog.hathitrust.org/api/volumes/oclc/11090477.html. 186. Rahbar, Daud. God of Justice; a Study in the Ethical Doctrine of the Qur’ān . Leiden: E. J. Brill, 1960. http://catalog.hathitrust.org/Record/001399263 http://hdl.handle.net/2027/uc1.b4175209. 187. Rahman, Fazlur. Major Themes of the Qur’an . Minneapolis: Bibliotheca islamica, 1989. 188. Raphael, D. D. Concepts of Justice . Oxford: Clarendon, 2001. 189. Rashdall, Hastings. The Theory of Good and Evil . Oxford, 1907. 190. Razi, Fakhr al-Din Muhammad ibn Umar. Tafsir Al-Kabir . Ankara: Akçag, 1988. 191. Rāzī, Fakhr al-Dīn Muḥammad ibn ʿUmar al-. Al-Tafsīr Al-Kabīr . Vol. 31. Bayrūt: Dār ul-Īḥyā al-Turāth al-ʿArabī, 1999. 192. Rorty, Amélie. Essays on Aristotle’s Ethics . Berkeley: University of California Press, 1980. 193. Rosen, Lawrence. The Anthropology of Justice : Law as Culture in Islamic Society . Cambridge: Cambridge University Press, 1989. 194. ———. The Justice of Islam : Comparative Perspectives on Islamic Law and Society . Oxford: Oxford University Press, 2000. 195. Russell, Bertrand. Why I Am Not a Christian: And Other Essays on Religion and Related Subjects . London: Routledge, 1992. 196. Ryan, Alan. Justice . Oxford: Oxford University Press, 1996."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00276::4bd09bfc53e3",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "248",
+  "page_end": "249",
+  "pdf_page_start": 271,
+  "pdf_page_end": 272,
+  "pages_unresolved": [],
+  "token_count": 722,
+  "text": "Cambridge: Cambridge University Press, 1989. 194. ———. The Justice of Islam : Comparative Perspectives on Islamic Law and Society . Oxford: Oxford University Press, 2000. 195. Russell, Bertrand. Why I Am Not a Christian: And Other Essays on Religion and Related Subjects . London: Routledge, 1992. 196. Ryan, Alan. Justice . Oxford: Oxford University Press, 1996. 197. Sabuni, Muhammad. Safwat At-Tafasir . Bairut: Dar al-Qur`an al-Karim, 1981. 198. Ṣadr, Muḥammad Bāqir. Muqaddimāt fī al-tafsīr al-mawḍūʻī lil-Qurʼān . Bayrūt: Dār al-Tawjīh al-Islāmī, 1980. 199. Şahiner, Necmeddin. Bilinmeyen Taraflarıyla Bediüzzaman Said Nursî : Kronolojik Hayatı . Nesil, 1997. 200. Saussure, Ferdinand de. Course in General Linguistics . London: P. Owen, 1960. 201. Schimmel, Annemarie. Mystical Dimensions of Islam. Chapel Hill: University of North Carolina Press, 1975. 202. ShahristānI, Ḥusayn al-. al-Milal wa al-Niḥal . Muassah al-Ḥalabī, 2000. 203. Shulman, David Dean, and Guy G Stroumsa. Self and Self-Transformation in the History of Religions . Oxford; New York: Oxford University Press, 2002. http://site.ebrary.com/id/10086977. 204. Sirhindī, Ahmad. Mektûbât-ı RabbâNî . Vol. 2. 2 vols. Istanbul: Erhan Yayınları, n.d. 205. Stace, W. T. A Critical History of Greek Philosophy . London: Macmillan, 1920. 206. Şükran Vahide. Bediüzzaman Said Nursi: The Author of the Risale-i Nur . Cağaloğlu, İstanbul: Sözler Publications, 2000. 207. Sükran Vahide., Ibrahim M. Abu-Rabi`, and Cüneyd M. Simsek. Bediüzzaman Said Nursî : entelektüel biyografisi . Istanbul: Etkilesim Yayinlari, 2006.\n208. Suyuti, Jalal al-Din al-, and Jalal al-Din al-Mahalli. Tafsir Al-Jalalayn . Louisville: Fons Vitae, 2008. 209. Ṭabarī, Abū Jaʿfar Muḥammad. Tafsīri Ṭabarī . Vol. 9. Istanbul: Hisar Yayinevi, n.d. 210. Ṭabarī, Niẓām al-Dīn al-Ḥasan ibn Muḥammad Nīṣābūrī."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00277::7fcd0a2384b7",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "249",
+  "page_end": "249",
+  "pdf_page_start": 272,
+  "pdf_page_end": 272,
+  "pages_unresolved": [],
+  "token_count": 716,
+  "text": "Louisville: Fons Vitae, 2008. 209. Ṭabarī, Abū Jaʿfar Muḥammad. Tafsīri Ṭabarī . Vol. 9. Istanbul: Hisar Yayinevi, n.d. 210. Ṭabarī, Niẓām al-Dīn al-Ḥasan ibn Muḥammad Nīṣābūrī. Jāmi’ Al-Bayān Fī Tafsīr Al-Qur’ān . Bayrut: Dar al-Ma`rifah, 1989. 211. Taher, Mohamed. Encyclopaedic Survey of Islamic Culture. Vol. 1, Islamic Theology . New Delhi: Anmol Publications Pvt. Ltd., 1997. 212. Taji-Farouki, Suha. Beshara and Ibn ’Arabi a Movement of Sufi Spirituality in the Modern World . Oxford, U.K.: Anqa, 2007. http://public.eblib.com/choice/publicfullrecord.aspx?p=434528. 213. Taylor, Charles. Sources of the Self : The Making of the Modern Identity . Cambridge, Mass.: Harvard University Press, 1989. 214. The Qur’ān , n.d. 215. Tillich, Paul. Systematic Theology . London: S.C.M. Press, 1978. 216. Tirmidhi, Muhammad ibn Isa. Sunan Al-Tirmidhi . al-Madinah: al-Maktabah al-Salafiyah, 1965. 217. Türkiye Diyanet Vakfı. Türkiye Diyanet Vakfı İslâm ansiklopedisi . Üsküdar, İstanbul: Türkiye Diyanet Vakfı, İslâm Ansiklopedisi Genel Müdürlüğü, 1988. 218. Turner, Colin. Islam : The Basics . London: Routledge, 2006. 219. ———. The Qur’an Revealed: A Critical Analysis of Said Nursi’s Epistles of Light . Berlin: Gerlach Press, 2013. 220. Turner, Colin, and Hasan Horkuc. Said Nursi . Makers of Islamic Civilization. London: I.B. Tauris, 2009. 221. Ullmann, Stephen. Semantics : An Introduction to the Science of Meaning . Oxford: Blackwell, 1962. 222. Unal, Ali. The Quran with Annotated Interpretation in Modern English . Somerset, N.J.: The Light, 2006. 223. Urmson, J. O. Aristotle’s Ethics . Oxford, U.K.; Malden, Mass.: B. Blackwell, 1988. 224. Vahide, Şükran. Bediüzzaman Said Nursi : The Author of the Risale-i Nur . Sözler Publications, 2000. 225. Vahide, Şukran. Islam in Modern Turkey : An Intellectual Biography of Bediuzzaman Said Nursi . Edited by Ibrahim M. Abu Rabi’. Albany, NY: State University of New York Press, 2005."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00278::6e54bfa39e98",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "249",
+  "page_end": "250",
+  "pdf_page_start": 272,
+  "pdf_page_end": 273,
+  "pages_unresolved": [],
+  "token_count": 699,
+  "text": "224. Vahide, Şükran. Bediüzzaman Said Nursi : The Author of the Risale-i Nur . Sözler Publications, 2000. 225. Vahide, Şukran. Islam in Modern Turkey : An Intellectual Biography of Bediuzzaman Said Nursi . Edited by Ibrahim M. Abu Rabi’. Albany, NY: State University of New York Press, 2005. 226. Watt, W. Montgomery. Free Will and Predestination in Early Islam. London: Luzac, 1948. 227. ———. Islamic Philosophy and Theology . Edinburgh: University Press, 1962. 228. ———. Muslim Intellectual: A Study of Al-Ghazali. Edinburgh: University Press, 1963. 229. ———. What Is Islam? London [etc.]; [Beirut]: Longmans ; Librairie du Liban, 1968.\n230. Wehr, H. A Dictionary of Modern Written Arabic . Wiesbaden: Harrassowitz, 1979. 231. Wensinck, A. J. Al-Muʻjam Al-Mufahras Li-Alfāẓ Al-Ḥadīth Al-Nabawī : ʻan Al-Kutub Al-Sittah Wa-ʻan Musnad Al-Dārimī Wa-Muwaṭṭaʼ Mālik Wa- Musnad Aḥmad Ibn Ḥanbal . Vol. 5. Leiden: Brill, 1936. 232. Wensinck, A. J. The Muslim Creed; Its Genesis and Historical Development, . Cambridge [Eng.: University Press, 1932. 233. Whittingham, Martin. Al-Ghazālī and the Qurʼān One Book, Many Meanings . London; New York: Routledge, 2007. http://site.ebrary.com/id/10167797. 234. Wolterstorff, Nicholas. Justice: Rights and Wrongs . Princeton; Oxford: Princeton University Press, 2008. 235. Yaziji, Ibrahim, and Nadim Al Nasir al-Din. Kitab Nuj`at Al-Raid Wa Shur`at Al-Warid Fi Al-Mutaradif Wa Al-Mutawarid . Bayrut: Maktabat Lubnan, 1970. 236. Yazir, Elmalili Hamdi. Hak Dini Kur’an Dili . Istanbul: Şura Yayinlari, 1993. http://www.kuranikerim.com/t_elmalili_index.htm. 237. Yildirim, Suat. Kuran- Hakim ve Açıklamalı Meali . Istanbul: Define Yayinlari, 1998. 238. Yıldırım, Suad. Kur’ân-ı Hakîm ve açıklamalı meali . Işık Yayınları, 2005. 239. Zamakhshari, Mahmud ibn Umar. Asas Al-Balaghah [The Foundation of Rhetoric] . Bayrut: Maktabat Lubnan, 1998."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00279::3d92ddf3b3ec",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "Bibliography BOOKS",
+  "page_start": "250",
+  "page_end": "250",
+  "pdf_page_start": 273,
+  "pdf_page_end": 273,
+  "pages_unresolved": [],
+  "token_count": 238,
+  "text": "Istanbul: Define Yayinlari, 1998. 238. Yıldırım, Suad. Kur’ân-ı Hakîm ve açıklamalı meali . Işık Yayınları, 2005. 239. Zamakhshari, Mahmud ibn Umar. Asas Al-Balaghah [The Foundation of Rhetoric] . Bayrut: Maktabat Lubnan, 1998. 240. Zamakhsharī, Maḥmūd ibn ʿUmar. Al-Kashshāf : ʿan Ḥaqāiq Ghawāmid Al- Tanzīl Wa-`uyūn Al-Aqāwīl Fī Wujūh Al-Taʿwīl . Vol. 1. Bayrūt: Dār al- Kitāb al-ʿArabī, 1986. 241. Zürcher, Erik Jan. Turkey : A Modern History . I. B. Tauris, 2004."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00280::95e4b786068e",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "BOOK SECTIONS",
+  "page_start": "251",
+  "page_end": "252",
+  "pdf_page_start": 274,
+  "pdf_page_end": 275,
+  "pages_unresolved": [],
+  "token_count": 697,
+  "text": "BOOK SECTIONS\n1. Abu Rabi’, Ibrahim M., ed. ‘Reflections on Prayer and Social Justice in the\nThought of Thomas Merton and Bediuzzaman Said Nursi’. In Theodicy and\nJustice in Modern Islamic Thought : The Case of Said Nursi , 197–218, 2010.\n2. ‘ALCMAEON (C. 570-490 B.C.E.?)’. In Encyclopedia of Classical\nPhilosophy . Greenwood, 1997.\nhttp://www.credoreference.com/entry/cwclassical/alcmaeon_c_570_490_b_c_\ne.\n3. ‘ANAXIMANDER (C. 610-540 B.C.E.)’. In Encyclopedia of Classical\nPhilosophy . Greenwood, 1997.\nhttp://www.credoreference.com/entry/cwclassical/anaximander_c_610_540_b\n_c_e.\n4. ‘Ashari, Ahmed Ibn Mohammed Al- (873 – 935)’. In The Crystal Reference\nEncyclopedia . West Chiltington: Crystal Semantics, 2006.\nhttp://search.credoreference.com/content/entry/cre/ashari_ahmed_ibn_moham\nmed_al_873_935/0.\n5. ‘Equilibrium’. In Chambers 21st Century Dictionary . Chambers Harrap, 2001.\nhttp://www.credoreference.com/entry/chambdict/equilibrium.\n6. ‘Equilibrium’. In Saunders Comprehensive Veterinary Dictionary . Elsevier\nHealth Sciences, 2012.\nhttp://www.credoreference.com/entry/ehsvetdict/equilibrium.\n7. ‘Hume, David’. In The Columbia Encyclopedia . Columbia University Press,\n2013. http://www.credoreference.com/entry/columency/hume_david.\n8. Kuşpinar, Bilal. ‘Justice and Balance in Creation: Said Nursi’s Analysis’. In\nTheodicy and Justice in Modern Islamic Thought : The Case of Said Nursi ,\nedited by Ibrahim M. Abu Rabi’, 227–39. Ashgate Pub, 2010.\n9. ‘Nursi, B(ediuzzaman) Said’. In Biographical Dictionary of 20th Century\nPhilosophers . Routledge, 2002.\nhttp://www.credoreference.com/entry/routphil/nursi_b_ediuzzaman_said.\n10. ‘Nursi, Bediuzzaman Said’. In Biographical Dictionary of 20th Century\nPhilosophers . Routledge, 2002.\nhttp://www.credoreference.com/entry/routphil/nursi_b_ediuzzaman_said.\n11. ‘The Qur’an’. In Need to Know? Islam . Collins, 2008.\nhttp://www.credoreference.com/entry/collinsislam/the_qur_an.\n12. Vahide, Şukran. ‘Toward an Intellectual Biography of Said Nursi’. In Islam at\nthe Crossroads: On the Life and Thought of Bediuzzaman Said Nursi. Albany ,\nedited by Ibrahim M. Abu-Rabi’. Albany, NY: State University of New York\nPress, 2003. http://ahd1113.activehost.com/pdf/60742.pdf"
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00281::707e48b210a5",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "JOURNAL ARTICLES",
+  "page_start": "252",
+  "page_end": "253",
+  "pdf_page_start": 275,
+  "pdf_page_end": 276,
+  "pages_unresolved": [],
+  "token_count": 705,
+  "text": "JOURNAL ARTICLES\n1. Abdullah, Çelikkanat. ‘Bediüzzaman Said Nursi’nin Mantıkla İlgili Bir Eseri:\nKIZIL İCAZ’. Yeni Ümit 18, no. 73 (2006).\n2. Abrahamov, Binyamin. ‘Al-Ghazālī’s Supreme Way to Know God’.\nStudiaislamica Studia Islamica , no. 77 (1993): 141–68.\n3. Algar, H. ‘The Centennial Renewer: Bediüzzaman Said Nursi and the\nTradition of Tajdid’. Journal of Islamic Studies 12, no. 3 (2001): 291.\n4. Barazangi, Nimat Hafez, M. Raquibuz Zaman, and Omar Afzal. ‘Islamic\nIdentity and the Struggle for Justice’, 1996, xi, 124 p.\n5. ‘Bir Model Olarak Medresetüzzehra Projesi’, n.d.\n6. Bulaç, Ali. ‘Adalet uzerine [on Justice]’. Kopru , no. 92 (2005). doi:Online.\n7. Campbell, CA. ‘On Selfhood and Godhood’, 2004.\n8. Çınar, Aliye. ‘Modern Zamanların Değer Arayışı: Varlık-Bilgi-Değer\nBirliğinin Önemi’. Değerler Eğitimi Dergisi 4, no. 11 (2006): 53–58.\n9. Coban, I. ‘Nursi on Theodicy: A New Theological Perspective’. ISLAMIC\nPHILOSOPHY AND OCCIDENTAL PHENOMENOLOGY IN DIALOGUE 4\n(2010): 111–38.\n10. Demir, Şehmus. ‘Kuranda Zekat Kavramın Etimolojik ve Semantik Analizi\n[Etymologic and Semantic Analysis of Almsgiving Concept in the Quran]’.\nREVIEW OF THE FACULTY OF DIVINITY, Ataturk University , 2010.\n11. Dennis Danielson. ‘On Toads and the Justice of God’. Milton Quarterly 13\n(1979): 12–14.\n12. Eggen, N.S. ‘Conceptions of Trust in the Qur’an’. Journal of Qur’anic Studies\n13 (2011): 56–85.\n13. Elmali, Abdurrahman. ‘Kur’an-I Kerim’de Adâlet (Adl) Kavramı’. Harran\nÜniversitesi İlahiyat Fakültesi Dergisi , 1997, 283–328.\n14. Frank, Robert M. ‘Al-Ghazali on Taqlid: Scholars, Theologians and\nPhilosophers’. Zeitschrift Für Geschichte Der Arabisch-Islamischen\nWissenschaften 7 (1991): 207–52.\n15. Freudenthal, Gad. ‘The Theory of the Opposites and an Ordered Universe:\nPhysics and Metaphysics in Anaximander’. Phronesis 31, no. 1 (1986): 197–\n228."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00282::927aa534e125",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "JOURNAL ARTICLES",
+  "page_start": "252",
+  "page_end": "253",
+  "pdf_page_start": 275,
+  "pdf_page_end": 276,
+  "pages_unresolved": [],
+  "token_count": 716,
+  "text": "‘Al-Ghazali on Taqlid: Scholars, Theologians and\nPhilosophers’. Zeitschrift Für Geschichte Der Arabisch-Islamischen\nWissenschaften 7 (1991): 207–52.\n15. Freudenthal, Gad. ‘The Theory of the Opposites and an Ordered Universe:\nPhysics and Metaphysics in Anaximander’. Phronesis 31, no. 1 (1986): 197–\n228.\n16. Gulen, Fethullah. ‘Enâniyet Veya Egoizm’. Sizinti 27, no. 316 (2005).\n17. Haneef, M.A., and H. Furqani. ‘Developing the Ethical Foundations of Islamic\nEconomics: Benefitting from Toshihiko Izutsu’. Intellectual Discourse 17\n(2009).\n18. Horkuc, Hasan. ‘Said Nursi’s Ideal for Human Society : Moral and Social\nReform in the Risale-I Nur’, 2004.\n19. Ipgrave, Michael. ‘Justice and Rights : Christian and Muslim Perspectives : A\nRecord of the fifth “Building Bridges” seminar Held in Washington, D.C.,\nMarch 27-30, 2006’, 2009, x, 181 p.\n20. Işeri, Mustafa Said. ‘Bediüzzaman’ın Üç Hayat Devri: Eski Said, Yeni Said ve\nÜçüncü Said’. Kopru , no. 112 (2010).\nhttp://www.koprudergisi.com/index.asp?Bolum=EskiSayilar&Goster=Yazi&\nYaziNo=1076.\n21. Izutsu, Toshihiko. ‘Creation and the Timeless Order of Things : Essays in\nIslamic Mystical Philosophy’, 1994, ix, 190 p.\n22. ———. ‘The Concept of Belief in Islamic Theology : A Semantic Analysis of\nĪmān and Islām’, 2006, xi, 319 p.\n23. Kalin, Ibrahim. ‘Three Views of Science in the Islamic World’, 2002.\n24. Karagiannis, Emmanuel. ‘Political Islam in Uzbekistan: Hizb Ut-Tahrir Al-\nIslami’. Europe-Asia Studies 58, no. 2 (1 March 2006): 261–80.\n25. Kasar, Veysel. ‘Mesnevide Ulûhiyet Tasavvuru’. Harran Universitesi Ilahiyat\nFakultesi Dergisi , no. 18 (2007): 61–77.\n26. Lynch, C. Arthur. ‘Agamemnon 1323-26’. Classical Philology 42, no. 3 (1\nJuly 1947): 179. doi:10.2307/265988.\n27. Melchert, Christopher. ‘God Created Adam in His Image’. Journal of\nQur’anic Studies 13 (2011): 113–24. doi:10.3366/jqs.2011.0009.\n28. Michael T. Dempsey. ‘Providence, Distributive Justice, and Divine\nGovernment in the Theology of Thomas Aquinas: Some Implications for\nEcclesial Practice’."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00283::233c252a223f",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "JOURNAL ARTICLES",
+  "page_start": "253",
+  "page_end": "254",
+  "pdf_page_start": 276,
+  "pdf_page_end": 277,
+  "pages_unresolved": [],
+  "token_count": 709,
+  "text": "27. Melchert, Christopher. ‘God Created Adam in His Image’. Journal of\nQur’anic Studies 13 (2011): 113–24. doi:10.3366/jqs.2011.0009.\n28. Michael T. Dempsey. ‘Providence, Distributive Justice, and Divine\nGovernment in the Theology of Thomas Aquinas: Some Implications for\nEcclesial Practice’. New Blackfriars 90 (2009): 365–84.\n29. O’Shaughnessy, Thomas J. ‘Creation with Wisdom and with the Word in the\nQur’ān’. Journal of the American Oriental Society 91 (1971): 208–21.\n30. Partin, Harry B. ‘Semantics of the Qurʾān: A Consideration of Izutsu’s\nStudies’. History of Religions 9 (1970): 358–62.\n31. Pessagno, J. Meric. ‘Irāda, Ikhtiyār, Qudra, Kasb the View of Abū Manṣur Al-\nMāturīdī’. Jameroriesoci Journal of the American Oriental Society 104, no. 1\n(1984): 177–91.\n32. ———. ‘The Uses of Evil in Maturidian Thought’. Studia Islamica , no. 60 (1\nJanuary 1984): 59–82. doi:10.2307/1595509.\n33. Saritoprak, Zeki. ‘Said Nursi on Muslim-Christian Relations Leading to World\nPeace’. Islam and Christian-Muslim Relations 19, no. 1 (2008): 25–37.\n34. Shaker, A. F. ‘Man, Existence and the Life Balance (M Z N) in Islamic\nPhilosophy’. Journal of Islamic Studies 26, no. 2 (1 May 2015): 145–98.\ndoi:10.1093/jis/etv034.\n35. Taylor, AE. ‘Plato (London).(1926)’. Plato: The Man and His Works , 1908.\n36. Thomson, William. ‘Free Will and Predestination in Early Islam I.’ The\nMuslim World 40, no. 3 (1 July 1950): 207–16. doi:10.1111/j.1478-\n1913.1950.tb01046.x.\n37. Tuncbilek, Hüseyin. ‘Mevlânâ’da Vahdet-I Vücûd Telâkkisi [ Concept of\nUnity of Existence in the Thoughts of Mevlana]’. Harran Universitesi Ilahiyat\nFakultesi Dergisi , no. 18 (2007): 55–61.\n38. Turner, Colin. ‘Bediuzzaman and the Concept of Adl: Towards a Nursian\nOntology of Divine Justice’. Asian Journal of Social Science 38, no. 4 (2010):\n554–82. doi:10.1163/156853110X517782.\n39. Vahide, Sukran. ‘The Life and Times of Bediuzzaman Said Nursi’. The\nMuslim World 89 (1999): 208–44."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00284::bbe26ba2870b",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "JOURNAL ARTICLES",
+  "page_start": "254",
+  "page_end": "254",
+  "pdf_page_start": 277,
+  "pdf_page_end": 277,
+  "pages_unresolved": [],
+  "token_count": 264,
+  "text": "Turner, Colin. ‘Bediuzzaman and the Concept of Adl: Towards a Nursian\nOntology of Divine Justice’. Asian Journal of Social Science 38, no. 4 (2010):\n554–82. doi:10.1163/156853110X517782.\n39. Vahide, Sukran. ‘The Life and Times of Bediuzzaman Said Nursi’. The\nMuslim World 89 (1999): 208–44.\n40. Vlastos, Gregory. ‘Equality and Justice in Early Greek Cosmologies’.\nCLASSICAL PHILOL Classical Philology 42, no. 3 (1947).\n41. Watt, W. Montgomery. ‘REVIEWS’. Journal of Semitic Studies 12 (1967):\n155–57. doi:10.1093/jss/12.1.155.\n42. Watt, William M. ‘Free Will and Predestination in Early Islam’. MUWO The\nMuslim World 36, no. 2 (1946): 124–52.\n43. Woodlock, Rachel. ‘An Introduction to Said Nursi : Life , Thought and\nWritings’. Islam and Christian–Muslim Relations, 23 (2012): 407–8."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00285::c27f9748cfda",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "THESES",
+  "page_start": "255",
+  "page_end": "255",
+  "pdf_page_start": 278,
+  "pdf_page_end": 278,
+  "pages_unresolved": [],
+  "token_count": 531,
+  "text": "THESES\n1. Chamberlain, James Robert. ‘The Effects of Mosston’s “Practice Style” and\n“Individual Program-Teacher Design” on Motor Skill Acquisition and Self-\nConcept of Fifth Grade Learners’, 1981.\n2. Edwards, Betty W. ‘Anxiety as a Function of Self-Concept and Instructional\nMethod in Beginning Drawing Students at the High School Level’, 1972.\n3. El-Soudani, Aslam. ‘Can One Speak of a Qur’ānic Political Theory - A\nHermeneutical Study Employing Semantic and Thematic Approaches’.\nDoctoral, Durham University, 2014. http://etheses.dur.ac.uk/10675/.\n4. Gok, Hakan. ‘Saīd Nursi’s Arguments for the Existence of God in Risāle-I\nNur’. Doctoral, Durham University, 2015. http://etheses.dur.ac.uk/10994/.\n5. Goldstein, B. ‘Self-Concept of Movement in the Performance of Selected\nJumping Tasks’, 1970.\n6. Hendrick, Joshua D. ‘Globalization and Marketized Islam in Turkey : The\nCase of Fethullah Gülen’. UMI, 2009. /z-wcorg/.\n7. Horkuc, Hasan. ‘Said Nursi’s Ideal for Human Society : Moral and Social\nReform in the Risale-I Nur’. Durham University, 2004.\n8. Johnson, Bower Lyttleton. ‘A Study of the Relationships among Self-Concept\nMovement Concept, and Physical Fitness, and the Effects of a Physical\nConditioning Program and a Sports-Skill Program upon Self-Concept and\nMovement Concept’, 1969.\n9. Mermer, A. ‘Aspects of Religious Identity: The Nurcu Movement in Turkey\nToday.’ University of Durham, 1985.\nhttp://ethos.bl.uk/OrderDetails.do?uin=uk.bl.ethos.354597.\n10. Turner, Colin Paul. ‘The Rise of Twelver Shi’ite Externalism in Safavid Iran\nand Its Consolidation under Allama Muhammad Baqir Majlisi (1037/1627-\n1110/1699)’, 1989.\n11. Yesilhark, Tubanur. ‘Theodicy and the Problem of Evil in Islam: The Risale-I\nNur as Case Study.’ University of Durham, 2013.\nhttp://etheses.dur.ac.uk/9416/."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00286::bd2495b97aa3",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "CONFERENCE PAPARS, DOCUMENTS AND EMAILS",
+  "page_start": "255",
+  "page_end": "256",
+  "pdf_page_start": 278,
+  "pdf_page_end": 279,
+  "pages_unresolved": [],
+  "token_count": 699,
+  "text": "CONFERENCE PAPARS, DOCUMENTS AND EMAILS\n1. Akgunduz, Ahmet. ‘Bediuzzaman’s View of Divine Determination (Al-Qadar)\nand Free Will (Al-Irâdah Al-Juz’iyyah)’. Durham University, 2008.\n2. Alparslan Açıkgenç. ‘Said Nursi’. Türkiye Diyanet Vakfi Islâm Ansiklopedisi .\nIstanbul: Türkiye Diyanet Vakfi, 1988.\n3. Aydin, Mehmet. ‘THE PROBLEM OF EVIL IN THE RISALE-I NUR’. In\nInternational Bediüzzaman Symposium Papers (English) , Vol. 0. Istanbul:\nIstanbul Foundation for Science and Culture, 1995.\nhttp://www.iikv.org/academy/index.php/sympeng/article/view/919.\n4. Aymaz, Abdullah. Personal Interview, 01 2010.\n5. ———. Personal Interview, 01 2011.\n6. ———. Risale-i Nur Readings. Interview by Dusmamat Karimov, 19\nFebruary 2013. Personal Notes.\n7. Balci, Kerim. Letter to Dusmamat Karimov. ‘RE: Sorular: Eski Said ve Yeni\nSaid’, 2 August 2013.\n8. Bearman, P. J, Thierry Bianquis, Clifford Edmund Bosworth, E. J. van\nDonzel, Wolfhart Heinrichs, and Brill. ‘Encyclopaedia of Islam Second\nEdition Online’. Brill, 2012.\n9. Bearman, P.J, Th Banquis, C.E Bowworth, E.van Donzel, and W.P Heinrichs\nBowworth, eds. ‘Dj̲abr’. Encyclopaedia of Islam, Second Edition, Glossary\nand Index of Terms . Brill online, 2014.\n<http://referenceworks.brillonline.com/entries/encyclopaedia-of-islam-2-\nGlossary-and-Index-of-Terms/djabr-SIM_gi_00891>.\n10. Berghout, Abdelaziz. ‘Justice: The Essence of Creation and True Civilization\n(Glimpses on the Dynamics of Divine Names and Just Mind in Risale-I Nur)’.\nIn International Bediüzzaman Symposium Papers (English) , 216–32. Istanbul:\nIstanbul Foundation for Science and Culture, 2007.\nhttp://www.iikv.org/academy/index.php/sympeng/article/view/1098.\n11. Dusmamat Karimov. ‘The Concept of “Adl in God”s Dealings with Human in\nthe Risale-I Nur:’Adl in Relation to Qadar’. Istanbul: Istanbul Foundation for\nScience and Culture, 2012.\nhttps://www.academia.edu/1777252/The_concept_of_Adl_in_Gods_dealings_\nwith_human_in_the_Risale-i_Nur_Adl_in_relation_to_qadar.\n12. Kuspinar, Bilal. ‘Justice And Balance In Creation: Nursi’s Analysis’. In\nInternational Bediüzzaman Symposium Papers (English) , 12–22."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00287::008cc9c002f1",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "CONFERENCE PAPARS, DOCUMENTS AND EMAILS",
+  "page_start": "256",
+  "page_end": "257",
+  "pdf_page_start": 279,
+  "pdf_page_end": 280,
+  "pages_unresolved": [],
+  "token_count": 486,
+  "text": "Istanbul: Istanbul Foundation for\nScience and Culture, 2012.\nhttps://www.academia.edu/1777252/The_concept_of_Adl_in_Gods_dealings_\nwith_human_in_the_Risale-i_Nur_Adl_in_relation_to_qadar.\n12. Kuspinar, Bilal. ‘Justice And Balance In Creation: Nursi’s Analysis’. In\nInternational Bediüzzaman Symposium Papers (English) , 12–22. Istanbul:\nIstanbul Foundation for Science and Culture, 2007.\nhttp://www.iikv.org/academy/index.php/sympeng/article/view/1098.\n13. Leaman, Oliver, ed. ‘Al-Malaṭi, Abu ’L-Husayn (D. 337 / 987)’. The\nBiographical Encyclopaedia of Islamic Philosophy . Continuum. Accessed 24\nJuly 2014.\nhttp://www.oxfordreference.com/view/10.1093/acref/9780199754731.001.000\n1/acref-9780199754731-e-261?rskey=cjFTGO&result=1.\n14. Umar, Ahmad Mukhtar. ‘`Ilm Al-Dalalah’. al-Qahirah: `Alam al-Kutub, 1993.\n15. Vahide, Şükran, ed. ‘Third International Symposium on Bediuzzaman Said\nNursi : The Reconstruction of Islamic Thought in the Twentieth Century and\nBediuzzaman Said Nursi : 24th-26th September, 1995 Istanbul’. Istanbul:\nSozler, 1997.\n16. Yasaroglu, Kamil. ‘Namaz’. Türkiye Diyanet Vakfi Islâm Ansiklopedisi .\nIstanbul: Türkiye Diyanet Vakfi, 2006.\n17. Zukas, Alexander M. ‘Russian Revolution (1917-1921)’. Encyclopedia of\nActivism and Social Justice . Sage Publications. Accessed 13 December 2016.\nhttp://search.credoreference.com/content/topic/russian_revolution?searchId=5\nc5d7e23-c164-11e6-9a39-0e58d2201a4d ."
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00288::0825ab6cfc9c",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "apparatus",
+  "chapter": "Bibliography",
+  "section": "WEB PAGES",
+  "page_start": "257",
+  "page_end": "258",
+  "pdf_page_start": 280,
+  "pdf_page_end": 281,
+  "pages_unresolved": [],
+  "token_count": 640,
+  "text": "WEB PAGES\n1. ‘Bediüzzaman Hangi Tarihte Doğdu?’ Risale-i Nur Enstitusu . Accessed 23\nAugust 2012.\nhttp://www.risaleinurenstitusu.org/index.asp?Section=SaidNursi&Subsection=\nDogumTarihi.\n2. Bulaç, Ali. ‘Yıldızlarımız Çarpışmaz!’ ZAMAN . Accessed 5 February 2013.\nhttp://zaman.com.tr/columnistDetail_getNewsById.action?newsId=1349248&\ncolumnistId=1025.\n3. Firuzabadi, Muhammad ibn Ya’qub. ‘Al-Qamus Al-Muhit [The Surrounding\nOcean] [Website]’, 2011.\nhttp://baheth.info/index.jsp?page=/web/includes/start.jsp.\n4. Haddad, G.F. ‘The Qadariyya, Mu‘tazila, and Shî‘a’, 8 April 2014.\nhttp://www.sunnah.org/aqida/Main_Sects.htm.\n5. Ibn Manẓūr, Muḥammad ibn Mukarram. ‘Lisān Al-ʿarab [The Arab Tonque]\n[Website]’, 2009.\nhttp://baheth.info/all.jsp?term=%D9%82%D8%B3%D8%B7.\n6. Karli, Zafer. ‘Eski ve Yeni Said Dönemi Eserleri’. www.herkul.org , 2 August\n2013. http://herkul.org/index.php/sizden-gelenler/sizden-gelenlerr/8232-\nEski%20ve%20Yeni%20Said%20D%C3%B6nemi%20Eserleri.\n7. Kuspinar, Bilal. ‘Said Nursi’. The Oxford Encyclopedia of the Islamic World.\nOxford Islamic Studies Online . Accessed 24 August 2012.\n8. http://www.oxfordislamicstudies.com.ezphost.dur.ac.uk/article/opr/t236/e0605\n?_hi=5&_pos=3#.\n9. Nassourou, Mohamadou. ‘A Knowledge-Based Hybrid Statistical Classifier\nfor Reconstructing the Chronology of the Quran’, 2011.\nhttp://opus.bibliothek.uni-wuerzburg.de/volltexte/2011/5471/.\n10. Tabarsi, al-Fadl ibn al-Hasan. ‘Majma` Al-Bayan Li-`ulum Al-Quran\n[Collection of Statement for Quranic Sciences] [Online Text]’, 1958.\nhttp://www.holyquran.net/tafseer/majma/index.html.\n11. Zayd, N.H.A. ‘The Qur’anic Concept of Justice’, 2011.\nhttp://them.polylog.org/3/fan-en.htm .\n12. http://corpus.quran.com/"
+ },
+ {
+  "chunk_id": "karimov-2017-quranic-justice::00289::f9737a2ea8fa",
+  "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Appendix",
   "section": "APPENDIX 1: NAMES AND ATTRIBUTES OF GOD IN ISLĀM",
   "page_start": "i",
@@ -3410,8 +4064,9 @@
   "text": "APPENDIX 1: NAMES AND ATTRIBUTES OF GOD IN ISLĀM\nNames in\nMeaning Names in\nMeaning\nTransliterations\nTransliterations\nAllāh The God. The only\nAl-Mubdī The Originator. He\none Almighty. He\nwho creates all\nalone is worthy of\ncreatures initially\nworship.\nwithout matter or\nmodel.\nAl-ʿAdl The Just. He who is\nAl-Mughnī The Enricher. The\nEquitable.\nSufficer.\nAl-Ākhir The Last. Al-Muhaymīn The Guardian. He\nwho watches over and\nprotects all things.\n(Helper in Peril)\nAl-ʿAfū The Pardoner. He\nAl-Muhsī The Appraiser. He\nwho pardons all who\nwho knows the number\nsincerely repents.\nof every single thing in\nexistence, even to\ninfinity.\nAl-ʿAlīm The Knower of\nAl-Muʿīd The Restorer. He who\nAll. He who has full\nrecreates His creatures\nknowledge of all\nafter He has\nthings.\nannihilated them.\nAl-Aḥad The One. The only\nAl-Muʿizz The Bestower of\none.\nHonours. He who\nconfers honour and\ndignity.\nAl-Awwal The First. Al-Mujīb The Responder to\nPrayer. He who grants\nthe wishes who\nappeals to him.\nAl-ʿAzīz The Mighty &\nAl-Muqīt The Nourisher. He\nStrong.\nwho gives every\ncreature it's\nsustenance.\nAl-ʿAẓīm The\nAl-Muqaddim The Expediter. He\nMagnificent. The\nwho brings forward\nMost High. He who is\nwhatever He wills\nMost Splendid.\n(Forewarner).\nAl-Badīʿ The\nAl-Muqsīṭ The Equitable\nIncomparable. He\nOne. He who does\nwho is without model\neverything with proper\nor match, and who\nbalance and harmony.\nbrings into being\nworlds of amazing\nwonder.\nAl-Bāʿith The Resurrector. He\nAl-Muqtadir The Creator of All\nwho brings the dead\nPower. He who\nto life, and raises them\ndisposes at His will\nfrom their tombs.\neven of the strongest\nand mightiest of His\ncreatures.\nAl-Bāqī The Everlasting\nAl-Mumīt The Taker of Life. He\nOne. Eternal (in the\nwho creates the death\nfuture).\nof a living creature.\nAl-Bāri’ The Maker of\nAl-Muntaqīm The Avenger. He who\nOrder (Skilled\njustly inflicts upon\nWorker). O Evolver\nwrongdoers the\nwho created all things\npunishment they\nso that each whole\ndeserve.\nand its parts are in\nperfect conformity\nand harmony.\nAl-Barr Source of all\nAl-Muṣawwir The Shaper of\nGoodness. He who\nBeauty. He who\ntreats His servants\ndesigns all things,\ntolerantly, and whose\ngiving each its\ngoodness and\nparticular form and\nkindness are very\ncharacter (Sculptor)."
  },
  {
-  "chunk_id": "karimov-2017-quranic-justice::00262::e5f7689710e9",
+  "chunk_id": "karimov-2017-quranic-justice::00290::e5f7689710e9",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Appendix",
   "section": "APPENDIX 1: NAMES AND ATTRIBUTES OF GOD IN ISLĀM",
   "page_start": "ii",
@@ -3423,8 +4078,9 @@
   "text": "and its parts are in\nperfect conformity\nand harmony.\nAl-Barr Source of all\nAl-Muṣawwir The Shaper of\nGoodness. He who\nBeauty. He who\ntreats His servants\ndesigns all things,\ntolerantly, and whose\ngiving each its\ngoodness and\nparticular form and\nkindness are very\ncharacter (Sculptor).\ngreat indeed.\nAl-Baṣīr\nThe All-Seeing. To\nAl-Mutaʿālī The Supreme\nthose who invoke this\nOne. He is exalted in\nName one hundred\nevery respect, far\ntimes between the\nbeyond anything the\nobligatory and\nmind could possibly\ncustomary prayers in\nattribute to His\nFriday congregation,\ncreatures.\nAllah grants esteem in\nthe eyes of others.\nAl-Bāsiṭ The\nAl-Mutakabbir The Majestic. He who\nReliever (Uncloser).\ndemonstrates His\nHe who releases,\ngreatness in all things\nletting things expand.\nand in all ways.\nAl-Bātin The Hidden One. He\nAl-Muḍill The Humiliator. He\nwho is hidden,\nwho degrades and\nconcealed.\nabases.\nAl-Ḍārr The Distresser The\nAn-Nāfiʿ The Creator of\nCreator of the\nGood. He who creates\nHarmful. He who\nthings that yields\ncreates things that\nadvantages and\ncause pain and injury.\nbenefit.\nAl-Fattāḥ The Opener. He who\nAl-Nūr The Light. He who\nopens the solution to\ngives light to all the\nall problems and\nworlds, who\nmakes things easy.\nilluminates the faces,\nminds and hearts of\nHis servants.\nAl-Ghaffār The Forgiving. He\nAl-Qābiḍ The Constrictor. He\nwho is always ready\nwho constricts and\nto forgive.\nrestricts.\nAl-Ghafūr The Forgiver and Al-Qādir The All Powerful. He\nHides Faults. who is Able to do what\nHe wills as He wills\n(Providence).\nAl-Ghāni The Rich One. He\nAl-Qahhār The Subduer. He who\nwho is infinitely rich\ndominates all things,\nand completely\nand prevails upon them\nIndependent.\nto do whatever He\nwills (Dominant).\nAl-Hādī The Guide. He who\nAl-Qawī The Most Strong. The\nprovides guidance.\nPossessor of All\nStrength.\nAl-Ḥāfiz The Preserver. He\nAl-Qayyūm The Self-Existing\nwho guards all\nOne. He who\ncreatures in every\nmaintains the heavens,\ndetail.\nthe earth, and\neverything that exists.\nAl-Ḥayy The Ever Living\nAl-Quddūs The Pure One. He\nOne. The living who\nwho is free from all\nknows all things and\nerrors.\nwhose strength is\nsufficient for\neverything.\nAl-Ḥakīm The Perfectly\nAr-Rafiʿ The Exalter."
  },
  {
-  "chunk_id": "karimov-2017-quranic-justice::00263::cf8de8a5b45f",
+  "chunk_id": "karimov-2017-quranic-justice::00291::cf8de8a5b45f",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Appendix",
   "section": "APPENDIX 1: NAMES AND ATTRIBUTES OF GOD IN ISLĀM",
   "page_start": "iv",
@@ -3436,8 +4092,9 @@
   "text": "He who\ncreatures in every\nmaintains the heavens,\ndetail.\nthe earth, and\neverything that exists.\nAl-Ḥayy The Ever Living\nAl-Quddūs The Pure One. He\nOne. The living who\nwho is free from all\nknows all things and\nerrors.\nwhose strength is\nsufficient for\neverything.\nAl-Ḥakīm The Perfectly\nAr-Rafiʿ The Exalter. He who\nWise. He whose every\nraises up.\ncommand and action\nis pure wisdom.\nAl-Ḥakam The Judge. He who\nAr-Raḥīm The All\njudges and makes\nCompassionate. He\nright prevails.\nwho acts with extreme\nkindness.\nAl-ʿĀlī The Highest. The\nAr-Raḥmān The All Merciful. He\nExalted.\nwho wills goodness\nand mercy for all His\ncreatures.\nAl-Ḥalīm The Forbearing. He\nAl-Raqīb The Watchful One.\nwho is Most Clement.\nAl-Ḥamīd The\nAl-Rashīd The Righteous\nPraiseworthy. All\nTeacher. He who\npraise belongs to Him,\nmoves all things in\nand who alone do the\naccordance with His\ntongues of all creation\neternal plan, bringing\nlaud.\nthem without error and\nwith order and wisdom\nto their ultimate\ndestiny (Unerring).\nAl-Ḥaqq The Truth. He\nAl-Raʿūf The Kind. He who is\nwho’s being endures\nvery compassionate\nunchangingly.\n(Indulgent).\nAl-Ḥasīb The Accounter. He\nAl-Razzāq The Sustainer. He\nwho knows every\nwho provides all things\ndetails.\nuseful to His creatures.\nAl-Jabbār The Compelling. He\nAl-Ṣabūr The Patient One. He\nwho repairs all broken\nwho is characterized\nthing, and completes\nby infinite patience.\nthat which is\nincomplete.\nAl-Jalīl The Glorious. He\nAl-Salām The Source of\nwho is Lord of\nPeace. He who frees\nMajesty and\nHis servants from all\nGrandeur.\ndanger.\nAl-Jāmʿi The Gatherer. He\nAs-Ṣamad The Eternal. He who\nwho brings together\nis the only recourse for\nwhat He wills, when\nthe ending of need and\nHe wills, where He\nthe removal of\nwills.\naffliction.\nAl-Kabīr The Greatest. He\nAl-Samiʿ The Hearer of\nwho supremely great.\nAll. Allah takes care of\nall the needs of those\nwho invoke this\nglorious Name one\nhundred times.\nAl-Karīm The Generous. He Al-Shāhid The Witness. He who\nwhose generosity is\nis present everywhere\nmost abundant.\nand observes all things.\nAl-Khabīr The All Aware. He\nAl-Shakūr The Rewarder of\nwho has the\nThankfulness. He\nknowledge of inner &\nwho gratefully rewards\nmost secret aspects of\ngood deeds\nall things."
  },
  {
-  "chunk_id": "karimov-2017-quranic-justice::00264::2dbf1aac9f12",
+  "chunk_id": "karimov-2017-quranic-justice::00292::2dbf1aac9f12",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Appendix",
   "section": "APPENDIX 1: NAMES AND ATTRIBUTES OF GOD IN ISLĀM",
   "page_start": "v",
@@ -3449,8 +4106,9 @@
   "text": "Al-Karīm The Generous. He Al-Shāhid The Witness. He who\nwhose generosity is\nis present everywhere\nmost abundant.\nand observes all things.\nAl-Khabīr The All Aware. He\nAl-Shakūr The Rewarder of\nwho has the\nThankfulness. He\nknowledge of inner &\nwho gratefully rewards\nmost secret aspects of\ngood deeds\nall things.\n(Appreciator).\nAl-Khāfiẓ The Abaser. He who\nAl-Tawwāb The Acceptor to\nbrings down,\nRepentance. He who\ndiminishes.\nis ever ready to accept\nrepentance and to\nforgive sins\n(Relenting).\nAl-Khāliq The Creator. He who\nAl-Wakīl The Trustee /\nbrings from non-being\nGuardian. He who\ninto being, creating all\nmanages the affairs of\nthings in such a way\nthose who duly\nthat He determines\ncommit them to His\ntheir existence and the\ncharge, and who looks\nconditions and events\nafter them better than\nthey are to experience.\nthey could themselves.\nAl-Laṭīf The Subtle One. He\nAl-Wālī\nThe Protecting\nwho knows the\nFriend. He who is a\nminutest subtleties of\nnearest friend to His\nall things.\ngood servants.\nAl-Majīd The Majestic\nAl-Wahhāb The Giver of All. He\nOne. He whose glory\nwho constantly\nis most great and most\nbestows blessings of\nhigh.\nevery kind.\nAl-Majīd The Glorious. He,\nAl-Wāḥid The Unique. He who\nwhose dignity and\nis Single, absolutely\nglory are most great,\nwithout partner or\nand whose generosity\nequal in His Essence,\nand munificence are\nAttributes, Actions,\nbountiful.\nNames and Decrees.\nAl-Mālik The Absolute Al-Wājid The Finder. He who\nRuler. The Ruler of\nfinds what He wishes\nthe entire universe\nwhen He wishes\n(King of Kings).\n(Perceiving).\nMālik-ul-Mulk The Owner of\nAl-Wadūd The Loving One. He\nAll. The King of the\nwho loves His good\nKingdom.\nservants, and bestows\nhis compassion upon\nthem.\nAl-Māniʿ The Preventer of\nAl-Wālī The Governor. The\nHarm. The\nProtecting Friend. He\nWithholder.\nwho administers this\nvast universe and all its\npassing phenomena.\nAl-Muʿmin The Inspirer of\nAl-Wasiʿ The All\nFaith. He who\nComprehending. He\nawakes the light of\nwho has limitless\nfaith in our hearts.\ncapacity and\nabundance.\nAl-Matīn The Firm. He who is\nAl-Wārith The Inheritor of\nvery steadfast.\nAll. He who is the Real\nOwner of all riches.\nAl-Muḥyī The Giver of Life. He\nAl-Ẓāhir The Manifest One. He\nwho confers life,\nwho is Evident.\ngives vitality, revives."
  },
  {
-  "chunk_id": "karimov-2017-quranic-justice::00265::992494404430",
+  "chunk_id": "karimov-2017-quranic-justice::00293::992494404430",
   "document_id": "karimov-2017-quranic-justice",
+  "kind": "source",
   "chapter": "Appendix",
   "section": "APPENDIX 1: NAMES AND ATTRIBUTES OF GOD IN ISLĀM",
   "page_start": "vii",

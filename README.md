@@ -139,6 +139,10 @@ material is one click away rather than hidden:
   `Sources:` line resolved to printed page numbers (`Sources: [1] pp. 28–29, [2] pp. 30–31`).
   Every page number comes from stored provenance — the generation model never emits one.
 - **Show full citation details** expands each reference to author, year, chapter, section and pages.
+- **Reference-list sources are labelled.** The bibliography is indexed so that questions about what
+  the thesis *cites* can be answered, but it is tagged as apparatus: the model is told it supports
+  only bibliographic claims, and any citation drawn from it is marked *(reference list)*. A cited
+  title is never treated as evidence of its own contents.
 - **Limits of this answer** and **Not covered by the collection** state what the retrieved evidence
   does and does not support.
 - **AI interpretation** appears as a separate labelled callout when the assistant draws its own

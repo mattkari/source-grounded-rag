@@ -336,18 +336,14 @@ def pages_for(seg: Segment, lo: int, hi: int) -> list[Page]:
 # ---------------------------------------------------------------------------
 
 
-def is_excluded(chapter: str | None) -> bool:
+def is_apparatus(chapter: str | None) -> bool:
     """Reference apparatus is not a source claim (hard rule 5).
 
-    Excluded chapters are still extracted into the canonical record and are
-    listed in the manifest — dropped from evidence, never silently discarded.
+    Apparatus is indexed like anything else, but carries `kind: "apparatus"`
+    so that the model is told what it is and the citation says so. A
+    bibliography entry supports "the thesis cites this work" and nothing more.
     """
-    return bool(chapter) and chapter.startswith(settings.excluded_chapter_prefixes)
-
-
-def partition(segments: list[Segment]) -> tuple[list[Segment], list[Segment]]:
-    kept = [s for s in segments if not is_excluded(s.chapter)]
-    return kept, [s for s in segments if is_excluded(s.chapter)]
+    return bool(chapter) and chapter.startswith(settings.apparatus_chapter_prefixes)
 
 
 def page_span(segments: list[Segment]) -> tuple[int, int] | tuple[None, None]:
@@ -372,6 +368,7 @@ def build_chunks(segments: list[Segment]) -> list[dict]:
                 {
                     "chunk_id": f"{settings.document_id}::{len(records):05d}::{digest}",
                     "document_id": settings.document_id,
+                    "kind": "apparatus" if is_apparatus(seg.chapter) else "source",
                     "chapter": seg.chapter,
                     "section": seg.section,
                     "page_start": printed[0],
@@ -445,20 +442,22 @@ def main() -> int:
                 + "\n"
             )
 
-    all_segments = build_segments(pages)
-    segments, dropped = partition(all_segments)
+    segments = build_segments(pages)
     records = build_chunks(segments)
     chapters = sorted({s.chapter for s in segments if s.chapter})
 
-    excluded = []
-    for chapter in sorted({s.chapter for s in dropped if s.chapter}):
-        start, end = page_span([s for s in dropped if s.chapter == chapter])
-        excluded.append(
+    apparatus = []
+    for chapter in sorted({s.chapter for s in segments if is_apparatus(s.chapter)}):
+        start, end = page_span([s for s in segments if s.chapter == chapter])
+        apparatus.append(
             {
                 "chapter": chapter,
                 "pdf_page_start": start,
                 "pdf_page_end": end,
-                "reason": "excluded_chapter_prefix — reference apparatus, not a source claim",
+                "chunk_count": sum(
+                    1 for r in records if r["kind"] == "apparatus" and r["chapter"] == chapter
+                ),
+                "note": "indexed as reference apparatus — supports bibliographic claims only",
             }
         )
 
@@ -472,12 +471,15 @@ def main() -> int:
     for chapter in chapters:
         print(f"      · {chapter[:66]}")
     print(f"  section segments      : {len(segments)}")
-    print(f"  chunks                : {len(records)}")
+    print(f"  chunks                : {len(records)} "
+          f"({sum(1 for r in records if r['kind'] == 'source')} source, "
+          f"{sum(1 for r in records if r['kind'] == 'apparatus')} apparatus)")
     print(f"  canonical extraction  : {canonical}")
-    for item in excluded:
+    for item in apparatus:
         print(
-            f"  EXCLUDED from evidence: {item['chapter'][:44]!r} "
-            f"(pdf pp. {item['pdf_page_start']}–{item['pdf_page_end']}) — still extracted"
+            f"  APPARATUS             : {item['chapter'][:40]!r} "
+            f"(pdf pp. {item['pdf_page_start']}–{item['pdf_page_end']}, "
+            f"{item['chunk_count']} chunks) — bibliographic claims only"
         )
 
     print(f"Embedding with {settings.embedding_provider}:{active_model_name()} ...")
@@ -505,8 +507,10 @@ def main() -> int:
                 "pages_with_text_but_no_body": text_but_no_body,
                 "chapter_source": settings.chapter_source,
                 "chapters": chapters,
-                "excluded_from_evidence": excluded,
+                "apparatus_chapters": apparatus,
                 "chunk_count": len(records),
+                "chunk_count_source": sum(1 for r in records if r["kind"] == "source"),
+                "chunk_count_apparatus": sum(1 for r in records if r["kind"] == "apparatus"),
                 "embedding_provider": settings.embedding_provider,
                 "embedding_model": active_model_name(),
                 "embedding_dim": int(vectors.shape[1]),

@@ -45,6 +45,11 @@ prints no running header at all. Every citation would have been unusable.
    quotable evidence. Excluded material is still extracted into the canonical record and is listed
    in the manifest with its reason — dropped from evidence, never silently discarded.
 
+   > **Superseded by [ADR 0002](0002-bibliography-as-tagged-apparatus.md) (2026-08-14).** The
+   > "surfaces reference lists as quotable evidence" claim was asserted without measurement and did
+   > not survive it: bibliography chunks took 0 of 50 evidence slots across 10 substantive
+   > questions. The bibliography is now indexed and tagged `kind: "apparatus"` rather than excluded.
+
 ## Consequences
 
 Calibrating a new document is a measurement pass (font/size census, band analysis, dry run against
