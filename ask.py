@@ -104,6 +104,11 @@ def retrieve(question: str, vectors: np.ndarray, chunks: list[dict], k: int) -> 
 # ---------------------------------------------------------------------------
 
 
+def is_apparatus(chunk: dict) -> bool:
+    """Older indexes predate the tag; absent means an ordinary source passage."""
+    return chunk.get("kind") == "apparatus"
+
+
 def render_evidence_block(items: list[EvidenceItem]) -> str:
     lines = []
     for item in items:
@@ -113,6 +118,12 @@ def render_evidence_block(items: list[EvidenceItem]) -> str:
             header += f" — Chapter: {c['chapter']}"
         if c["section"]:
             header += f" — Section: {c['section']}"
+        if is_apparatus(c):
+            # The model must not read a cited title as a claim the author made.
+            header += (
+                " — REFERENCE APPARATUS: a list of works cited, not the author's"
+                " argument. Supports only what the thesis cites, never what it claims."
+            )
         lines.append(f"{header}\n\"{c['text']}\"")
     return "\n\n".join(lines)
 
@@ -224,7 +235,8 @@ def footnote(index: int, item: EvidenceItem) -> str:
     if c["section"]:
         parts.append(f"§ {c['section']}")
     parts.append(page_phrase(c))
-    return f"{index}. " + ", ".join(parts) + "."
+    suffix = " [reference list — what the thesis cites, not what it argues]" if is_apparatus(c) else ""
+    return f"{index}. " + ", ".join(parts) + "." + suffix
 
 
 def substitute_markers(text: str, order: dict[str, int]) -> str:

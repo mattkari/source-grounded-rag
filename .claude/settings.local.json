@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(.venv/bin/python -c ' *)",
-      "Bash(.venv/bin/python *)"
+      "Bash(.venv/bin/python *)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Document all four entry points step by step in README *)",
+      "Bash(cp ~/Downloads/\"JADE+LEUNG+-+DPHIL+THESIS+-+Sep19.pdf\" data/leung-2019-ai-governance.pdf)"
     ]
   }
 }

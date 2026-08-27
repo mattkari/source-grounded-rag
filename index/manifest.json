@@ -1,21 +1,53 @@
 {
- "document_id": "sonmez-2014-transparency",
- "document_title": "The Role of Better Transparency Law in Corporate Governance and Financial Markets, and Its Practicability in Legal Systems: A Comparative Study Between the EU and Turkey",
- "document_author": "S\u00f6nmez, M.",
- "document_year": "2014",
- "source_pdf": "thesis.pdf",
- "pages_total": 320,
- "pages_with_text": 319,
+ "document_id": "karimov-2017-quranic-justice",
+ "document_title": "The Qur\u2019anic Concept of Justice (al-\u02bfAdl) from a Nursian Perspective",
+ "document_author": "Karimov, D.",
+ "document_year": "2017",
+ "source_pdf": "karimov-2017-quranic-justice.pdf",
+ "pages_total": 288,
+ "pages_with_text": 287,
  "pages_without_printed_number": [
   1,
-  2
+  67
  ],
- "chunk_count": 249,
+ "pages_with_text_but_no_body": [],
+ "chapter_source": "running_header",
+ "chapters": [
+  "Abstract",
+  "Acknowledgment",
+  "Appendix",
+  "Bibliography",
+  "Conclusion",
+  "Declaration and Copyrights",
+  "Glossary",
+  "Intellectual Biography of Said Nursi",
+  "Introduction",
+  "Table of Contents",
+  "Table of Figures",
+  "Table of Tables",
+  "The Concept of al-\u02bfAdl (justice) as the Doctrine of the mean: Nursian discourse of the notion of \u2018balance\u2019 in human life",
+  "The Concept of al-\u02bfAdl (justice) in the Qur\u2019\u0101n",
+  "The Concept of al-\u02bfadl (justice) in relation to Qadar (Divine Determining)",
+  "The Concept of al-\u02bfadl in creation according to Said Nursi: Justice as Balance and Order",
+  "Transliteration"
+ ],
+ "apparatus_chapters": [
+  {
+   "chapter": "Bibliography",
+   "pdf_page_start": 262,
+   "pdf_page_end": 281,
+   "chunk_count": 28,
+   "note": "indexed as reference apparatus \u2014 supports bibliographic claims only"
+  }
+ ],
+ "chunk_count": 294,
+ "chunk_count_source": 266,
+ "chunk_count_apparatus": 28,
  "embedding_provider": "openai",
  "embedding_model": "text-embedding-3-large",
  "embedding_dim": 3072,
  "normalised": true,
  "chunk_target_tokens": 700,
  "chunk_overlap_tokens": 100,
- "corpus_text_sha256": "74be49cf27902f14adab5870b86370bb3a61e91b001a03851fd824a42e82ccef"
+ "corpus_text_sha256": "2a2152cb5d5818e8557ed39663f5be42ac7d6ef7c81526a0054262e2fe519b55"
 }
