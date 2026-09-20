@@ -101,9 +101,25 @@ class Settings:
     # --- generation role ---------------------------------------------------
     # Anthropic offers no embeddings endpoint, so the two roles necessarily
     # use different vendors. That is a real constraint, not an oversight.
-    llm_provider: str = "anthropic"
-    llm_model: str = "claude-opus-5"
+    #
+    # Default is Haiku, not Opus: the generation step here is constrained
+    # extraction from a supplied evidence block, not open-ended reasoning, and
+    # every question on a public demo spends money. Haiku 4.5 is $1/$5 per
+    # MTok against Opus 5's $5/$25 — a 5x reduction on a ~4k-input,
+    # ~700-output query ($0.0075 vs $0.0375). Override per-run when a harder
+    # question warrants it; the model string is recorded in every run record,
+    # so a cheaper default never silently rewrites the evidence of past runs.
+    llm_provider: str = os.environ.get("LLM_PROVIDER", "anthropic")
+    llm_model: str = os.environ.get("LLM_MODEL", "claude-haiku-4-5")
     llm_max_tokens: int = 16000
+
+    # --- local generation fallback (LLM_PROVIDER=ollama) --------------------
+    # Removes the API dependency entirely, at a real cost in speed and in
+    # instruction-following. Documented and tested, but not the default — see
+    # ask._call_ollama for the measured reasoning.
+    ollama_host: str = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    ollama_timeout: int = int(os.environ.get("OLLAMA_TIMEOUT", "300"))
+    ollama_num_predict: int = int(os.environ.get("OLLAMA_NUM_PREDICT", "1200"))
 
     # --- chunking ----------------------------------------------------------
     chunk_target_tokens: int = 700

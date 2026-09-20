@@ -150,6 +150,13 @@ def _get_prompt() -> tuple[str, str]:
 
 def call_model(question: str, items: list[EvidenceItem]) -> tuple[dict, str]:
     system_prompt, prompt_hash = _get_prompt()
+    user_content = (
+        f"EVIDENCE\n========\n{render_evidence_block(items)}\n\n"
+        f"QUESTION\n========\n{question}"
+    )
+
+    if settings.llm_provider == "ollama":
+        return _call_ollama(system_prompt, user_content), prompt_hash
 
     client = _get_client()
     response = client.messages.create(
@@ -157,15 +164,7 @@ def call_model(question: str, items: list[EvidenceItem]) -> tuple[dict, str]:
         max_tokens=settings.llm_max_tokens,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         output_config={"format": {"type": "json_schema", "schema": ANSWER_SCHEMA}},
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    f"EVIDENCE\n========\n{render_evidence_block(items)}\n\n"
-                    f"QUESTION\n========\n{question}"
-                ),
-            }
-        ],
+        messages=[{"role": "user", "content": user_content}],
     )
 
     if response.stop_reason == "refusal":
@@ -175,6 +174,73 @@ def call_model(question: str, items: list[EvidenceItem]) -> tuple[dict, str]:
     if text is None:
         raise SystemExit(f"No text block in response (stop_reason={response.stop_reason})")
     return json.loads(text), prompt_hash
+
+
+def _call_ollama(system_prompt: str, user_content: str) -> dict:
+    """Generation against a local Ollama server — a fallback, not the default.
+
+    Why this exists: it removes the API dependency entirely, so the pipeline can
+    be demonstrated with no credentials and no spend.
+
+    Why it is NOT the default: measured on a Raspberry Pi 5, the only model that
+    fits in available RAM produces ~8 tokens/second, so a ~700-token answer takes
+    roughly 90 seconds. More importantly, the grounding contract — emit opaque
+    [En] handles, never a page number, answer `insufficient` rather than guess —
+    depends on strict instruction-following that a small model does not reliably
+    deliver. A wrong handle or an invented page number is a worse failure here
+    than a slow answer, and validation will record it as one (hard rule 9).
+
+    Ollama enforces the JSON schema itself via `format`, so a malformed payload
+    surfaces as a recorded failure rather than a silent retry.
+    """
+    import urllib.error
+    import urllib.request
+
+    payload = json.dumps(
+        {
+            "model": settings.llm_model,
+            "stream": False,
+            "format": ANSWER_SCHEMA,
+            "options": {"temperature": 0, "num_predict": settings.ollama_num_predict},
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+        }
+    ).encode("utf-8")
+
+    request = urllib.request.Request(
+        f"{settings.ollama_host.rstrip('/')}/api/chat",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=settings.ollama_timeout) as response:
+            body = json.loads(response.read())
+    except urllib.error.URLError as exc:
+        raise SystemExit(
+            f"Local model at {settings.ollama_host} is unreachable: {exc}. "
+            "Start it with `ollama serve`, or set LLM_PROVIDER=anthropic."
+        ) from exc
+    except TimeoutError as exc:
+        raise SystemExit(
+            f"Local model did not answer within {settings.ollama_timeout}s. "
+            "Small models on a Pi are slow; raise OLLAMA_TIMEOUT or use a hosted provider."
+        ) from exc
+
+    content = (body.get("message") or {}).get("content")
+    if not content:
+        raise SystemExit(f"Local model returned no content: {body!r}")
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as exc:
+        # Not retried: malformed output is a recorded result, never hidden.
+        raise SystemExit(
+            f"Local model returned output that is not valid JSON ({exc}). "
+            "This is a recorded failure, not a transient error."
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +272,18 @@ def validate(result: dict, items: list[EvidenceItem]) -> list[str]:
             failures.append("contract: insufficient requires empty citations_used")
     if sufficiency == "partial" and not result.get("limitations"):
         failures.append("contract: partial requires non-empty limitations")
+
+    # A claim of sufficiency with nothing cited is ungrounded prose, whatever
+    # its provenance. Without this check an answer that never references the
+    # evidence it was given passes validation and is presented as
+    # source-grounded — the exact failure this project exists to prevent.
+    # Observed from a small local model, which produced fluent text carrying no
+    # [En] handle at all.
+    if sufficiency in {"sufficient", "partial"} and not used:
+        failures.append(
+            f"ungrounded_answer: evidence_sufficiency={sufficiency} but no evidence handle "
+            "was cited in the answer, interpretation or limitations"
+        )
 
     # The model never receives a page number, so any it emits is fabricated.
     invented = PAGE_CLAIM_RE.findall(body)
