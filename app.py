@@ -150,26 +150,10 @@ def render_diagnostics(outcome: ask.QueryOutcome) -> None:
 
 
 def copy_block(outcome: ask.QueryOutcome, key: str) -> None:
-    """The answer as plain text, in a widget with Streamlit's own copy button.
-
-    Rendered from ask.render — the same text the CLI prints — so what gets
-    pasted into a document carries the citations, the limitations and the
-    refusal wording, not just the prose. An answer copied without its sources
-    would be exactly the unattributed claim this project exists to prevent.
-    """
-    with st.expander("Copy this answer"):
-        st.caption(
-            "Includes the sources and limits. Use the copy icon in the top-right "
-            "of the box below."
-        )
+    """A copy button. The text is ask.render's — answer plus its sources — so a
+    pasted answer cannot arrive somewhere without its citations."""
+    with st.popover("📋 Copy", use_container_width=False):
         st.code(outcome.rendered(), language="text", wrap_lines=True)
-        st.download_button(
-            "Download as text",
-            data=outcome.rendered(verbose=True),
-            file_name="answer.txt",
-            mime="text/plain",
-            key=f"dl-{key}",
-        )
 
 
 def render_outcome(outcome: ask.QueryOutcome, key: str = "live") -> None:
