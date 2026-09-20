@@ -1,0 +1,27 @@
+# Keep the build context small and keep two things out of the image in
+# particular: credentials, and the source PDF.
+#
+# data/ holds thesis.pdf and the canonical extraction. Neither is needed at
+# run time — the committed index/ is what the assistant queries — and leaving
+# the document out of a distributable image avoids redistributing a work that
+# is only licensed for reading.
+
+.git
+.gitignore
+.github
+
+.env
+.env.*
+!.env.example
+
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+data/
+docs/
+
+.DS_Store
+*.swp

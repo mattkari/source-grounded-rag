@@ -210,6 +210,28 @@ validation failures. That is the form to keep as evidence of a run.
 a recorded research result, never a silent retry — the failed checks are printed under a
 `VALIDATION FAILED` banner, and the answer is not certified as source-grounded.
 
+## Running it continuously (Docker)
+
+For hosting the web UI permanently — on a Raspberry Pi or any other always-on machine:
+
+```bash
+cp .env.example .env && chmod 600 .env    # then fill in the two API keys
+docker compose up -d --build
+```
+
+Full guide, including the 64-bit-OS requirement and how to reach the service safely:
+[`docs/deployment/raspberry-pi.md`](docs/deployment/raspberry-pi.md).
+
+Two things worth knowing before deploying:
+
+- **It binds to `127.0.0.1` by default.** The app has no authentication and every question spends
+  money on two APIs, so it is not published to the network until you change `BIND_ADDRESS`.
+- **Credentials never enter the image.** They are read at run time from `.env` on the host, because
+  anything set with `ENV` or `ARG` in a Dockerfile is readable via `docker history`.
+
+The container needs neither the source PDF nor the ingestion dependencies: `index/` is committed, so
+a deployed container queries it directly and never re-ingests.
+
 ## Task Log
 
 Chronological record of completed and approved work. Rows are appended after each sprint is
@@ -222,3 +244,4 @@ implemented and approved — existing rows are never removed or reordered.
 | 2026-08-12 | — (Demo slice) | Add `main.py` interactive CLI wrapper. Refactored `ask.py`'s core into a shared `run_query()` returning a `QueryOutcome`, so the single-question and interactive entry points call one pipeline; cached the Anthropic client and system prompt, and load the index once per session. Clean exit on `exit`/`quit`/`q`, Ctrl+C and Ctrl+D. All three demo questions re-run through both entry points: retrieval diagnostics and sufficiency labels byte-identical, generated prose varies (model nondeterminism). | Implemented; committed to `main` (`91ad972`) | `main.py`, `ask.py`, `README.md` |
 | 2026-08-12 | — (Demo slice) | Add `app.py`, a Streamlit web chat UI for the conference demo — the third shell over `ask.run_query()`, adding no retrieval, generation, citation or validation logic of its own. Index loaded once per process (`st.cache_resource`); conversation history in `st.session_state` only. Renders a sufficient answer as prose with a `Sources:` line and collapsible full citations, a refusal as a plain non-alarming notice, `[AI INTERPRETATION]` as a distinct labelled callout, and retrieval scores collapsed into "Technical details (for evaluators)" captioned as diagnostics rather than confidence. Provider/auth/network errors and validation failures are reported in plain language, never as a traceback. Verified: the real index loads and the provider-failure path renders correctly; the three demo questions were exercised through the real provenance, citation and validation code with the model call stubbed — **the live end-to-end run against the API is still outstanding and must be done before the demo**. | Implemented; pushed to `claude/streamlit-web-ui-eyheeg` (`3d5b62f`) — awaiting review | `app.py`, `README.md` |
 | 2026-08-13 | — (Corpus swap) | Replace the Sönmez corpus with Karimov (2017), *The Qur’anic Concept of Justice (al-ʿAdl) from a Nursian Perspective* (Durham, 288 pp). Lifted the layout constants measured from one PDF out of `ingest.py` into a layout profile in `config.py`, added `chapter_source` (running header or chapter heading) and chapter runs built from page slices so hard rule 8 holds by construction, and excluded reference apparatus from evidence via `excluded_chapter_prefixes`. Fixed three latent extraction defects found by calibrating against a second document: the caption filter swallowed `"Table of contents"`, heading-merge fused a chapter title with the section beneath it, and pages with text but no body text were indistinguishable from blank pages. Swapping to the new thesis was then configuration only — no pipeline code changed. 288 pages → 266 chunks. Provenance audited against the PDF itself: 266/266 chunks carry the page label actually printed on their pages, and every word of every chunk appears on the pages it claims. All three entry points re-verified live against the API, including the refusal path. A second calibrated corpus (Leung 2019) is kept on `feature/swap-corpus-leung` as a fallback. | Implemented and approved; on `feature/swap-corpus-karimov` (`5468662`) — deliberately **not** merged, under test on the branch | `config.py`, `ingest.py`, `README.md`, `docs/decisions/0001-corpus-swap-via-layout-profile.md`, `data/`, `index/` |
+| 2026-08-12 | — (Deployment) | Containerise the web UI for continuous self-hosting on a Raspberry Pi: `python:3.11-slim` image running as an unprivileged user, runtime dependencies pinned in `requirements.txt` (ingestion dependencies deliberately excluded — the committed index means a deployed container never re-ingests), Streamlit health endpoint wired to a Docker `HEALTHCHECK`, `restart: unless-stopped`, and capped json-file logging so an SD card cannot fill. Credentials are read at run time from a host `.env` and never enter an image layer; `data/` is excluded from the build context so the source PDF is not baked in. Published to loopback by default, since the app has no authentication and every question spends API credit. **Not build-tested — no Docker daemon was available in the authoring environment; verification is `docker compose up -d --build` on the target Pi.** | Implemented; pushed to `claude/docker-deploy` — awaiting review | `Dockerfile`, `compose.yaml`, `.dockerignore`, `.env.example`, `requirements.txt`, `docs/deployment/raspberry-pi.md`, `README.md` |

@@ -1,0 +1,31 @@
+# Run the assistant continuously on a Raspberry Pi:
+#
+#     cp .env.example .env && chmod 600 .env     # then fill in the two keys
+#     docker compose up -d --build
+#
+# Defaults to LOOPBACK ONLY (127.0.0.1). The app has no authentication and
+# every question spends money on two APIs, so it is not published to the
+# network until you say so — see BIND_ADDRESS in .env.example.
+
+services:
+  assistant:
+    build: .
+    image: source-grounded-rag:local
+    container_name: source-grounded-rag
+
+    # Credentials and settings live in .env on the host, never in the image.
+    env_file: .env
+
+    # "${VAR:-default}" is read by compose from the same .env file.
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-8501}:8501"
+
+    restart: unless-stopped
+    stop_grace_period: 10s
+
+    # An SD card is a small, slow disk — cap the logs so they cannot fill it.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
