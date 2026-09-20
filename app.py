@@ -21,6 +21,7 @@ import re
 import streamlit as st
 
 import ask
+import runs
 from config import settings
 
 PAGE_TITLE = "Source-Grounded Research Assistant"
@@ -60,6 +61,8 @@ UNGROUNDED_NOTICE = (
 )
 
 DIAGNOSTICS_LABEL = "Technical details (for evaluators)"
+
+HISTORY_LIMIT = 50
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +149,30 @@ def render_diagnostics(outcome: ask.QueryOutcome) -> None:
         )
 
 
-def render_outcome(outcome: ask.QueryOutcome) -> None:
+def copy_block(outcome: ask.QueryOutcome, key: str) -> None:
+    """The answer as plain text, in a widget with Streamlit's own copy button.
+
+    Rendered from ask.render — the same text the CLI prints — so what gets
+    pasted into a document carries the citations, the limitations and the
+    refusal wording, not just the prose. An answer copied without its sources
+    would be exactly the unattributed claim this project exists to prevent.
+    """
+    with st.expander("Copy this answer"):
+        st.caption(
+            "Includes the sources and limits. Use the copy icon in the top-right "
+            "of the box below."
+        )
+        st.code(outcome.rendered(), language="text", wrap_lines=True)
+        st.download_button(
+            "Download as text",
+            data=outcome.rendered(verbose=True),
+            file_name="answer.txt",
+            mime="text/plain",
+            key=f"dl-{key}",
+        )
+
+
+def render_outcome(outcome: ask.QueryOutcome, key: str = "live") -> None:
     result, items = outcome.result, outcome.items
     order = ask.assign_order(result, items)
     sufficiency = result["evidence_sufficiency"]
@@ -188,6 +214,7 @@ def render_outcome(outcome: ask.QueryOutcome) -> None:
         # to hide — but it is stated in plain language, not as a stack trace.
         st.warning(UNGROUNDED_NOTICE, icon="⚠️")
 
+    copy_block(outcome, key)
     render_diagnostics(outcome)
 
 
@@ -197,11 +224,98 @@ def render_error(entry: dict) -> None:
         st.code(entry["error"])
 
 
-def render_turn(entry: dict) -> None:
+def render_turn(entry: dict, key: str = "live") -> None:
     if "error" in entry:
         render_error(entry)
     else:
-        render_outcome(entry["outcome"])
+        render_outcome(entry["outcome"], key)
+
+
+def render_history_sidebar(chunks: list[dict]) -> dict | None:
+    """Past runs, newest first. Returns a record to re-open, or None.
+
+    History is read from disk, not from session state, so it survives a browser
+    refresh and a container restart.
+    """
+    with st.sidebar:
+        st.markdown("### Past questions")
+        records = runs.load(limit=HISTORY_LIMIT)
+
+        if not records:
+            st.caption("No questions yet. Ask one and it will be recorded here.")
+            return None
+
+        st.caption(
+            f"{len(records)} most recent of {runs.count()} recorded. "
+            "Saved to disk — they survive a refresh."
+        )
+
+        selected = None
+        for index, record in enumerate(records):
+            stamp = record.get("timestamp", "")[:16].replace("T", " ")
+            question = record.get("question", "(no question)")
+            label = question if len(question) <= 70 else question[:67] + "…"
+            sufficiency = (record.get("result") or {}).get("evidence_sufficiency", "?")
+            mark = {"sufficient": "✅", "partial": "◐", "insufficient": "⚖️"}.get(
+                sufficiency, "•"
+            )
+            if record.get("validation_failures"):
+                mark = "⚠️"
+            if st.button(
+                f"{mark} {label}",
+                key=f"hist-{index}",
+                use_container_width=True,
+                help=f"{stamp} UTC · {sufficiency} · {record.get('model', '?')}",
+            ):
+                selected = record
+
+        st.divider()
+        st.download_button(
+            "Download all runs (JSONL)",
+            data=runs.export_jsonl(),
+            file_name="runs.jsonl",
+            mime="application/x-ndjson",
+            use_container_width=True,
+        )
+        st.caption(
+            "⚠️ = the answer did not pass grounding validation. "
+            "⚖️ = the collection could not answer."
+        )
+        return selected
+
+
+def render_recalled(record: dict, chunks: list[dict]) -> None:
+    """Re-render a stored run. Citations are resolved from the CURRENT index."""
+    st.info(
+        f"Showing a saved run from **{record.get('timestamp', '')[:16].replace('T', ' ')} UTC** "
+        f"· model `{record.get('model', '?')}`",
+        icon="🕑",
+    )
+
+    if record.get("document_id") and record["document_id"] != settings.document_id:
+        st.warning(
+            "This run was recorded against a different document collection "
+            f"(`{record['document_id']}`). Its citations cannot be resolved against "
+            "the collection loaded now.",
+            icon="⚠️",
+        )
+        st.code(record.get("question", ""), language="text")
+        return
+
+    outcome, unresolved = runs.as_outcome(record, chunks)
+
+    with st.chat_message("user"):
+        st.markdown(record["question"])
+    with st.chat_message("assistant"):
+        if unresolved:
+            # Never re-render a citation the current index cannot support.
+            st.warning(
+                "Some passages from this run are not in the collection as it "
+                "stands now, so their citations are not shown: "
+                + ", ".join(f"`{u}`" for u in unresolved),
+                icon="⚠️",
+            )
+        render_outcome(outcome, key=f"recall-{record.get('timestamp', '')}")
 
 
 # ---------------------------------------------------------------------------
@@ -225,11 +339,21 @@ def main() -> None:
     if "history" not in st.session_state:
         st.session_state.history = []
 
-    for entry in st.session_state.history:
+    recalled = render_history_sidebar(chunks)
+    if recalled is not None:
+        st.session_state.recalled = recalled
+    if st.session_state.get("recalled") is not None:
+        render_recalled(st.session_state.recalled, chunks)
+        if st.button("← Back to the conversation"):
+            st.session_state.recalled = None
+            st.rerun()
+        return
+
+    for index, entry in enumerate(st.session_state.history):
         with st.chat_message("user"):
             st.markdown(entry["question"])
         with st.chat_message("assistant"):
-            render_turn(entry)
+            render_turn(entry, key=f"turn-{index}")
 
     question = st.chat_input("Ask a question about this collection…")
     if not question or not question.strip():
@@ -246,9 +370,23 @@ def main() -> None:
                 entry["outcome"] = ask.run_query(question, vectors, chunks)
             except BaseException as exc:  # provider error, auth, network, bad output
                 entry["error"] = f"{type(exc).__name__}: {exc}"
-        render_turn(entry)
+        render_turn(entry, key=f"turn-{len(st.session_state.history)}")
+
+    # Persist before appending to session state: the record on disk is the
+    # evidence, the session list is only what is on screen.
+    outcome = entry.get("outcome")
+    runs.append(
+        question=question,
+        result=outcome.result if outcome else {},
+        items=outcome.items if outcome else [],
+        failures=outcome.failures if outcome else [],
+        prompt_hash=outcome.prompt_hash if outcome else "",
+        manifest=manifest,
+        error=entry.get("error"),
+    )
 
     st.session_state.history.append(entry)
+    st.rerun()
 
 
 main()

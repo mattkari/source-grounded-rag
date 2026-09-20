@@ -23,6 +23,11 @@ services:
     restart: unless-stopped
     stop_grace_period: 10s
 
+    # Run records are evidence and must outlive the container. Bind-mounted, not
+    # a named volume, so they are readable on the host without docker.
+    volumes:
+      - ./runs:/app/runs
+
     # An SD card is a small, slow disk — cap the logs so they cannot fill it.
     logging:
       driver: json-file

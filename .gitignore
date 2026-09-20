@@ -2,5 +2,6 @@
 .env.*
 !.env.example
 .venv/
+runs/
 __pycache__/
 *.pyc

@@ -38,6 +38,11 @@ class Settings:
     canonical_dir: Path = ROOT / "data" / "canonical"
     prompt_path: Path = ROOT / "prompts" / "system_grounded_v2.md"
 
+    # Durable run records, one JSON object per line. Runs are evidence
+    # (PLAN_V2 §26), so history outlives a browser session. Kept outside the
+    # image on a mounted volume in Docker, hence the env override.
+    runs_path: Path = Path(os.environ.get("RUNS_PATH", str(ROOT / "runs" / "runs.jsonl")))
+
     # --- document identity (from the title page, not inferred) -------------
     # Taken from the title page, not from the PDF metadata: that metadata
     # names a second author inherited from the template it was written in,
