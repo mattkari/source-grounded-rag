@@ -268,38 +268,39 @@ def render_history_sidebar(chunks: list[dict]) -> dict | None:
         return selected
 
 
-def render_recalled(record: dict, chunks: list[dict]) -> None:
-    """Re-render a stored run. Citations are resolved from the CURRENT index."""
-    st.info(
-        f"Showing a saved run from **{record.get('timestamp', '')[:16].replace('T', ' ')} UTC** "
-        f"· model `{record.get('model', '?')}`",
-        icon="🕑",
-    )
+def session_history(chunks: list[dict]) -> list[dict]:
+    """The conversation, rebuilt from disk on first load.
 
-    if record.get("document_id") and record["document_id"] != settings.document_id:
-        st.warning(
-            "This run was recorded against a different document collection "
-            f"(`{record['document_id']}`). Its citations cannot be resolved against "
-            "the collection loaded now.",
-            icon="⚠️",
+    Streamlit's session_state is per-browser-session, so relying on it alone
+    made the whole conversation vanish on a refresh while the records sat safely
+    on disk. The recorded runs are the source of truth; session_state is just
+    this tab's view of them.
+
+    Entries are rehydrated through runs.as_outcome, so citations are resolved
+    against the current index rather than replayed from stored text.
+    """
+    if "history" in st.session_state:
+        return st.session_state.history
+
+    rebuilt: list[dict] = []
+    for record in reversed(runs.load()):  # runs.load is newest-first
+        if record.get("document_id") and record["document_id"] != settings.document_id:
+            continue  # a different corpus: not part of this conversation
+        if record.get("error"):
+            rebuilt.append({"question": record["question"], "error": record["error"]})
+            continue
+        outcome, unresolved = runs.as_outcome(record, chunks)
+        rebuilt.append(
+            {
+                "question": record["question"],
+                "outcome": outcome,
+                "unresolved": unresolved,
+                "timestamp": record.get("timestamp", ""),
+            }
         )
-        st.code(record.get("question", ""), language="text")
-        return
 
-    outcome, unresolved = runs.as_outcome(record, chunks)
-
-    with st.chat_message("user"):
-        st.markdown(record["question"])
-    with st.chat_message("assistant"):
-        if unresolved:
-            # Never re-render a citation the current index cannot support.
-            st.warning(
-                "Some passages from this run are not in the collection as it "
-                "stands now, so their citations are not shown: "
-                + ", ".join(f"`{u}`" for u in unresolved),
-                icon="⚠️",
-            )
-        render_outcome(outcome, key=f"recall-{record.get('timestamp', '')}")
+    st.session_state.history = rebuilt
+    return rebuilt
 
 
 # ---------------------------------------------------------------------------
@@ -320,46 +321,52 @@ def main() -> None:
     )
     st.markdown(EXPLAINER)
 
-    if "history" not in st.session_state:
-        st.session_state.history = []
+    history = session_history(chunks)
 
-    recalled = render_history_sidebar(chunks)
-    if recalled is not None:
-        st.session_state.recalled = recalled
-    if st.session_state.get("recalled") is not None:
-        render_recalled(st.session_state.recalled, chunks)
-        if st.button("← Back to the conversation"):
-            st.session_state.recalled = None
-            st.rerun()
-        return
+    jumped = render_history_sidebar(chunks)
+    if jumped is not None:
+        st.session_state.jump_to = jumped.get("timestamp", "")
 
-    for index, entry in enumerate(st.session_state.history):
+    if history:
+        st.caption(f"{len(history)} earlier question(s) in this collection — scroll to read.")
+
+    jump_to = st.session_state.pop("jump_to", None)
+    for index, entry in enumerate(history):
+        anchor = entry.get("timestamp", "")
+        is_target = jump_to and anchor == jump_to
+        if is_target:
+            st.divider()
+            st.caption("↓ the question you selected")
         with st.chat_message("user"):
             st.markdown(entry["question"])
         with st.chat_message("assistant"):
+            if entry.get("unresolved"):
+                st.warning(
+                    "Some passages from this run are no longer in the collection, "
+                    "so their citations are not shown.",
+                    icon="⚠️",
+                )
             render_turn(entry, key=f"turn-{index}")
+        if is_target:
+            st.divider()
 
     question = st.chat_input("Ask a question about this collection…")
     if not question or not question.strip():
         return
 
     question = question.strip()
-    with st.chat_message("user"):
-        st.markdown(question)
 
     entry: dict = {"question": question}
-    with st.chat_message("assistant"):
-        with st.spinner("Searching the collection…"):
-            try:
-                entry["outcome"] = ask.run_query(question, vectors, chunks)
-            except BaseException as exc:  # provider error, auth, network, bad output
-                entry["error"] = f"{type(exc).__name__}: {exc}"
-        render_turn(entry, key=f"turn-{len(st.session_state.history)}")
+    with st.spinner("Searching the collection…"):
+        try:
+            entry["outcome"] = ask.run_query(question, vectors, chunks)
+        except BaseException as exc:  # provider error, auth, network, bad output
+            entry["error"] = f"{type(exc).__name__}: {exc}"
 
-    # Persist before appending to session state: the record on disk is the
-    # evidence, the session list is only what is on screen.
+    # Persist first: the record on disk is the evidence, session_state is only
+    # what this tab is showing.
     outcome = entry.get("outcome")
-    runs.append(
+    record = runs.append(
         question=question,
         result=outcome.result if outcome else {},
         items=outcome.items if outcome else [],
@@ -368,8 +375,15 @@ def main() -> None:
         manifest=manifest,
         error=entry.get("error"),
     )
+    entry["timestamp"] = record.get("timestamp", "")
+    if record.get("_persist_error"):
+        st.warning(
+            "This answer could not be saved to the query history: "
+            f"`{record['_persist_error']}`",
+            icon="⚠️",
+        )
 
-    st.session_state.history.append(entry)
+    history.append(entry)
     st.rerun()
 
 
