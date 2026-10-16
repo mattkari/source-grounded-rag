@@ -1,0 +1,271 @@
+# CHOMPS E1 gold questions — template v1
+#
+# HOW TO FILL (Matt, ~1 h per 10 questions):
+#   1. Write the question in plain English, as a reader of the thesis would ask it.
+#   2. Pick ONE expected_type:
+#        ANSWERABLE   — the thesis answers it from specific pages
+#        PARTIAL      — the thesis addresses it but only partly / one perspective
+#        UNANSWERABLE — plausibly asked, but the thesis does NOT contain the answer
+#        ADVERSARIAL  — contains a false premise or bait, correct behaviour = refusal/pushback
+#   3. For ANSWERABLE/PARTIAL: list gold_pages = pdf_page numbers you KNOW hold the answer.
+#      Use `python3 -m sgrag.evalpage <n>` (once LAB-46 lands) or grep the JSONL to find them.
+#      Page labels only — NEVER paste thesis text into this file.
+#   4. Leave expected_answer_summary as 1 short line (your words, not quotes).
+#   5. Notes: anything a grader should know (traps, near-miss pages).
+#
+# RULES
+#   - No thesis verbatim text below the marker line (paper must stay anonymous).
+#   - If unsure of a page number, leave it as null — LAB-45 validates and reports mismatches.
+#   - Aim: 15 ANSWERABLE / 5 PARTIAL / 7 UNANSWERABLE / 3 ADVERSARIAL across 30.
+#     Batches: LAB-42 = first 10 ANSWERABLE; LAB-43 = 5 ANSWERABLE + 5 PARTIAL;
+#     LAB-44 = 7 UNANSWERABLE + 3 ADVERSARIAL.
+
+metadata:
+  template_version: 1
+  corpus: karimov-2017-quranic-justice (288 pdf pages)
+  created_for: CHOMPS 2027 E1 evaluation
+  fill_batches: [LAB-42, LAB-43, LAB-44]
+
+questions:
+  # ---- LAB-42: questions 1–10, all ANSWERABLE ----
+  - id: Q001
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q002
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q003
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q004
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q005
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q006
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q007
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q008
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q009
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q010
+    batch: LAB-42
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  # ---- LAB-43: questions 11–15 ANSWERABLE, 16–20 PARTIAL ----
+  - id: Q011
+    batch: LAB-43
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q012
+    batch: LAB-43
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q013
+    batch: LAB-43
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q014
+    batch: LAB-43
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q015
+    batch: LAB-43
+    question: ""
+    expected_type: ANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q016
+    batch: LAB-43
+    question: ""
+    expected_type: PARTIAL
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q017
+    batch: LAB-43
+    question: ""
+    expected_type: PARTIAL
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q018
+    batch: LAB-43
+    question: ""
+    expected_type: PARTIAL
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q019
+    batch: LAB-43
+    question: ""
+    expected_type: PARTIAL
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q020
+    batch: LAB-43
+    question: ""
+    expected_type: PARTIAL
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  # ---- LAB-44: questions 21–27 UNANSWERABLE, 28–30 ADVERSARIAL ----
+  - id: Q021
+    batch: LAB-44
+    question: ""
+    expected_type: UNANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q022
+    batch: LAB-44
+    question: ""
+    expected_type: UNANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q023
+    batch: LAB-44
+    question: ""
+    expected_type: UNANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q024
+    batch: LAB-44
+    question: ""
+    expected_type: UNANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q025
+    batch: LAB-44
+    question: ""
+    expected_type: UNANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q026
+    batch: LAB-44
+    question: ""
+    expected_type: UNANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q027
+    batch: LAB-44
+    question: ""
+    expected_type: UNANSWERABLE
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q028
+    batch: LAB-44
+    question: ""
+    expected_type: ADVERSARIAL
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q029
+    batch: LAB-44
+    question: ""
+    expected_type: ADVERSARIAL
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
+
+  - id: Q030
+    batch: LAB-44
+    question: ""
+    expected_type: ADVERSARIAL
+    gold_pages: []
+    expected_answer_summary: ""
+    notes: ""
