@@ -3,7 +3,6 @@
     "allow": [
       "Read(./**)",
       "Edit(./wiki/**)",
-      "Write(./wiki/**)",
       "Bash(python tools/guard.py:*)",
       "Bash(python3 tools/guard.py:*)",
       "Bash(python tools/lint.py:*)",
