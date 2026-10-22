@@ -1,0 +1,8 @@
+# Notes nobody else needs to see. Keep the wiki in git if your team repo allows it.
+.obsidian/workspace*.json
+.obsidian/cache
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+.claude/settings.local.json

@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(./**)",
+      "Edit(./wiki/**)",
+      "Write(./wiki/**)",
+      "Bash(python tools/guard.py:*)",
+      "Bash(python3 tools/guard.py:*)",
+      "Bash(python tools/lint.py:*)",
+      "Bash(python3 tools/lint.py:*)",
+      "Bash(python tools/new_note.py:*)",
+      "Bash(python3 tools/new_note.py:*)",
+      "Bash(py tools/guard.py:*)",
+      "Bash(py tools/lint.py:*)",
+      "Bash(py tools/new_note.py:*)"
+    ],
+    "deny": [
+      "WebFetch",
+      "WebSearch",
+      "Edit(./raw/**)",
+      "Edit(./CLAUDE.md)",
+      "Edit(./tools/**)",
+      "Edit(./.claude/**)"
+    ]
+  }
+}
