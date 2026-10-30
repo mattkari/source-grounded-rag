@@ -1,5 +1,9 @@
 # Work Brain: Karpathy-style LLM knowledge base for Claude Code
 
+> **New here?** Follow [`SETUP_WITH_CLAUDE_CODE.md`](SETUP_WITH_CLAUDE_CODE.md): copy-paste prompts that let Claude Code set it up and test it.
+>
+> **Running several Claude Code sessions?** [`SUPERVISED_SESSIONS.md`](SUPERVISED_SESSIONS.md) adds an orchestrator that sets the day's goal, checks handoffs between an API coder and a UI coder, and reviews results from test evidence.
+
 You write rough notes. Claude Code compiles them into a linked wiki and answers questions from
 it, citing the pages it used. There's no vector database, no background jobs and nothing to
 install beyond Python and Claude Code.
