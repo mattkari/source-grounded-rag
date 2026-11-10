@@ -7,8 +7,10 @@
 #        PARTIAL      — the thesis addresses it but only partly / one perspective
 #        UNANSWERABLE — plausibly asked, but the thesis does NOT contain the answer
 #        ADVERSARIAL  — contains a false premise or bait, correct behaviour = refusal/pushback
-#   3. For ANSWERABLE/PARTIAL: list gold_pages = pdf_page numbers you KNOW hold the answer.
-#      Use `python3 -m sgrag.evalpage <n>` (once LAB-46 lands) or grep the JSONL to find them.
+#   3. For ANSWERABLE/PARTIAL: list gold_pages = the PRINTED page labels (the number printed
+#      on the page, as the system cites it), quoted as strings, e.g. ["143", "148"].
+#      Body pages are 1-258; pdf_page = printed + 23 (PDF viewer page 166 = printed 143).
+#      Roman labels i-v repeat (front matter and appendix), so do not use them as gold.
 #      Page labels only — NEVER paste thesis text into this file.
 #   4. Leave expected_answer_summary as 1 short line (your words, not quotes).
 #   5. Notes: anything a grader should know (traps, near-miss pages).
