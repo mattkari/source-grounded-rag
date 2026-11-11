@@ -253,4 +253,4 @@ grounding ideas to personal working notes: an Andrej Karpathy-style LLM knowledg
 Claude Code. Notes in `raw/` are compiled into a linked `wiki/` (read in Obsidian). A
 pre-compile guard blocks credentials and financial identifiers, and `/query` refuses when the
 wiki does not cover a question. It is stdlib-only Python and does not depend on the RAG code.
-See [`work-brain/README.md`](work-brain/README.md).
+See [`work-brain/README.md`](work-brain/README.md), or follow [`work-brain/SETUP_WITH_CLAUDE_CODE.md`](work-brain/SETUP_WITH_CLAUDE_CODE.md) to let Claude Code do the setup.
