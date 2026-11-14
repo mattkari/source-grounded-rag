@@ -276,6 +276,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 python scripts/check_gold.py     # validate the question file; no API call
 pytest                           # offline suite; no API key, no network
 python evaluate.py               # live run; spends API credit on both providers
+python scripts/results_tables.py runs/eval_<timestamp>.jsonl   # Markdown + LaTeX tables from a recorded run
 ```
 
 The offline suite replaces the generation model at `ask.call_model` and the embedding provider with
