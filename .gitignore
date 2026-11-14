@@ -2,6 +2,10 @@
 .env.*
 !.env.example
 .venv/
-runs/
+# Run records hold answer text and stay local. The evaluation summary
+# (runs/eval_<timestamp>.md) is ids, page labels and counts only, and is
+# committed after a recorded run (PLAN_V3 §7).
+runs/*
+!runs/eval_*.md
 __pycache__/
 *.pyc
