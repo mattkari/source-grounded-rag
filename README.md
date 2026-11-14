@@ -305,9 +305,9 @@ Sixteen slides covering the problem, the grounding and refusal design, the three
 questions, the evaluator view, and current status. Three things to know before reusing it:
 
 - The title and closing slides carry `[ Affiliation ]` and `[ email ]` placeholders.
-- The interface screenshots come from the Streamlit web UI (`app.py`). They were captured on
-  12 August 2026, the day before the corpus was changed (see the Task Log), so they show the
-  earlier demonstration thesis, not the current one.
+- The interface screenshots come from the Streamlit web UI (`app.py`). The deck was committed on
+  12 August 2026, the day before the corpus was changed (see the Task Log), so the screenshots
+  show the earlier demonstration thesis, not the current one.
 - Those screenshots were captured with the model call stubbed. Page numbers, citations, section
   titles and retrieval scores in them are real — read from the index — but the generated prose is
   representative rather than a recorded model output.
