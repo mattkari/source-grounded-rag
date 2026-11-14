@@ -425,12 +425,21 @@ class QueryOutcome:
     items: list[EvidenceItem]
     failures: list[str]
     prompt_hash: str
+    # False only for the evaluation baseline (PLAN_V5): the same prompt and the
+    # same model, asked with an empty evidence block.
+    evidence_retrieved: bool = True
 
     @property
     def grounded(self) -> bool:
-        return not self.failures
+        # With nothing retrieved there is nothing to be grounded in.
+        return self.evidence_retrieved and not self.failures
 
     def rendered(self, verbose: bool = False) -> str:
+        if not self.evidence_retrieved:
+            raise RuntimeError(
+                "A no-retrieval baseline answer is an evaluation record. "
+                "It is never rendered as an answer."
+            )
         return render(self.question, self.result, self.items, verbose)
 
 
@@ -439,9 +448,18 @@ def run_query(
     vectors: np.ndarray,
     chunks: list[dict],
     top_k: int | None = None,
+    *,
+    retrieve_evidence: bool = True,
 ) -> QueryOutcome:
-    """Retrieve -> ground -> validate. No printing, no process control."""
-    items = retrieve(question, vectors, chunks, top_k or settings.top_k)
+    """Retrieve -> ground -> validate. No printing, no process control.
+
+    `retrieve_evidence=False` is the evaluation baseline (PLAN_V2 §20, PLAN_V5):
+    retrieval is skipped and the same `call_model` and the same `validate` run
+    on an empty evidence list, so the two conditions differ in exactly one
+    variable. It is not a second pipeline, and no shell exposes it — only
+    evaluate.py passes it.
+    """
+    items = retrieve(question, vectors, chunks, top_k or settings.top_k) if retrieve_evidence else []
     result, prompt_hash = call_model(question, items)
     return QueryOutcome(
         question=question,
@@ -449,6 +467,7 @@ def run_query(
         items=items,
         failures=validate(result, items),
         prompt_hash=prompt_hash,
+        evidence_retrieved=retrieve_evidence,
     )
 
 
