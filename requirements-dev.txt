@@ -1,0 +1,12 @@
+# Development and evaluation dependencies — NOT installed in the Docker image.
+#
+# Install on top of the runtime set:
+#
+#     pip install -r requirements.txt -r requirements-dev.txt
+#
+# pytest runs the offline suite (no API key, no network). PyYAML reads the gold
+# question file for scripts/check_gold.py and evaluate.py. Neither is needed by
+# the query path or the web UI, so neither belongs in requirements.txt.
+
+pytest==9.2.0
+PyYAML==6.0.3

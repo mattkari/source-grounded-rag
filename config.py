@@ -87,6 +87,16 @@ class Settings:
     # which is the stronger signal: it is stored provenance, not inference.
     chapter_source: str = "running_header"
 
+    # Printed-page map of the body, measured from data/canonical/pages.jsonl:
+    # the body carries printed labels 1-258, and each sits on PDF page
+    # (printed + 23). The gold-label checker (scripts/check_gold.py) verifies
+    # the canonical extraction still agrees before any label is trusted. Two
+    # body pages (PDF 66 and 67) carry no printed number, so labels 43 and 44
+    # do not exist in the extraction.
+    body_first_printed_page: int = 1
+    body_last_printed_page: int = 258
+    body_pdf_page_offset: int = 23
+
     # Chapters indexed as reference APPARATUS rather than as source claims.
     # A bibliography entry asserts nothing about the thesis's subject: it can
     # support "the thesis cites this work" and nothing else. Tagging rather

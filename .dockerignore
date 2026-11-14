@@ -23,5 +23,15 @@ __pycache__/
 data/
 docs/
 
+# The evaluation harness and the offline tests are run from a checkout, never
+# in the container: they need data/canonical and requirements-dev.txt, neither
+# of which is in the image.
+evaluate.py
+evaluation/
+scripts/
+tests/
+pytest.ini
+requirements-dev.txt
+
 .DS_Store
 *.swp
