@@ -125,15 +125,22 @@ def extract_page(page: pymupdf.Page, pdf_page: int, layout: LayoutProfile | None
             continue
 
         if layout.header_band_y is not None and y_top < layout.header_band_y:
-            if layout.page_number_band == "header":
-                # The page number shares the band with the running header: read
-                # it as the label and keep it out of the chapter title.
-                labels = [s for s in spans if _is_page_label(s["text"])]
-                if labels:
-                    printed_page = normalise(labels[-1]["text"])
-                spans = [s for s in spans if not _is_page_label(s["text"])]
-            if spans:
-                header_parts.append(normalise("".join(s["text"] for s in spans)))
+            # Spans are joined within a line and lines with a space, so a header
+            # that wraps inside one block does not fuse its two lines.
+            lines = []
+            for line in block["lines"]:
+                kept = [s for s in line["spans"] if s["text"].strip()]
+                if layout.page_number_band == "header":
+                    # The page number shares the band with the running header:
+                    # read it as the label and keep it out of the chapter title.
+                    labels = [s for s in kept if _is_page_label(s["text"])]
+                    if labels:
+                        printed_page = normalise(labels[-1]["text"])
+                    kept = [s for s in kept if not _is_page_label(s["text"])]
+                if kept:
+                    lines.append("".join(s["text"] for s in kept))
+            if lines:
+                header_parts.append(normalise(" ".join(lines)))
             continue
 
         if layout.footnote_band_y is not None and y_top > layout.footnote_band_y:

@@ -43,6 +43,13 @@ POSITION_TOLERANCE = 2.0
 # A height counts as a furniture position only if furniture sits there on at
 # least this share of the pages (and never on fewer than two).
 POSITION_PAGE_SHARE = 0.02
+# A lone page label is one line; a running header may wrap onto a second or
+# third. Heights are in multiples of the block's own type size.
+SINGLE_LINE = 2.2
+HEADER_MAX_LINES = 3.6
+# Furniture lines at one edge are stacked: the next one starts within this
+# many line-heights of the one before.
+FURNITURE_LINE_GAP = 1.6
 # Page labels are accepted only if, on consecutive numbered pages, the label
 # advances in step with the PDF page at least this often.
 SEQUENCE_CONSISTENCY = 0.9
@@ -84,6 +91,24 @@ class Block:
     @property
     def lead(self) -> dict:
         return self.spans[0]
+
+    @property
+    def label(self) -> str | None:
+        """A page label printed in this block, if one opens or closes it."""
+        for span in (self.spans[-1], self.spans[0]):
+            if is_page_label(span["text"]):
+                return _normalise(span["text"])
+        return None
+
+    @property
+    def key(self) -> str:
+        """The block's text without any page label — what a running header
+        repeats from page to page even when the page number shares its line."""
+        return _normalise(" ".join(s["text"] for s in self.spans if not is_page_label(s["text"])))
+
+    @property
+    def height_in_lines(self) -> float:
+        return (self.y1 - self.y0) / max(span["size"] for span in self.spans)
 
     def dominant_size(self) -> float:
         sizes: Counter[float] = Counter()
@@ -192,37 +217,44 @@ def _body_size(pages: list[list[Block]]) -> tuple[float | None, dict]:
 # ---------------------------------------------------------------------------
 
 
-def _is_single_line(block: Block) -> bool:
-    return (block.y1 - block.y0) < 2.2 * max(span["size"] for span in block.spans)
-
-
 def _repeats_on_neighbour(block: Block, neighbours: list[list[Block]]) -> bool:
     """The same line, at the same height, on the page before or after."""
     return any(
-        other.text == block.text and abs(other.y0 - block.y0) <= POSITION_TOLERANCE
+        other.key == block.key and abs(other.y0 - block.y0) <= POSITION_TOLERANCE
         for blocks in neighbours
         for other in blocks
     )
 
 
-def _furniture(pages: list[list[Block]], *, top: bool) -> list[Block]:
-    """Furniture at one edge of the page: lone page labels, and single lines
-    that the neighbouring page prints again at the same height.
+def _is_furniture(block: Block, neighbours: list[list[Block]]) -> bool:
+    if not block.key:  # nothing but a page label
+        return block.label is not None and block.height_in_lines < SINGLE_LINE
+    return block.height_in_lines < HEADER_MAX_LINES and _repeats_on_neighbour(block, neighbours)
 
-    Each page is read inward from the edge and the scan stops at the first
-    block that is not furniture, so a two-line running header is taken whole
-    and body text is never reached.
+
+def _furniture(pages: list[list[Block]], *, top: bool) -> list[Block]:
+    """Furniture at one edge of the page: page labels, and short lines that the
+    neighbouring page prints again at the same height.
+
+    Each page is read inward from the edge. The scan stops at the first block
+    that is not furniture, and at the first gap: a wrapped header's second line
+    sits directly under its first, whereas a heading that happens to repeat on
+    the next page sits further down, in the text column.
     """
     found: list[Block] = []
     for index, blocks in enumerate(pages):
         neighbours = [pages[i] for i in (index - 1, index + 1) if 0 <= i < len(pages)]
         ordered = sorted(blocks, key=lambda b: b.y0, reverse=not top)
+        previous: Block | None = None
         for block in ordered:
-            if not _is_single_line(block):
-                break
-            if not (is_page_label(block.text) or _repeats_on_neighbour(block, neighbours)):
+            if previous is not None:
+                gap = abs(block.y0 - previous.y0)
+                if gap > FURNITURE_LINE_GAP * max(span["size"] for span in previous.spans):
+                    break
+            if not _is_furniture(block, neighbours):
                 break
             found.append(block)
+            previous = block
     return found
 
 
@@ -251,7 +283,7 @@ def _measure_bands(pages: list[list[Block]], text_pages: int, evidence: dict, fl
     top_positions = _recurring_positions(top, text_pages)
     top = [b for b in top if round(b.y0) in top_positions]
     top_pages = len({b.pdf_page for b in top})
-    top_labels = [b for b in top if is_page_label(b.text)]
+    top_labels = [b for b in top if b.label is not None]
     if top_pages >= needed:
         limit = max(top_positions) + POSITION_TOLERANCE
         below = [b.y0 for blocks in pages for b in blocks if b.y0 > limit]
@@ -276,7 +308,7 @@ def _measure_bands(pages: list[list[Block]], text_pages: int, evidence: dict, fl
     bottom_positions = _recurring_positions(bottom, text_pages)
     bottom = [b for b in bottom if round(b.y0) in bottom_positions]
     bottom_pages = len({b.pdf_page for b in bottom})
-    bottom_labels = [b for b in bottom if is_page_label(b.text)]
+    bottom_labels = [b for b in bottom if b.label is not None]
     if bottom_pages >= needed:
         limit = min(bottom_positions) - POSITION_TOLERANCE
         above = [b.y0 for blocks in pages for b in blocks if b.y0 < limit]
@@ -303,11 +335,11 @@ def _measure_bands(pages: list[list[Block]], text_pages: int, evidence: dict, fl
     if header_band_y is not None and len({b.pdf_page for b in top_labels}) >= needed:
         candidates.append(("header", top_labels))
     for band, labels in candidates:
-        consistent, checked = _label_sequence([(b.pdf_page, b.text.lower()) for b in labels])
+        consistent, checked = _label_sequence([(b.pdf_page, b.label.lower()) for b in labels])
         detail = {
             "rule": "a lone roman or arabic token at the page edge, in step with the PDF page",
             "band": band,
-            "pages_with_a_label": len(labels),
+            "pages_with_a_label": len({b.pdf_page for b in labels}),
             "pages_with_text": text_pages,
             "consistent_steps": consistent,
             "steps_checked": checked,
@@ -488,7 +520,7 @@ def _chapter_source(pages, header_band_y, text_pages, chapter_tier_pages, eviden
         for blocks in pages:
             if not blocks:
                 continue
-            parts = [b.text for b in blocks if b.y0 < header_band_y and not is_page_label(b.text)]
+            parts = [b.key for b in blocks if b.y0 < header_band_y and b.key]
             headers.append(" ".join(parts))
     printed = [h for h in headers if h]
 

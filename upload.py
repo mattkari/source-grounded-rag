@@ -181,7 +181,8 @@ def receive(pdf_bytes: bytes, filename: str) -> dict:
         "sha256": digest,
         "pages_total": pdf.page_count,
         "state": RECEIVED,
-        "created_at": _now(),
+        # Full precision: this is the order uploads are listed in.
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "history": [],
         "layout": None,
         "layout_evidence": {},
@@ -274,18 +275,22 @@ def analyse(document_id: str) -> dict:
     """Stages 3–6. Ends in `awaiting_review`, or in `blocked` with the reason."""
     record = load(document_id)
     _require(record, RECEIVED)
-    folder = _folder(document_id)
-
     try:
-        analysis = analyse_pdf(folder / "source.pdf", document_id)
+        return _analyse(record)
     except Exception as exc:  # recorded, not hidden: the document cannot go further
+        record = load(document_id)
         record["state"] = BLOCKED
         record["flags"] = [f"The analysis could not be completed ({type(exc).__name__})."]
-        _step(record, "measure", "failed", f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}")
+        _step(record, "analyse", "failed", f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}")
         _save(record)
         raise UploadRefused(
             f"This thesis could not be analysed ({type(exc).__name__}). It has been marked as unusable."
         ) from exc
+
+
+def _analyse(record: dict) -> dict:
+    folder = _folder(record["document_id"])
+    analysis = analyse_pdf(folder / "source.pdf", record["document_id"])
     measurement = analysis["measurement"]
     record["flags"] = list(measurement.flags)
     record["layout_evidence"] = measurement.evidence
@@ -298,6 +303,7 @@ def analyse(document_id: str) -> dict:
     record["layout"] = analysis["layout"].to_json()
     _step(record, "measure", "done", f"{len(measurement.flags)} flag(s)")
 
+    # Written once and never again (hard rule 7): a second attempt fails here.
     ingest.write_canonical(analysis["pages"], folder / "canonical", exclusive=True)
     _step(record, "dry run", "done", f"{len(analysis['records'])} passages")
 
