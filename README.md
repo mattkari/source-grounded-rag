@@ -232,6 +232,51 @@ Two things worth knowing before deploying:
 The container needs neither the source PDF nor the ingestion dependencies: `index/` is committed, so
 a deployed container queries it directly and never re-ingests.
 
+## Adding another thesis
+
+The system was built around one thesis. `docs/plans/PLAN_V4.md` adds a way to bring in another:
+upload its PDF in the web UI, read an audit of the extraction, confirm who wrote it, and approve.
+One thesis is active at a time and each question searches only that one.
+
+**Status: implemented, not yet trialled on a second real thesis.** The automatic measurement was
+calibrated on the built-in thesis and on synthetic layouts only. Until it has been run on theses
+you choose, treat every upload's review report as the safeguard it is meant to be.
+
+1. **Upload** — *Thesis library* in the sidebar. Theses with a text layer only; a scan, an
+   encrypted file or a non-PDF is refused with the reason. The same file is never ingested twice.
+2. **Measure** — `layout.py` derives the layout profile that used to be measured by hand: type
+   sizes, where the running header and page number sit, which printed feature carries the chapter.
+   Each value comes with its evidence. A value that cannot be measured is left empty and flagged;
+   nothing is guessed.
+3. **Audit** — `audit.py` checks the extraction against the PDF itself: every stored page label is
+   printed on its page, every word of every passage is on the pages it claims, and no passage
+   crosses a chapter. The report gives counts, never a score.
+4. **Identity** — author, year and title are proposed from the title page for you to correct.
+   Nothing is cited until you confirm them.
+5. **Decide** — you approve or reject. There is no pass mark. One thing cannot be approved: a
+   passage whose words are not on its claimed pages, because that citation would be false.
+6. **Embed** — only after approval, and only after you accept the token count (and the cost, if
+   `EMBEDDING_PRICE_PER_MTOK` is set). What is embedded is proved to be what was audited.
+
+```bash
+python scripts/measure_thesis.py path/to/thesis.pdf   # measure and audit; writes nothing, calls no API
+python scripts/measure_thesis.py --builtin            # the same on the built-in thesis, compared with what is committed
+python ask.py --document thesis-<id> "<question>"     # ask an uploaded thesis from the command line
+```
+
+What to know before relying on it:
+
+- **An upload is ingested and audited, not evaluated.** The audit shows the extraction is faithful
+  to the PDF. Whether answers are correct is measured only for the built-in thesis.
+- **The built-in thesis is frozen.** Its index is never rewritten, it cannot be removed, and the
+  evaluation runs against it alone.
+- **Uploads stay on your machine** in `library/`, which git ignores and Docker mounts but never
+  copies into an image. *Remove this thesis* deletes the PDF, the extraction and the index.
+- **A thesis with no printed page numbers** can be ingested, but every citation of it reads
+  `PDF p. N [VERIFY]`.
+- The measurement rules, their cut-offs, and what running them on the built-in thesis revealed are
+  in [`docs/decisions/0003-automatic-layout-measurement.md`](docs/decisions/0003-automatic-layout-measurement.md).
+
 ## Evaluation
 
 Sprint E1 (`docs/plans/PLAN_V3.md`) adds the harness that measures what the demo could only show
