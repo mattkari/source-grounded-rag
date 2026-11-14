@@ -201,12 +201,17 @@ def chunk_pages(chunk: dict, pdf_to_label: dict[int, str | None]) -> list[str]:
 def cited_chunk_pages(chunk: dict, pdf_to_label: dict[int, str | None]) -> list[str]:
     """Printed labels a citation of this chunk puts in front of the reader.
 
-    Follows the citation renderer exactly: when either end of the range is
-    unresolved it prints "page not printed ... [VERIFY]" and no page number, so
-    such a citation carries no label and cannot score a citation hit.
+    Follows the citation renderer (`ask.page_phrase`) exactly:
+
+      * both ends numbered — it prints the range, so every label in it counts;
+      * one end numbered — it prints that one label beside the PDF pages that
+        have no number, so the citation carries that label and no other;
+      * neither end numbered — it prints no label, so the citation carries
+        none and cannot score a citation hit.
     """
-    if chunk.get("page_start") is None or chunk.get("page_end") is None:
-        return []
+    start, end = chunk.get("page_start"), chunk.get("page_end")
+    if start is None or end is None:
+        return [label for label in (start, end) if label is not None]
     labels = chunk_pages(chunk, pdf_to_label)
     for label in (chunk["page_start"], chunk["page_end"]):  # what the renderer prints
         if label not in labels:
