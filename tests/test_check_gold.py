@@ -88,14 +88,16 @@ def test_unwritten_slots_are_never_handed_to_the_runner(check):
 @pytest.mark.parametrize("expected_type", ["ANSWERABLE", "PARTIAL"])
 def test_answerable_and_partial_need_a_gold_page(check, expected_type):
     assert only_problem(check(entry(expected_type=expected_type, gold=[]))) == (
-        f"{expected_type} needs at least one gold page"
+        f"{expected_type} needs at least one gold page: add the printed label of a page that "
+        "answers it, or change expected_type"
     )
 
 
 @pytest.mark.parametrize("expected_type", ["UNANSWERABLE", "ADVERSARIAL"])
 def test_unanswerable_and_adversarial_must_have_no_gold_page(check, expected_type):
     assert only_problem(check(entry(expected_type=expected_type, gold=["3"]))) == (
-        f"{expected_type} must have no gold pages"
+        f"{expected_type} must have no gold pages: remove them, or change expected_type "
+        "if the thesis does answer the question"
     )
 
 
@@ -115,28 +117,54 @@ def test_an_unquoted_page_number_is_rejected(check):
 
 def test_a_null_gold_page_is_rejected(check):
     assert only_problem(check(entry(gold=[None]))) == (
-        "gold page #1 is null: resolve it against the printed page"
+'gold page #1 is null: look up the printed page and quote its label, e.g. "143"'
     )
 
 
-def test_a_label_no_page_carries_is_rejected(check):
+def test_a_label_no_page_carries_is_rejected_with_where_to_look(check):
     assert only_problem(check(entry(gold=["999"]))) == (
-        "gold page 999: no page in the canonical extraction carries that printed label"
+        "gold page 999 is not printed on any page: check the number printed on the page itself "
+        "(body pages are 1-258; PDF viewer page = printed + 23)"
     )
 
 
-def test_a_body_page_whose_number_did_not_print_is_rejected_with_its_pdf_page(check):
+def test_a_body_page_whose_number_did_not_print_says_what_to_do_instead(check):
     # Fixture page 5 sits on pdf page 28, which carries no printed number.
     assert only_problem(check(entry(gold=["5"]))) == (
-        "gold page 5: no page in the canonical extraction carries that printed label "
-        "(pdf page 28 has no printed number)"
+        "gold page 5 cannot be used: PDF page 28 carries no printed number, so the system "
+        "cannot cite it: choose a neighbouring page or another question"
     )
 
 
-@pytest.mark.parametrize("label, pdf_pages", [("i", "2, 44"), ("ii", "3, 45")])
-def test_a_roman_label_printed_on_two_pages_is_rejected_as_ambiguous(check, label, pdf_pages):
+@pytest.mark.parametrize("label, front, appendix", [("i", 2, 282), ("ii", 3, 283)])
+def test_a_repeated_roman_label_is_rejected_and_says_where_it_repeats(check, label, front, appendix):
     assert only_problem(check(entry(gold=[label]))) == (
-        f"gold page {label} is ambiguous: that label is printed on pdf pages {pdf_pages}"
+        f"gold page {label} is ambiguous: that label appears in both the front matter "
+        f"(PDF page {front}) and the appendix (PDF page {appendix}), so a citation of it cannot "
+        "say which: choose a body page (1-258) or another question"
+    )
+
+
+@pytest.mark.parametrize("label", ["43", "44"])
+def test_the_real_unnumbered_pages_get_the_instruction_the_researcher_needs(tmp_path, label):
+    """Against the committed page labels: printed 43 and 44 do not exist."""
+    path = tmp_path / "questions.yaml"
+    path.write_text(yaml.safe_dump({"questions": [entry(gold=[label])]}), encoding="utf-8")
+
+    assert only_problem(check_gold.check(path, check_gold.DEFAULT_PAGES)) == (
+        f"gold page {label} cannot be used: PDF pages 66 and 67 carry no printed number, so the "
+        "system cannot cite them: choose a neighbouring page or another question"
+    )
+
+
+def test_a_real_repeated_roman_label_names_front_matter_and_appendix(tmp_path):
+    path = tmp_path / "questions.yaml"
+    path.write_text(yaml.safe_dump({"questions": [entry(gold=["iv"])]}), encoding="utf-8")
+
+    assert only_problem(check_gold.check(path, check_gold.DEFAULT_PAGES)) == (
+        "gold page iv is ambiguous: that label appears in both the front matter (PDF page 5) "
+        "and the appendix (PDF page 285), so a citation of it cannot say which: "
+        "choose a body page (1-258) or another question"
     )
 
 
@@ -145,7 +173,7 @@ def test_a_roman_label_printed_once_is_accepted(check):
 
 
 def test_a_gold_page_listed_twice_is_rejected(check):
-    assert only_problem(check(entry(gold=["3", "3"]))) == "gold page 3 is listed twice"
+    assert only_problem(check(entry(gold=["3", "3"]))) == "gold page 3 is listed twice: remove the repeat"
 
 
 def test_one_bad_label_fails_the_question_but_good_labels_are_still_shown(check):
@@ -163,7 +191,7 @@ def test_duplicate_ids_are_rejected(check):
 
     assert not report.ok
     assert [row.status for row in report.rows] == [PASS, FAIL]
-    assert report.rows[1].problems == ["duplicate id"]
+    assert report.rows[1].problems == ["duplicate id: give this question an id no other slot uses"]
 
 
 def test_a_duplicate_id_is_an_error_even_on_an_empty_slot(check):
@@ -174,22 +202,30 @@ def test_a_duplicate_id_is_an_error_even_on_an_empty_slot(check):
 def test_an_unknown_expected_type_is_rejected(check):
     problem = only_problem(check(entry(expected_type="MAYBE", gold=[])))
     assert problem == (
-        "expected_type must be one of ANSWERABLE, PARTIAL, UNANSWERABLE, ADVERSARIAL (found: MAYBE)"
+        "expected_type must be one of ANSWERABLE, PARTIAL, UNANSWERABLE, ADVERSARIAL (found: MAYBE): "
+        "pick one of the four"
     )
 
 
 def test_a_missing_field_is_rejected(check):
     incomplete = entry()
     del incomplete["notes"]
-    assert only_problem(check(incomplete)) == "missing field(s): notes"
+    assert only_problem(check(incomplete)) == (
+        'missing field(s): notes: add them back (use "" or [] when empty)'
+    )
 
 
 def test_a_field_outside_the_schema_is_rejected(check):
-    assert only_problem(check(entry(gold_passage="FIXTURE pasted text"))) == "1 field(s) not in the schema"
+    assert only_problem(check(entry(gold_passage="FIXTURE pasted text"))) == (
+        "1 field(s) not in the schema: remove them (allowed: id, batch, question, expected_type, "
+        "gold_pages, expected_answer_summary, notes)"
+    )
 
 
 def test_gold_pages_must_be_a_list(check):
-    assert only_problem(check(entry(gold_pages="3"))) == "gold_pages must be a list"
+    assert only_problem(check(entry(gold_pages="3"))) == (
+        'gold_pages must be a list: write it as ["143", "148"], or [] for none'
+    )
 
 
 def test_a_file_without_a_questions_list_is_a_file_problem(tmp_path, pages_path):
@@ -198,7 +234,30 @@ def test_a_file_without_a_questions_list_is_a_file_problem(tmp_path, pages_path)
     report = check_gold.check(path, pages_path)
 
     assert not report.ok
-    assert report.file_problems == ["question file needs a top-level `questions` list"]
+    assert report.file_problems == [
+        "question file needs a top-level `questions` list: restore it from the template"
+    ]
+
+
+def test_every_failure_tells_the_researcher_what_to_do(check):
+    """Each problem is `what is wrong: what to do` and each gets its own line."""
+    report = check(
+        entry("F001", gold=[]),
+        entry("F002", "UNANSWERABLE", gold=["3"]),
+        entry("F003", gold=[None, 7, "999", "5", "i", "3", "3", "not a label at all"]),
+        entry("F003", expected_type="MAYBE", gold_pages="3", extra_field=1),
+        entry("bad id!"),
+    )
+    problems = [problem for row in report.rows for problem in row.problems]
+
+    assert len(problems) == 14
+    for problem in problems:
+        what, _, action = problem.partition(": ")
+        assert what and len(action.split()) >= 3, problem
+
+    table = check_gold.format_table(report)
+    for problem in problems:
+        assert f"\n    -> {problem}\n" in table
 
 
 # --- counts against the target --------------------------------------------------------
@@ -242,7 +301,7 @@ def test_the_table_never_prints_question_summary_notes_or_pasted_text(check):
 
     assert "SECRET" not in table
     assert "FIXTURE summary" not in table
-    assert "gold page #1 is not a page label (42 characters, not echoed)" in table
+    assert "gold page #1 is not a page label (42 characters, not echoed): replace it" in table
     assert "slot #3" in table
 
 
@@ -275,7 +334,10 @@ def test_a_page_map_that_breaks_the_printed_plus_23_rule_is_a_file_problem(tmp_p
     report = check(entry(gold=["12"]))
 
     assert not report.ok
-    assert report.file_problems == ["page map: printed label 4 is on pdf page 26, expected 27"]
+    assert report.file_problems == [
+        "page map: printed label 4 is on pdf page 26, expected 27: the extraction no longer matches "
+        "the layout profile in config.py — re-check the ingest before trusting any gold label"
+    ]
 
 
 # --- command line -------------------------------------------------------------------------

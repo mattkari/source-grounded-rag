@@ -323,8 +323,7 @@ def write_rating_sheet(path: Path, records: list[dict]) -> int:
     return len(rows)
 
 
-def _note(ratio: metrics.Ratio) -> str:
-    return f"{ratio.not_measured} of the {ratio.N} not measured" if ratio.not_measured else ""
+NOT_MEASURED = "retrieval not measured"
 
 
 def render_summary(records: list[dict], run_meta: dict, report: check_gold.Report) -> str:
@@ -386,19 +385,31 @@ def render_summary(records: list[dict], run_meta: dict, report: check_gold.Repor
         "Retrieval similarity scores are diagnostics and are not reported here."
     )
     out.append("")
-    out.append("| Metric | Population | n/N | Note |")
-    out.append("|---|---|---|---|")
-    out.append(f"| Refusal correctness | UNANSWERABLE + ADVERSARIAL | {s['refusal_correctness']} | answered `insufficient` |")
-    out.append(f"| False refusal (case B) | ANSWERABLE | {s['false_refusal']} | answered `insufficient`; lower is better |")
-    out.append(f"| Retrieval recall@{k} | ANSWERABLE | {s['recall_at_k']} | {_note(s['recall_at_k'])} |")
-    below = s["gold_below_rank"]
+    recall, below, violations = s["recall_at_k"], s["gold_below_rank"], s["contract_violations"]
     out.append(
-        f"| Gold retrieved below rank {metrics.RERANKER_TRIGGER_RANK} | ANSWERABLE | {below} | "
-        f"reranker trigger at ≥20% (PLAN_V2 §10); zero by construction when top-k ≤ {metrics.RERANKER_TRIGGER_RANK} |"
+        f"**{NOT_MEASURED.capitalize()}** counts questions that ended in a provider error before "
+        "`run_query` returned the passages it had retrieved. They stay in N and are never counted "
+        "in n, which is why N can exceed the number of questions with a retrieval result."
     )
-    out.append(f"| Citation hit | ANSWERABLE | {s['citation_hit']} | at least one cited page is a gold page |")
-    out.append(f"| Partial discipline | PARTIAL | {s['partial_discipline']} | `partial` with non-empty limitations |")
-    out.append(f"| Any contract violation | all questions run | {s['contract_violations']} | {_note(s['contract_violations'])} |")
+    out.append("")
+    out.append(f"| Metric | Population | n/N | {NOT_MEASURED.capitalize()} | Note |")
+    out.append("|---|---|---|---|---|")
+    out.append(f"| Refusal correctness | UNANSWERABLE + ADVERSARIAL | {s['refusal_correctness']} | — | answered `insufficient` |")
+    out.append(f"| False refusal (case B) | ANSWERABLE | {s['false_refusal']} | — | answered `insufficient`; lower is better |")
+    out.append(
+        f"| Retrieval recall@{k} | ANSWERABLE | {recall} | {recall.not_measured} "
+        "| a gold page is among the retrieved passages |"
+    )
+    out.append(
+        f"| Gold retrieved below rank {metrics.RERANKER_TRIGGER_RANK} | ANSWERABLE | {below} | {below.not_measured} "
+        f"| reranker trigger at ≥20% (PLAN_V2 §10); zero by construction when top-k ≤ {metrics.RERANKER_TRIGGER_RANK} |"
+    )
+    out.append(f"| Citation hit | ANSWERABLE | {s['citation_hit']} | — | at least one cited page is a gold page |")
+    out.append(f"| Partial discipline | PARTIAL | {s['partial_discipline']} | — | `partial` with non-empty limitations |")
+    out.append(
+        f"| Any contract violation | all questions run | {violations} | — "
+        f"| {violations.not_measured} of the {violations.N} never reached validation |"
+    )
     out.append("")
 
     out.append("### Contract violations by type")
@@ -420,7 +431,7 @@ def render_summary(records: list[dict], run_meta: dict, report: check_gold.Repor
         out.append("|---|---|")
         for rank in sorted((key for key in distribution if key.isdecimal()), key=int):
             out.append(f"| {rank} | {distribution[rank]} |")
-        for key, label in (("not_retrieved", f"not in the top {k}"), ("not_measured", "not measured")):
+        for key, label in (("not_retrieved", f"not in the top {k}"), ("not_measured", NOT_MEASURED)):
             if key in distribution:
                 out.append(f"| {label} | {distribution[key]} |")
     else:
@@ -437,12 +448,18 @@ def render_summary(records: list[dict], run_meta: dict, report: check_gold.Repor
         else:
             outcome = f"{record['outcome']} ({record['error_stage']}: {record['error_type']})"
         rank = metrics.gold_rank(record)
+        if rank is not None:
+            rank_cell = str(rank)
+        elif record["gold_pages"] and record["retrieved"] is None:
+            rank_cell = NOT_MEASURED
+        else:
+            rank_cell = "—"
         violations = sorted({metrics.violation_type(f) for f in record["validation_failures"] or []})
         out.append(
             f"| {record['question_id']} | {record['expected_type']} | {outcome} "
             f"| {record['evidence_sufficiency'] or '—'} "
             f"| {', '.join(record['gold_pages']) or '—'} "
-            f"| {rank if rank is not None else '—'} "
+            f"| {rank_cell} "
             f"| {', '.join(record['cited_pages'] or []) or '—'} "
             f"| {'; '.join(violations) or '—'} |"
         )

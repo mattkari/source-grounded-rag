@@ -282,7 +282,38 @@ def test_an_embedding_failure_is_a_provider_error_at_the_retrieval_stage(harness
     assert harness.model.calls == []
     assert [(r["outcome"], r["error_stage"]) for r in result.records] == [("provider_error", "retrieval")] * 4
     summary = result.summary_path.read_text(encoding="utf-8")
-    assert f"| Retrieval recall@{settings.top_k} | ANSWERABLE | 0/2 (0%) | 2 of the 2 not measured |" in summary
+    assert f"| Retrieval recall@{settings.top_k} | ANSWERABLE | 0/2 (0%) | 2 |" in summary
+
+
+def test_retrieval_not_measured_is_its_own_count_beside_each_retrieval_metric(harness):
+    """An ANSWERABLE question that errors stays in N; the summary says why N is larger."""
+    harness.use({
+        "lighthouse": GROUNDED,
+        "glacier": REFUSAL,
+        "orchard": RuntimeError("FIXTURE provider outage"),   # F003, ANSWERABLE, gold 7
+        "tramway": REFUSAL,
+    })
+    summary = harness.run().summary_path.read_text(encoding="utf-8")
+    k = settings.top_k
+
+    assert "| Metric | Population | n/N | Retrieval not measured | Note |" in summary
+    assert f"| Retrieval recall@{k} | ANSWERABLE | 1/2 (50%) | 1 |" in summary
+    assert "| Gold retrieved below rank 5 | ANSWERABLE | 0/2 (0%) | 1 |" in summary
+    assert "| 1 | 1 |\n| retrieval not measured | 1 |" in summary            # rank table
+    assert "| F003 | ANSWERABLE | provider_error (generation: RuntimeError) | — | 7 | retrieval not measured |" in summary
+    # Metrics that do not depend on retrieval carry no such count.
+    assert "| Citation hit | ANSWERABLE | 1/2 (50%) | — |" in summary
+    assert "| False refusal (case B) | ANSWERABLE | 0/2 (0%) | — |" in summary
+    assert "| Any contract violation | all questions run | 0/4 (0%) | — | 1 of the 4 never reached validation |" in summary
+
+
+def test_the_not_measured_count_is_shown_even_when_it_is_zero(harness):
+    harness.use({"lighthouse": GROUNDED, "FIXTURE": REFUSAL})
+    summary = harness.run().summary_path.read_text(encoding="utf-8")
+
+    assert f"| Retrieval recall@{settings.top_k} | ANSWERABLE | 2/2 (100%) | 0 |" in summary
+    assert "| Gold retrieved below rank 5 | ANSWERABLE | 0/2 (0%) | 0 |" in summary
+    assert "| retrieval not measured |" not in summary   # no such row in the rank table
 
 
 def test_an_interrupt_stops_the_run_and_keeps_what_was_measured(harness):

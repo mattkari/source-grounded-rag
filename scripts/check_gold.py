@@ -13,6 +13,8 @@ wrong field cannot leak into a terminal log or a CI transcript.
 
 A slot whose `question` is blank is "not written yet". That is the normal state
 of the template and is reported, never counted as an error.
+
+Every FAIL says what to do about it, not only what is wrong.
 """
 
 from __future__ import annotations
@@ -64,17 +66,37 @@ _TYPE_RE = re.compile(r"[A-Za-z_]{1,20}")
 class PageMap:
     label_to_pdf: dict[str, tuple[int, ...]]   # printed label -> PDF pages carrying it
     pdf_to_label: dict[int, str | None]        # PDF page -> printed label, if any
+    pdf_to_region: dict[int, str]              # PDF page -> "front matter" | "body" | "appendix" | "back matter"
     problems: tuple[str, ...]                  # the extraction disagrees with the layout profile
 
     def ambiguous(self) -> list[str]:
         return [label for label, pdf in self.label_to_pdf.items() if len(pdf) > 1]
 
+    def unnumbered_run(self, pdf_page: int) -> list[int]:
+        """The consecutive PDF pages around `pdf_page` that carry no printed
+        number. Empty when `pdf_page` has one, or is not in the document."""
+        if pdf_page not in self.pdf_to_label or self.pdf_to_label[pdf_page] is not None:
+            return []
+        first = last = pdf_page
+        while first - 1 in self.pdf_to_label and self.pdf_to_label[first - 1] is None:
+            first -= 1
+        while last + 1 in self.pdf_to_label and self.pdf_to_label[last + 1] is None:
+            last += 1
+        return list(range(first, last + 1))
+
 
 def load_page_map(path: Path) -> PageMap:
-    """Read `pdf_page` and `printed_page` from each row. The page text is never kept."""
+    """Read `pdf_page`, `printed_page` and the running header from each row.
+
+    The page text is never kept, and the header is used only to tell an
+    appendix from other back matter — it is not stored or printed.
+    """
     label_to_pdf: dict[str, list[int]] = {}
     pdf_to_label: dict[int, str | None] = {}
+    pdf_to_region: dict[int, str] = {}
     problems: list[str] = []
+    body_first_pdf = settings.body_first_printed_page + settings.body_pdf_page_offset
+    body_last_pdf = settings.body_last_printed_page + settings.body_pdf_page_offset
 
     with Path(path).open(encoding="utf-8") as handle:
         for line in handle:
@@ -83,6 +105,14 @@ def load_page_map(path: Path) -> PageMap:
             row = json.loads(line)
             pdf_page, label = row["pdf_page"], row["printed_page"]
             pdf_to_label[pdf_page] = label
+            if pdf_page < body_first_pdf:
+                pdf_to_region[pdf_page] = "front matter"
+            elif pdf_page <= body_last_pdf:
+                pdf_to_region[pdf_page] = "body"
+            elif str(row.get("running_header") or "").strip().lower().startswith("appendix"):
+                pdf_to_region[pdf_page] = "appendix"
+            else:
+                pdf_to_region[pdf_page] = "back matter"
             if label is None:
                 continue
             if not isinstance(label, str):
@@ -107,6 +137,7 @@ def load_page_map(path: Path) -> PageMap:
     return PageMap(
         label_to_pdf={label: tuple(pdf) for label, pdf in label_to_pdf.items()},
         pdf_to_label=pdf_to_label,
+        pdf_to_region=pdf_to_region,
         problems=tuple(problems),
     )
 
@@ -164,68 +195,112 @@ def _is_blank(value: object) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
 
 
+def _pages_phrase(pdf_pages: list[int]) -> str:
+    """"PDF page 28 carries" / "PDF pages 66 and 67 carry" — ready for "... no printed number"."""
+    if len(pdf_pages) == 1:
+        return f"PDF page {pdf_pages[0]} carries"
+    listed = ", ".join(str(p) for p in pdf_pages[:-1]) + f" and {pdf_pages[-1]}"
+    return f"PDF pages {listed} carry"
+
+
+def _missing_label_problem(label: str, pages: PageMap) -> str:
+    first, last = settings.body_first_printed_page, settings.body_last_printed_page
+    offset = settings.body_pdf_page_offset
+    if label.isdecimal() and first <= int(label) <= last:
+        run = pages.unnumbered_run(int(label) + offset)
+        if run:
+            return (
+                f"gold page {label} cannot be used: {_pages_phrase(run)} no printed number, "
+                f"so the system cannot cite {'it' if len(run) == 1 else 'them'}: "
+                "choose a neighbouring page or another question"
+            )
+    return (
+        f"gold page {label} is not printed on any page: check the number printed on the page "
+        f"itself (body pages are {first}-{last}; PDF viewer page = printed + {offset})"
+    )
+
+
+def _ambiguous_label_problem(label: str, pages: PageMap) -> str:
+    places = [
+        f"the {pages.pdf_to_region.get(pdf_page, 'document')} (PDF page {pdf_page})"
+        for pdf_page in pages.label_to_pdf[label]
+    ]
+    first, last = settings.body_first_printed_page, settings.body_last_printed_page
+    return (
+        f"gold page {label} is ambiguous: that label appears in both "
+        + " and ".join(places)
+        + f", so a citation of it cannot say which: choose a body page ({first}-{last}) or another question"
+    )
+
+
 def _gold_problems(gold: object, expected_type: str, pages: PageMap) -> tuple[list[str], list[str]]:
     """Return (valid labels, problems) for one written question."""
     if not isinstance(gold, list):
-        return [], ["gold_pages must be a list"]
+        return [], ['gold_pages must be a list: write it as ["143", "148"], or [] for none']
 
     problems: list[str] = []
     valid: list[str] = []
-    first, last = settings.body_first_printed_page, settings.body_last_printed_page
-    offset = settings.body_pdf_page_offset
 
     for position, label in enumerate(gold, start=1):
         where = f"gold page #{position}"
         if label is None:
-            problems.append(f"{where} is null: resolve it against the printed page")
+            problems.append(f'{where} is null: look up the printed page and quote its label, e.g. "143"')
         elif isinstance(label, bool) or not isinstance(label, str):
             problems.append(f'{where} is not a string: quote the printed label, e.g. "143"')
         elif not _LABEL_RE.fullmatch(label):
-            problems.append(f"{where} is not a page label ({len(label)} characters, not echoed)")
-        elif label in valid:
-            problems.append(f"gold page {label} is listed twice")
-        elif label not in pages.label_to_pdf:
-            detail = "no page in the canonical extraction carries that printed label"
-            if label.isdecimal() and first <= int(label) <= last:
-                detail += f" (pdf page {int(label) + offset} has no printed number)"
-            problems.append(f"gold page {label}: {detail}")
-        elif len(pages.label_to_pdf[label]) > 1:
-            on = ", ".join(str(p) for p in pages.label_to_pdf[label])
             problems.append(
-                f"gold page {label} is ambiguous: that label is printed on pdf pages {on}"
+                f"{where} is not a page label ({len(label)} characters, not echoed): "
+                "replace it with the printed page label only"
             )
+        elif label in valid:
+            problems.append(f"gold page {label} is listed twice: remove the repeat")
+        elif label not in pages.label_to_pdf:
+            problems.append(_missing_label_problem(label, pages))
+        elif len(pages.label_to_pdf[label]) > 1:
+            problems.append(_ambiguous_label_problem(label, pages))
         else:
             valid.append(label)
 
     if expected_type in NEEDS_GOLD and not gold:
-        problems.append(f"{expected_type} needs at least one gold page")
+        problems.append(
+            f"{expected_type} needs at least one gold page: add the printed label of a page that "
+            "answers it, or change expected_type"
+        )
     if expected_type in EXPECTED_TYPES and expected_type not in NEEDS_GOLD and gold:
-        problems.append(f"{expected_type} must have no gold pages")
+        problems.append(
+            f"{expected_type} must have no gold pages: remove them, or change expected_type "
+            "if the thesis does answer the question"
+        )
     return valid, problems
 
 
 def _check_entry(entry: object, slot: int, seen_ids: set[str], pages: PageMap) -> tuple[Row, dict | None]:
     if not isinstance(entry, dict):
-        return Row(slot, f"slot #{slot}", "?", FAIL, problems=["entry is not a mapping"]), None
+        return Row(slot, f"slot #{slot}", "?", FAIL,
+                   problems=["entry is not a mapping: copy the shape of an empty template slot"]), None
 
     problems: list[str] = []
 
     missing = [name for name in FIELDS if name not in entry]
     if missing:
-        problems.append("missing field(s): " + ", ".join(missing))
+        problems.append(
+            "missing field(s): " + ", ".join(missing) + ': add them back (use "" or [] when empty)'
+        )
     unknown = sorted(str(key) for key in entry if key not in FIELDS)
     if unknown:
-        problems.append(f"{len(unknown)} field(s) not in the schema")
+        problems.append(
+            f"{len(unknown)} field(s) not in the schema: remove them (allowed: {', '.join(FIELDS)})"
+        )
 
     raw_id = entry.get("id")
     if isinstance(raw_id, str) and _ID_RE.fullmatch(raw_id):
         shown_id = raw_id
         if raw_id in seen_ids:
-            problems.append("duplicate id")
+            problems.append("duplicate id: give this question an id no other slot uses")
         seen_ids.add(raw_id)
     else:
         shown_id = f"slot #{slot}"
-        problems.append("id must be a short string of letters, digits, - or _")
+        problems.append("id must be a short string of letters, digits, - or _: use the template form, e.g. Q031")
 
     raw_type = entry.get("expected_type")
     if raw_type in EXPECTED_TYPES:
@@ -233,11 +308,13 @@ def _check_entry(entry: object, slot: int, seen_ids: set[str], pages: PageMap) -
     else:
         shown_type = "?"
         echoed = raw_type if isinstance(raw_type, str) and _TYPE_RE.fullmatch(raw_type) else "value not echoed"
-        problems.append(f"expected_type must be one of {', '.join(EXPECTED_TYPES)} (found: {echoed})")
+        problems.append(
+            f"expected_type must be one of {', '.join(EXPECTED_TYPES)} (found: {echoed}): pick one of the four"
+        )
 
     for name in ("batch", "question", "expected_answer_summary", "notes"):
         if name in entry and entry[name] is not None and not isinstance(entry[name], str):
-            problems.append(f"{name} must be a string")
+            problems.append(f'{name} must be a string: put it in quotes, or use "" when empty')
 
     written = isinstance(entry.get("question"), str) and not _is_blank(entry.get("question"))
 
@@ -267,26 +344,39 @@ def check(questions_path: Path = DEFAULT_QUESTIONS, pages_path: Path = DEFAULT_P
     try:
         pages = load_page_map(pages_path)
     except (OSError, ValueError, KeyError) as exc:
-        report.file_problems.append(f"cannot read the page map ({type(exc).__name__})")
+        report.file_problems.append(
+            f"cannot read the page map ({type(exc).__name__}): check that {pages_path} exists and is "
+            "the canonical extraction"
+        )
         return report
     report.page_map = pages
-    report.file_problems.extend(f"page map: {problem}" for problem in pages.problems)
+    report.file_problems.extend(
+        f"page map: {problem}: the extraction no longer matches the layout profile in config.py — "
+        "re-check the ingest before trusting any gold label"
+        for problem in pages.problems
+    )
 
     try:
         loaded = yaml.safe_load(Path(questions_path).read_text(encoding="utf-8"))
     except OSError as exc:
-        report.file_problems.append(f"cannot read the question file ({type(exc).__name__})")
+        report.file_problems.append(
+            f"cannot read the question file ({type(exc).__name__}): check the path {questions_path}"
+        )
         return report
     except yaml.YAMLError as exc:
         # The parser's own message quotes the offending lines. Report position only.
         mark = getattr(exc, "problem_mark", None)
         where = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
-        report.file_problems.append(f"question file is not valid YAML{where}")
+        report.file_problems.append(
+            f"question file is not valid YAML{where}: fix the quoting or indentation there"
+        )
         return report
 
     entries = loaded.get("questions") if isinstance(loaded, dict) else None
     if not isinstance(entries, list):
-        report.file_problems.append("question file needs a top-level `questions` list")
+        report.file_problems.append(
+            "question file needs a top-level `questions` list: restore it from the template"
+        )
         return report
 
     seen_ids: set[str] = set()
@@ -312,13 +402,12 @@ def format_table(report: Report) -> str:
         lines.append("")
 
     if report.rows:
-        lines.append(f"{'ID':<10} {'TYPE':<13} {'STATUS':<16} {'GOLD':<14} DETAIL")
+        lines.append(f"{'ID':<10} {'TYPE':<13} {'STATUS':<16} GOLD")
         for row in report.rows:
             gold = ",".join(row.gold) if row.gold else "-"
-            lines.append(
-                f"{row.id:<10} {row.expected_type:<13} {row.status:<16} {gold:<14} "
-                + "; ".join(row.problems)
-            )
+            lines.append(f"{row.id:<10} {row.expected_type:<13} {row.status:<16} {gold}".rstrip())
+            # One line per problem: what is wrong, then what to do about it.
+            lines.extend(f"    -> {problem}" for problem in row.problems)
         lines.append("")
 
         lines.append(f"{'CATEGORY':<13} {'PASS':>5} {'FAIL':>5} {'NOT WRITTEN':>12} {'TARGET':>7}  AGAINST TARGET")

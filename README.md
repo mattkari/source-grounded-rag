@@ -251,7 +251,8 @@ measured, recorded in `runs/`, and rated. The question set is still being writte
 2. **Gold check** — `python scripts/check_gold.py` validates the file against
    `data/canonical/pages.jsonl` and prints a pass/fail table of ids, categories and page labels. It
    never prints the question, the notes, or any thesis text. A blank slot is reported as "not
-   written yet", not as an error. A label that is not printed on exactly one page is rejected: the
+   written yet", not as an error, and every failure says what to do about it. A label that is not
+   printed on exactly one page is rejected: the
    roman labels i–vii are printed twice (front matter and appendix), and printed 43 and 44 do not
    exist in the extraction because PDF pages 66 and 67 carry no printed number.
 3. **Run** — `python evaluate.py` sends every written question through `ask.run_query()`, the same

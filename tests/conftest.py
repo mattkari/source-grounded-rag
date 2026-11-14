@@ -83,15 +83,20 @@ _ROMAN = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xi
 
 
 def fixture_page_rows() -> list[dict]:
-    """A 45-page synthetic document shaped like the real one: an unnumbered
-    title page, roman front matter, a body at pdf = printed + 23 with one page
-    whose number did not print (pdf 28), and an appendix that reuses i and ii."""
+    """A synthetic document shaped like the real one: an unnumbered title page,
+    roman front matter, a body at pdf = printed + 23 with one page whose number
+    did not print (pdf 28), and — after the body's pdf range — an appendix that
+    reuses the labels i and ii."""
     rows = [{"pdf_page": 1, "printed_page": None}]
     rows += [{"pdf_page": 2 + i, "printed_page": label} for i, label in enumerate(_ROMAN)]
     rows += [{"pdf_page": 23 + n, "printed_page": None if n == 5 else str(n)} for n in range(1, 21)]
-    rows += [{"pdf_page": 44, "printed_page": "i"}, {"pdf_page": 45, "printed_page": "ii"}]
     for row in rows:
         row["running_header"] = None
+    rows += [
+        {"pdf_page": 282, "printed_page": "i", "running_header": "Appendix"},
+        {"pdf_page": 283, "printed_page": "ii", "running_header": "Appendix"},
+    ]
+    for row in rows:
         row["text"] = "FIXTURE page text that the checker must never print."
     return rows
 

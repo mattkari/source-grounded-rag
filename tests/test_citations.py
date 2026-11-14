@@ -12,6 +12,9 @@ always fails validation.
 
 from __future__ import annotations
 
+import json
+import re
+
 import ask
 import evaluate
 from scripts import check_gold
@@ -129,3 +132,72 @@ def test_a_partly_resolved_passage_is_retrievable_by_its_label_but_cites_no_page
 def test_a_resolved_citation_carries_every_label_in_its_range(chunks, pages_path):
     pdf_to_label = check_gold.load_page_map(pages_path).pdf_to_label
     assert evaluate.cited_chunk_pages(chunks[5], pdf_to_label) == ["9", "10", "11"]
+
+
+# ---------------------------------------------------------------------------
+# The real index: passages on the PDF pages that carry no printed number
+# ---------------------------------------------------------------------------
+
+PRINTED_CITATION = re.compile(r"(?<!PDF )\bpp?\. ([0-9ivxlcdm]+)(?:–([0-9ivxlcdm]+))?")
+PDF_CITATION = re.compile(r"PDF p\. (\d+)")
+
+
+def test_citing_a_passage_on_the_real_unnumbered_pages_shows_no_page_that_does_not_exist(answer):
+    """Hard rule 2, against the committed index and canonical page labels.
+
+    Body pages whose number did not print (PDF 66 and 67) have no printed label.
+    A passage that touches them must be cited without one — never as 43 or 44,
+    never as "None", never as a range with an invented end.
+    """
+    page_map = check_gold.load_page_map(check_gold.DEFAULT_PAGES)
+    body_pdf = range(
+        ask.settings.body_first_printed_page + ask.settings.body_pdf_page_offset,
+        ask.settings.body_last_printed_page + ask.settings.body_pdf_page_offset + 1,
+    )
+    unnumbered = [pdf for pdf in body_pdf if page_map.pdf_to_label.get(pdf) is None]
+    assert unnumbered == [66, 67]
+
+    chunks = json.loads((ask.settings.index_dir / "chunks.json").read_text(encoding="utf-8"))
+    touching = [
+        c for c in chunks if any(c["pdf_page_start"] <= pdf <= c["pdf_page_end"] for pdf in unnumbered)
+    ]
+    assert touching, "expected at least one indexed passage on the unnumbered pages"
+
+    for chunk in touching:
+        item = ask.EvidenceItem(handle="E1", chunk=chunk, score=0.5)
+        rendered = ask.render("FIXTURE: question?", answer(), [item], verbose=False)
+        footnotes = footnote_block(rendered)
+        diagnostics = rendered.split("RETRIEVAL DIAGNOSTICS", 1)[1]
+
+        # What the reader is shown: no printed page, a real PDF page, a request to verify.
+        shown = f"page not printed on source page (PDF p. {chunk['pdf_page_start']}) [VERIFY]"
+        assert shown in footnotes and shown in diagnostics
+
+        for text in (footnotes, diagnostics):
+            assert "None" not in text
+            assert PRINTED_CITATION.findall(text) == []          # no printed page is claimed at all
+            for pdf_page in PDF_CITATION.findall(text):
+                assert int(pdf_page) in page_map.pdf_to_label    # the PDF page named exists
+
+        # The evaluation record follows suit: findable by the label it has, citing none.
+        assert evaluate.cited_chunk_pages(chunk, page_map.pdf_to_label) == []
+        for label in evaluate.chunk_pages(chunk, page_map.pdf_to_label):
+            assert label in page_map.label_to_pdf
+
+
+def test_every_indexed_passage_cites_only_page_labels_that_exist():
+    """No chunk in the committed index can render a printed page that is not in
+    the canonical extraction, and every printed range it renders is resolved."""
+    page_map = check_gold.load_page_map(check_gold.DEFAULT_PAGES)
+    chunks = json.loads((ask.settings.index_dir / "chunks.json").read_text(encoding="utf-8"))
+    assert len(chunks) > 100
+
+    for chunk in chunks:
+        phrase = ask.page_phrase(chunk)
+        assert "None" not in phrase
+        cited = [label for match in PRINTED_CITATION.findall(phrase) for label in match if label]
+        for label in cited:
+            assert label in page_map.label_to_pdf
+        if not cited:
+            assert phrase.endswith("[VERIFY]")
+            assert int(PDF_CITATION.search(phrase).group(1)) in page_map.pdf_to_label
