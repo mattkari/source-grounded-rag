@@ -23,6 +23,7 @@ import numpy as np
 from anthropic import Anthropic
 
 from config import settings
+from documents import Document, default_document
 from embeddings import active_model_name, embed_texts
 
 MARKER_RE = re.compile(r"\[E(\d+)\]")
@@ -59,6 +60,15 @@ class EvidenceItem:
     handle: str          # "E1"
     chunk: dict          # full provenance record
     score: float         # retrieval diagnostic — NEVER a confidence figure
+    # The document the passage comes from. Identity travels with the evidence,
+    # so a citation can never be given another thesis's author or year. None
+    # means the built-in thesis.
+    document: Document | None = None
+
+
+def _document(document: Document | None) -> Document:
+    """The given document, or the built-in thesis (PLAN_V4 §11)."""
+    return document if document is not None else default_document(settings)
 
 
 # ---------------------------------------------------------------------------
@@ -66,12 +76,15 @@ class EvidenceItem:
 # ---------------------------------------------------------------------------
 
 
-def load_index() -> tuple[np.ndarray, list[dict], dict]:
-    vec_path = settings.index_dir / "vectors.npy"
-    chunk_path = settings.index_dir / "chunks.json"
-    manifest_path = settings.index_dir / "manifest.json"
+def load_index(document: Document | None = None) -> tuple[np.ndarray, list[dict], dict]:
+    document = _document(document)
+    vec_path = document.index_dir / "vectors.npy"
+    chunk_path = document.index_dir / "chunks.json"
+    manifest_path = document.index_dir / "manifest.json"
     if not vec_path.exists():
-        raise SystemExit("No index found. Run:  python ingest.py")
+        if document.builtin:
+            raise SystemExit("No index found. Run:  python ingest.py")
+        raise SystemExit(f"No index found for {document.document_id}. It has not been indexed yet.")
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     # An index built with model A can never be queried with model B.
@@ -89,12 +102,18 @@ def load_index() -> tuple[np.ndarray, list[dict], dict]:
     )
 
 
-def retrieve(question: str, vectors: np.ndarray, chunks: list[dict], k: int) -> list[EvidenceItem]:
+def retrieve(
+    question: str,
+    vectors: np.ndarray,
+    chunks: list[dict],
+    k: int,
+    document: Document | None = None,
+) -> list[EvidenceItem]:
     query = embed_texts([question], is_query=True)[0]
     scores = vectors @ query  # both sides unit-normalised -> cosine
     order = np.argsort(-scores)[:k]
     return [
-        EvidenceItem(handle=f"E{i + 1}", chunk=chunks[j], score=float(scores[j]))
+        EvidenceItem(handle=f"E{i + 1}", chunk=chunks[j], score=float(scores[j]), document=document)
         for i, j in enumerate(order)
     ]
 
@@ -113,7 +132,7 @@ def render_evidence_block(items: list[EvidenceItem]) -> str:
     lines = []
     for item in items:
         c = item.chunk
-        header = f"[{item.handle}] {settings.document_short_title}"
+        header = f"[{item.handle}] {_document(item.document).short_title}"
         if c["chapter"]:
             header += f" — Chapter: {c['chapter']}"
         if c["section"]:
@@ -307,7 +326,8 @@ def page_phrase(chunk: dict) -> str:
 
 def footnote(index: int, item: EvidenceItem) -> str:
     c = item.chunk
-    parts = [f"{settings.document_author} ({settings.document_year})"]
+    source = _document(item.document)
+    parts = [f"{source.author} ({source.year})"]
     if c["chapter"]:
         parts.append(f"Ch. “{c['chapter']}”")
     if c["section"]:
@@ -439,9 +459,14 @@ def run_query(
     vectors: np.ndarray,
     chunks: list[dict],
     top_k: int | None = None,
+    document: Document | None = None,
 ) -> QueryOutcome:
-    """Retrieve -> ground -> validate. No printing, no process control."""
-    items = retrieve(question, vectors, chunks, top_k or settings.top_k)
+    """Retrieve -> ground -> validate. No printing, no process control.
+
+    `document` is the thesis the index belongs to; None is the built-in one.
+    It is attached to every evidence item, which is where citations read it.
+    """
+    items = retrieve(question, vectors, chunks, top_k or settings.top_k, document)
     result, prompt_hash = call_model(question, items)
     return QueryOutcome(
         question=question,
@@ -459,10 +484,21 @@ def main() -> int:
     parser.add_argument("--verbose-provenance", action="store_true",
                         help="print chunk ids and verbatim passages under each footnote")
     parser.add_argument("--json", action="store_true", help="emit the raw run record")
+    parser.add_argument("--document", default=None,
+                        help="id of an uploaded thesis (default: the built-in thesis)")
     args = parser.parse_args()
 
-    vectors, chunks, manifest = load_index()
-    outcome = run_query(args.question, vectors, chunks, args.top_k)
+    document = None
+    if args.document:
+        import upload  # only needed for an uploaded thesis; pulls in the PDF tools
+
+        try:
+            document = upload.find_document(args.document)
+        except upload.UploadRefused as exc:
+            raise SystemExit(str(exc))
+
+    vectors, chunks, manifest = load_index(document)
+    outcome = run_query(args.question, vectors, chunks, args.top_k, document)
     result, items, failures = outcome.result, outcome.items, outcome.failures
     prompt_hash = outcome.prompt_hash
 

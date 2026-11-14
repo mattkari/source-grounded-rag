@@ -43,6 +43,11 @@ class Settings:
     # image on a mounted volume in Docker, hence the env override.
     runs_path: Path = Path(os.environ.get("RUNS_PATH", str(ROOT / "runs" / "runs.jsonl")))
 
+    # Uploaded theses (PLAN_V4 §5): one folder per document holding its PDF,
+    # extraction, audit and index. Never committed and never baked into an
+    # image — a mounted volume in Docker, hence the env override.
+    library_dir: Path = Path(os.environ.get("LIBRARY_DIR", str(ROOT / "library")))
+
     # --- document identity (from the title page, not inferred) -------------
     # Taken from the title page, not from the PDF metadata: that metadata
     # names a second author inherited from the template it was written in,
@@ -61,6 +66,10 @@ class Settings:
     # the threshold sits at 11.0 to keep them. The footnote apparatus is
     # 9-10pt and its reference markers 7pt, all of which this drops.
     body_min_size: float = 11.0
+    # The body size itself. Bold text at this size, in a heading face, is a
+    # numbered section heading. It was a literal 12.0 inside ingest.py until
+    # PLAN_V4, which would have been wrong for a thesis set in 11pt.
+    body_size: float = 12.0
 
     # Running headers print the chapter title at y=36; body text starts at
     # y=71 at the earliest.
@@ -112,6 +121,15 @@ class Settings:
     embedding_model: str = "text-embedding-3-large"
     local_embedding_model: str = os.environ.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
     embedding_batch_size: int = 64
+    # Optional, for the cost estimate shown before an upload is embedded
+    # (PLAN_V4 §6 stage 8). US dollars per million tokens for the configured
+    # embedding model. Left unset, the estimate shows the token count only:
+    # a price is never assumed.
+    embedding_price_per_mtok: float | None = (
+        float(os.environ["EMBEDDING_PRICE_PER_MTOK"])
+        if os.environ.get("EMBEDDING_PRICE_PER_MTOK")
+        else None
+    )
 
     # --- generation role ---------------------------------------------------
     # Anthropic offers no embeddings endpoint, so the two roles necessarily
