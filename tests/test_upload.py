@@ -456,13 +456,26 @@ def test_the_builtin_thesis_cannot_be_removed(library):
     assert settings.index_dir.joinpath("chunks.json").exists()
 
 
-@pytest.mark.parametrize("bad_id", ["../outside", "thesis-../../etc", "not-a-thesis", "thesis-unknown0000"])
-def test_remove_only_ever_touches_a_folder_inside_the_library(library, tmp_path, bad_id):
+@pytest.mark.parametrize(
+    "bad_id",
+    ["../outside", "{upload}/../../outside", "not-a-thesis", "thesis-unknown0000"],
+    ids=["parent-folder", "through-a-real-upload", "not-an-upload", "unknown-upload"],
+)
+def test_remove_only_ever_touches_an_upload_inside_the_library(library, received, tmp_path, bad_id):
+    """`received` puts a real upload in the library, so the traversal paths do resolve."""
+    bad_id = bad_id.format(upload=received["document_id"])
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "keep.txt").write_text("FIXTURE", encoding="utf-8")
+    assert (library.path / received["document_id"] / ".." / ".." / "outside" / "keep.txt").exists()
+    # A folder inside the library that is not an upload must be left alone too.
+    stray = library.path / "not-a-thesis"
+    stray.mkdir()
+    (stray / "keep.txt").write_text("FIXTURE", encoding="utf-8")
 
     with pytest.raises(UploadRefused):
         upload.remove(bad_id)
 
     assert (outside / "keep.txt").exists()
+    assert (stray / "keep.txt").exists()
+    assert (library.path / received["document_id"] / "source.pdf").exists()
