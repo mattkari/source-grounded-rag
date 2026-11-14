@@ -10,7 +10,8 @@
 #   3. For ANSWERABLE/PARTIAL: list gold_pages = the PRINTED page labels (the number printed
 #      on the page, as the system cites it), quoted as strings, e.g. ["143", "148"].
 #      Body pages are 1-258; pdf_page = printed + 23 (PDF viewer page 166 = printed 143).
-#      Roman labels i-v repeat (front matter and appendix), so do not use them as gold.
+#      Roman labels i-vii repeat (front matter and appendix), so do not use them as gold.
+#      Printed 43 and 44 are not in the extraction (PDF pages 66-67 carry no printed number).
 #      Page labels only — NEVER paste thesis text into this file.
 #   4. Leave expected_answer_summary as 1 short line (your words, not quotes).
 #   5. Notes: anything a grader should know (traps, near-miss pages).
