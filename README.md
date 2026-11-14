@@ -279,7 +279,8 @@ python evaluate.py               # live run; spends API credit on both providers
 
 The offline suite replaces the generation model at `ask.call_model` and the embedding provider with
 a deterministic stand-in; retrieval ranking, validation, citation resolution and rendering run as
-real code. CI runs it on every push. The live run is not in CI.
+real code. The CI workflow from PLAN_V3 §7 runs the same suite on every push once it is added
+under `.github/workflows/`; until then the suite is run locally. The live run is never in CI.
 
 ### Limits
 
