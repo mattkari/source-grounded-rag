@@ -215,6 +215,18 @@ def test_footnotes_set_smaller_at_the_foot_of_the_column_are_dropped(measured):
     assert "pageword3" in m.body
 
 
+def test_long_footnotes_are_dropped_because_of_where_they_sit_not_how_little_they_say(measured):
+    """Footnotes carrying a large share of the text are still apparatus: they
+    sit at the foot of the column on every page."""
+    m = measured(footnote_size=10.0, footnote_lines=6)
+    reading = m.measurement.evidence["body_min_size"]["sizes_below_body"]["10.0"]
+
+    assert reading["share_of_characters"] > 0.05
+    assert reading["read_as"] == "footnote apparatus (sits at the foot of the column)"
+    assert m.layout.body_min_size == 12.0
+    assert "noteword" not in m.body
+
+
 def test_block_quotations_are_kept_while_smaller_footnotes_are_dropped(measured):
     m = measured(quote_size=11.0, footnote_size=9.0)
 

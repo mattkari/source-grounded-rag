@@ -43,6 +43,7 @@ class ThesisSpec:
     other_face_headings: bool = False  # Helvetica-Bold sub-headings at body size
     quote_size: float | None = None    # a block quotation between paragraphs on body pages
     footnote_size: float | None = None # a footnote at the foot of body pages
+    footnote_lines: int = 1            # more lines = footnotes carry more of the text
     front_pages: int = 2               # roman-numbered pages after the title page
     title_page: bool = True
     author_line: str | None = "By Fixture Author"
@@ -169,11 +170,15 @@ def make_thesis(path, spec: ThesisSpec | None = None) -> dict:
             y = _paragraph(page, y, spec.body_size, seed + 5)
 
             if spec.footnote_size:
-                foot_y = 730
+                leading = spec.footnote_size * 1.2
+                foot_y = 730 - (spec.footnote_lines - 1) * leading
                 page.insert_text((LEFT, foot_y - 3), str(body_number), fontname="tiro",
                                  fontsize=spec.footnote_size * 0.6)
-                page.insert_text((LEFT + 8, foot_y), f"noteword{body_number} FIXTURE footnote citing a synthetic work.",
-                                 fontname="tiro", fontsize=spec.footnote_size)
+                for line in range(spec.footnote_lines):
+                    text = (f"noteword{body_number} FIXTURE footnote citing a synthetic work."
+                            if line == 0 else _sentence(7000 + body_number * 10 + line))
+                    page.insert_text((LEFT + 8, foot_y + line * leading), text,
+                                     fontname="tiro", fontsize=spec.footnote_size)
             if spec.divider_number and body_number == 3:
                 page.insert_text((PAGE_WIDTH / 2, 600), "2", fontname="tibo", fontsize=spec.body_size)
 

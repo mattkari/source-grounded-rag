@@ -12,6 +12,13 @@ stored provenance (hard rule 2).
 The audience is non-technical. Nothing technical is hidden or softened, but the
 default view carries the answer and its sources; evidence handles, retrieval
 scores and validation outcomes live one click away.
+
+Since PLAN_V4 the app has a second view, the thesis library, where the
+researcher uploads another thesis, reads the audit of its extraction, confirms
+its identity and approves or rejects it. That view is also a shell: every rule
+(nothing embedded before approval, nothing cited before the identity is
+confirmed) lives in upload.py and is tested there. One thesis is active at a
+time and each question searches only that one.
 """
 
 from __future__ import annotations
@@ -21,8 +28,11 @@ import re
 import streamlit as st
 
 import ask
+import audit
 import runs
+import upload
 from config import settings
+from documents import Document, default_document
 
 PAGE_TITLE = "Source-Grounded Research Assistant"
 
@@ -64,6 +74,13 @@ DIAGNOSTICS_LABEL = "Technical details (for evaluators)"
 
 HISTORY_LIMIT = 50
 
+NOT_EVALUATED = (
+    "Ingested and audited — **not evaluated**. The audit shows the extraction is "
+    "faithful to the PDF; it says nothing about whether answers are correct."
+)
+
+VIEW_ASK, VIEW_LIBRARY = "Ask questions", "Thesis library"
+
 
 # ---------------------------------------------------------------------------
 # Collection — loaded once per server process, not once per interaction
@@ -71,14 +88,15 @@ HISTORY_LIMIT = 50
 
 
 @st.cache_resource(show_spinner="Loading the research collection…")
-def load_collection():
-    """Wraps ask.load_index so the index survives Streamlit's script reruns."""
-    return ask.load_index()
+def load_collection(document_id: str):
+    """Wraps ask.load_index so the index survives Streamlit's script reruns.
+    Cached per document: switching the active thesis loads its own index."""
+    return ask.load_index(upload.find_document(document_id))
 
 
-def collection_or_stop():
+def collection_or_stop(document: Document):
     try:
-        return load_collection()
+        return load_collection(document.document_id)
     except BaseException as exc:  # SystemExit (no index / model mismatch) included
         st.error(
             "The research collection could not be loaded, so no questions can be "
@@ -215,7 +233,12 @@ def render_turn(entry: dict, key: str = "live") -> None:
         render_outcome(entry["outcome"], key)
 
 
-def render_history_sidebar(chunks: list[dict]) -> dict | None:
+def belongs_to(record: dict, document: Document) -> bool:
+    """Runs recorded before documents were named belong to the built-in thesis."""
+    return record.get("document_id", settings.document_id) == document.document_id
+
+
+def render_history_sidebar(chunks: list[dict], document: Document) -> dict | None:
     """Past runs, newest first. Returns a record to re-open, or None.
 
     History is read from disk, not from session state, so it survives a browser
@@ -223,14 +246,15 @@ def render_history_sidebar(chunks: list[dict]) -> dict | None:
     """
     with st.sidebar:
         st.markdown("### Past questions")
-        records = runs.load(limit=HISTORY_LIMIT)
+        everything = [r for r in runs.load() if belongs_to(r, document)]
+        records = everything[:HISTORY_LIMIT]
 
         if not records:
             st.caption("No questions yet. Ask one and it will be recorded here.")
             return None
 
         st.caption(
-            f"{len(records)} most recent of {runs.count()} recorded. "
+            f"{len(records)} most recent of {len(everything)} recorded for this thesis. "
             "Saved to disk — they survive a refresh."
         )
 
@@ -268,7 +292,7 @@ def render_history_sidebar(chunks: list[dict]) -> dict | None:
         return selected
 
 
-def session_history(chunks: list[dict]) -> list[dict]:
+def session_history(chunks: list[dict], document: Document) -> list[dict]:
     """The conversation, rebuilt from disk on first load.
 
     Streamlit's session_state is per-browser-session, so relying on it alone
@@ -279,17 +303,18 @@ def session_history(chunks: list[dict]) -> list[dict]:
     Entries are rehydrated through runs.as_outcome, so citations are resolved
     against the current index rather than replayed from stored text.
     """
-    if "history" in st.session_state:
-        return st.session_state.history
+    key = f"history::{document.document_id}"  # one conversation per thesis
+    if key in st.session_state:
+        return st.session_state[key]
 
     rebuilt: list[dict] = []
     for record in reversed(runs.load()):  # runs.load is newest-first
-        if record.get("document_id") and record["document_id"] != settings.document_id:
-            continue  # a different corpus: not part of this conversation
+        if not belongs_to(record, document):
+            continue  # a different thesis: not part of this conversation
         if record.get("error"):
             rebuilt.append({"question": record["question"], "error": record["error"]})
             continue
-        outcome, unresolved = runs.as_outcome(record, chunks)
+        outcome, unresolved = runs.as_outcome(record, chunks, document)
         rebuilt.append(
             {
                 "question": record["question"],
@@ -299,8 +324,233 @@ def session_history(chunks: list[dict]) -> list[dict]:
             }
         )
 
-    st.session_state.history = rebuilt
+    st.session_state[key] = rebuilt
     return rebuilt
+
+
+# ---------------------------------------------------------------------------
+# Thesis library — upload, review, approve (PLAN_V4 §6, §12)
+# ---------------------------------------------------------------------------
+
+
+def document_label(document: Document) -> str:
+    return f"{document.short_title} (built-in)" if document.builtin else document.short_title
+
+
+def choose_document() -> Document:
+    """The sidebar picker: the built-in thesis first, then approved uploads."""
+    documents = [default_document(settings)] + upload.ready_documents()
+    by_id = {d.document_id: d for d in documents}
+    if st.session_state.get("active_document") not in by_id:
+        st.session_state.active_document = documents[0].document_id
+    with st.sidebar:
+        chosen = st.selectbox(
+            "Thesis",
+            options=list(by_id),
+            format_func=lambda document_id: document_label(by_id[document_id]),
+            key="active_document",
+            help="One thesis is active at a time. Each question searches only that one.",
+        )
+    return by_id[chosen]
+
+
+def attempt(action, *args, **kwargs) -> bool:
+    """Run one upload step. A refusal is shown in plain words, never as a trace."""
+    try:
+        action(*args, **kwargs)
+        return True
+    except upload.UploadRefused as exc:
+        st.session_state.library_message = ("error", str(exc))
+        return False
+
+
+def refresh() -> None:
+    load_collection.clear()
+    st.rerun()
+
+
+def render_profile(record: dict) -> None:
+    rows = ["| Measured value | Result | How it was reached |", "|---|---|---|"]
+    evidence = record.get("layout_evidence") or {}
+    for name, value in (record.get("layout") or {}).items():
+        key = "heading_tiers" if name.endswith("_heading_min_size") else name
+        rule = (evidence.get(key) or {}).get("rule", "")
+        shown = "not found" if value is None else (", ".join(value) or "none") if isinstance(value, list) else value
+        rows.append(f"| `{name}` | {shown} | {rule} |")
+    st.markdown("\n".join(rows))
+    with st.expander("Evidence behind each value"):
+        st.json(evidence, expanded=False)
+
+
+def render_identity_form(record: dict) -> None:
+    proposal = record.get("identity_proposal") or {}
+    confirmed = record["identity"]
+
+    def start(name: str) -> str:
+        return confirmed[name] or (proposal.get(name) or {}).get("value", "")
+
+    st.markdown("**Who wrote this, and when?** Nothing is cited until you confirm these.")
+    for name in ("title", "author", "year"):
+        source = (proposal.get(name) or {}).get("source", "")
+        value = (proposal.get(name) or {}).get("value", "")
+        st.caption(f"{name.capitalize()} — proposed from {source}." if value else f"{name.capitalize()} — {source}.")
+    hint = proposal.get("pdf_metadata") or {}
+    if hint:
+        st.caption(
+            "The PDF's own metadata says "
+            + "; ".join(f"{k}: “{v}”" for k, v in hint.items())
+            + ". This is often wrong (it can come from a template) and is shown only as a hint."
+        )
+
+    key = record["document_id"]
+    with st.form(f"identity-{key}"):
+        author = st.text_input("Author, as it should appear in citations (for example: Surname, I.)",
+                               value=start("author"), key=f"author-{key}")
+        year = st.text_input("Year", value=start("year"), key=f"year-{key}")
+        title = st.text_input("Title", value=start("title"), key=f"title-{key}")
+        short_title = st.text_input(
+            "Short title shown above each passage (leave blank to build it from the three above)",
+            value=confirmed["short_title"], key=f"short-{key}",
+        )
+        if st.form_submit_button("Confirm identity"):
+            if attempt(upload.confirm_identity, key, author=author, year=year, title=title,
+                       short_title=short_title):
+                st.session_state.library_message = ("success", "Identity confirmed.")
+            refresh()
+    if confirmed["confirmed"]:
+        st.success(
+            f"Confirmed: {confirmed['author']} ({confirmed['year']}), {confirmed['title']}", icon="✅"
+        )
+
+
+def render_remove(record: dict) -> None:
+    key = record["document_id"]
+    with st.expander("Remove this thesis"):
+        st.caption(
+            "Deletes the PDF, the extraction and the index from this machine. "
+            "Recorded questions are kept, but their citations can no longer be shown."
+        )
+        sure = st.checkbox("Yes, delete all three", key=f"sure-{key}")
+        if st.button("Remove", key=f"remove-{key}", disabled=not sure):
+            if attempt(upload.remove, key):
+                st.session_state.library_message = ("success", "Removed.")
+            refresh()
+
+
+def render_record(record: dict) -> None:
+    key, state = record["document_id"], record["state"]
+    name = record["identity"]["title"] or record["source_filename"]
+    with st.container(border=True):
+        st.markdown(f"#### {name}")
+        st.caption(f"`{key}` · {record['pages_total']} pages · **{upload.STATE_LABELS[state]}**")
+
+        if state == upload.RECEIVED:
+            if st.button("Measure and audit", key=f"analyse-{key}"):
+                with st.spinner("Measuring the layout and auditing the extraction…"):
+                    attempt(upload.analyse, key)
+                refresh()
+
+        if state in {upload.AWAITING_REVIEW, upload.BLOCKED}:
+            for flag in record["flags"]:
+                st.warning(flag, icon="⚠️")
+            result = upload.read_audit(key)
+            if result:
+                st.markdown("**Audit of the extraction against the PDF**")
+                st.code(audit.format_report(result), language="text")
+            if record.get("layout"):
+                with st.expander("Measured layout profile"):
+                    render_profile(record)
+
+        if state == upload.BLOCKED:
+            st.error("This thesis cannot be used. The reason is in the report above.", icon="⛔")
+
+        if state == upload.AWAITING_REVIEW:
+            render_identity_form(record)
+            st.markdown("**Your decision.** There is no pass mark: you judge the report.")
+            left, right = st.columns(2)
+            with left:
+                if st.button("Approve", key=f"approve-{key}", type="primary",
+                             disabled=not record["identity"]["confirmed"]):
+                    attempt(upload.approve, key)
+                    refresh()
+            with right:
+                reason = st.text_input("Reason for rejecting (kept in the record)", key=f"reason-{key}")
+                if st.button("Reject", key=f"reject-{key}"):
+                    attempt(upload.reject, key, reason)
+                    refresh()
+
+        if state == upload.REJECTED:
+            st.info(f"Rejected. Reason recorded: {record['review']['reason'] or '(none given)'}")
+
+        if state == upload.APPROVED:
+            failures = [h for h in record["history"] if h["stage"] == "index" and h["outcome"] == "failed"]
+            if failures:
+                st.warning(f"The last attempt to embed failed: `{failures[-1]['detail']}`", icon="⚠️")
+            try:
+                estimate = upload.estimate_cost(key)
+            except upload.UploadRefused as exc:
+                st.error(str(exc))
+                estimate = None
+            if estimate:
+                cost = (
+                    f"about **${estimate['estimated_cost']:.4f}** at ${estimate['price_per_million_tokens']:g} "
+                    "per million tokens"
+                    if estimate["estimated_cost"] is not None
+                    else "no price is configured (`EMBEDDING_PRICE_PER_MTOK`), so only the token count is shown"
+                )
+                st.markdown(
+                    f"**Embedding cost.** {estimate['passages']} passages, **{estimate['tokens']:,} tokens**, "
+                    f"sent to `{estimate['embedding_model']}` — {cost}."
+                )
+                accepted = st.checkbox("I accept this cost", key=f"cost-{key}")
+                if st.button("Embed and index", key=f"index-{key}", type="primary", disabled=not accepted):
+                    with st.spinner("Embedding the passages…"):
+                        if attempt(upload.build_index, key, cost_accepted=accepted):
+                            st.session_state.library_message = ("success", "Indexed. The thesis can now be queried.")
+                    refresh()
+
+        if state == upload.READY:
+            st.markdown(NOT_EVALUATED)
+            if st.button("Ask questions of this thesis", key=f"open-{key}"):
+                st.session_state.pending_document = key
+                st.session_state.pending_view = VIEW_ASK
+                st.rerun()
+
+        render_remove(record)
+
+
+def render_library() -> None:
+    st.title("Thesis library")
+    st.markdown(
+        "Upload another thesis as a PDF. The system measures its layout, extracts it, and checks "
+        "the extraction against the PDF. **You read the report and decide.** Nothing is sent for "
+        "embedding, and nothing is spent, until you approve."
+    )
+    st.caption(
+        "Theses with a text layer only — not journal articles, not scans. Uploads stay on this "
+        "machine and are never committed or shared."
+    )
+
+    message = st.session_state.pop("library_message", None)
+    if message:
+        (st.error if message[0] == "error" else st.success)(message[1])
+
+    uploaded = st.file_uploader("Thesis PDF", type=["pdf"], key="thesis_upload")
+    if uploaded is not None and st.button("Add to the library", type="primary"):
+        with st.spinner("Storing, measuring and auditing…"):
+            try:
+                record = upload.receive(uploaded.getvalue(), uploaded.name)
+                upload.analyse(record["document_id"])
+                st.session_state.library_message = ("success", "Analysed. Read the report below.")
+            except upload.UploadRefused as exc:
+                st.session_state.library_message = ("error", str(exc))
+        refresh()
+
+    records = upload.list_records()
+    if not records:
+        st.info("No thesis has been uploaded yet. The built-in thesis is always available.")
+    for record in reversed(records):  # newest first
+        render_record(record)
 
 
 # ---------------------------------------------------------------------------
@@ -308,22 +558,21 @@ def session_history(chunks: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
-    st.set_page_config(page_title=PAGE_TITLE, page_icon="📚", layout="centered")
-    st.markdown(HIDE_CHROME, unsafe_allow_html=True)
-
-    vectors, chunks, manifest = collection_or_stop()
+def render_chat(document: Document) -> None:
+    vectors, chunks, manifest = collection_or_stop(document)
 
     st.title(PAGE_TITLE)
     st.subheader(
-        f"{settings.document_short_title} — {manifest['chunk_count']} indexed passages",
+        f"{document.short_title} — {manifest['chunk_count']} indexed passages",
         divider="grey",
     )
+    if not document.builtin:
+        st.info(NOT_EVALUATED, icon="ℹ️")
     st.markdown(EXPLAINER)
 
-    history = session_history(chunks)
+    history = session_history(chunks, document)
 
-    jumped = render_history_sidebar(chunks)
+    jumped = render_history_sidebar(chunks, document)
     if jumped is not None:
         st.session_state.jump_to = jumped.get("timestamp", "")
 
@@ -359,7 +608,7 @@ def main() -> None:
     entry: dict = {"question": question}
     with st.spinner("Searching the collection…"):
         try:
-            entry["outcome"] = ask.run_query(question, vectors, chunks)
+            entry["outcome"] = ask.run_query(question, vectors, chunks, document=document)
         except BaseException as exc:  # provider error, auth, network, bad output
             entry["error"] = f"{type(exc).__name__}: {exc}"
 
@@ -385,6 +634,27 @@ def main() -> None:
 
     history.append(entry)
     st.rerun()
+
+
+def main() -> None:
+    st.set_page_config(page_title=PAGE_TITLE, page_icon="📚", layout="centered")
+    st.markdown(HIDE_CHROME, unsafe_allow_html=True)
+
+    # A button elsewhere asked to open a thesis: apply it before the widgets
+    # that own these keys are drawn.
+    if "pending_document" in st.session_state:
+        st.session_state.active_document = st.session_state.pop("pending_document")
+    if "pending_view" in st.session_state:
+        st.session_state.view = st.session_state.pop("pending_view")
+
+    with st.sidebar:
+        view = st.radio("View", [VIEW_ASK, VIEW_LIBRARY], key="view", label_visibility="collapsed")
+    document = choose_document()
+
+    if view == VIEW_LIBRARY:
+        render_library()
+    else:
+        render_chat(document)
 
 
 main()

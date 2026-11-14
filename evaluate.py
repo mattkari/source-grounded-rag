@@ -13,6 +13,10 @@ Writes, per run:
     runs/eval_<timestamp>.md             counts and metrics; ids and page labels only
     evaluation/rating_sheet_v1.csv       one row per answered question, ratings blank
 
+The runner is pinned to the built-in thesis. It takes no document argument, so
+a thesis uploaded through the web UI (PLAN_V4) can never be scored by accident:
+an upload is ingested and audited, not evaluated.
+
 What the runner will not do:
 
   * Start without a question set it can trust. No written question, or a failed

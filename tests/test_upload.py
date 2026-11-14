@@ -383,6 +383,29 @@ def test_an_uploaded_thesis_answers_with_its_own_identity_in_the_citation(librar
     assert f"p. {top['page_start']}" in rendered or f"pp. {top['page_start']}–{top['page_end']}" in rendered
 
 
+def test_a_recorded_answer_is_re_rendered_under_the_thesis_it_came_from(library, ready):
+    """History is rebuilt from disk; the citation must still name the right author."""
+    import runs
+
+    document = upload.find_document(ready["document_id"])
+    _, chunks, _ = ask.load_index(document)
+    record = {
+        "question": "FIXTURE: where did the lighthouse stand?",
+        "result": {"evidence_sufficiency": "sufficient", "answer": "FIXTURE recorded answer [E1].",
+                   "limitations": [], "ai_interpretation": [], "unsupported_by_evidence": [],
+                   "citations_used": ["E1"]},
+        "evidence": [{"handle": "E1", "chunk_id": chunks[0]["chunk_id"], "score": 0.5}],
+        "validation_failures": [],
+        "prompt_sha256_12": "fixture",
+    }
+
+    outcome, unresolved = runs.as_outcome(record, chunks, document)
+
+    assert unresolved == []
+    assert "1. Fixture, A. (2001), " in outcome.rendered()
+    assert settings.document_author not in outcome.rendered()
+
+
 def test_the_builtin_thesis_is_still_the_default_and_keeps_its_own_identity(library, ready):
     assert upload.find_document(None) == default_document(settings)
     assert upload.find_document(settings.document_id).builtin is True

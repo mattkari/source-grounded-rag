@@ -7,5 +7,7 @@
 # committed after a recorded run (PLAN_V3 §7).
 runs/*
 !runs/eval_*.md
+# Uploaded theses (PLAN_V4): other people's work. Never committed.
+library/
 __pycache__/
 *.pyc

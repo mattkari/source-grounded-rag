@@ -1,8 +1,10 @@
 # Runtime dependencies — what the query path and the web UI need.
 #
-# ingest.py additionally needs `pymupdf` and `tiktoken`. They are deliberately
-# absent here: the index is committed to the repository, so a deployed
-# container never re-ingests, and leaving them out keeps the image small.
+# `pymupdf` and `tiktoken` are the ingestion dependencies. Until PLAN_V4 they
+# were deliberately absent: the built-in thesis's index is committed, so a
+# deployed container never re-ingested it. Uploading another thesis in the web
+# UI (PLAN_V4 §13) ingests on the machine that serves the app, so they are now
+# a stated runtime requirement. The built-in thesis is still never re-ingested.
 #
 # Pinned to the versions this deployment was written against. To move them,
 # bump here and rebuild — never let a container resolve versions at run time.
@@ -12,3 +14,5 @@ numpy==2.4.6
 openai==3.0.0
 python-dotenv==1.2.2
 streamlit==1.61.1
+pymupdf==2.1
+tiktoken==0.14.0
