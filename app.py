@@ -353,19 +353,19 @@ def document_label(document: Document) -> str:
 
 
 def choose_document() -> Document:
-    """The sidebar picker: the built-in thesis first, then approved uploads."""
+    """The thesis picker, at the top of the page: the built-in thesis first, then
+    approved uploads."""
     documents = [default_document(settings)] + upload.ready_documents()
     by_id = {d.document_id: d for d in documents}
     if st.session_state.get("active_document") not in by_id:
         st.session_state.active_document = documents[0].document_id
-    with st.sidebar:
-        chosen = st.selectbox(
-            "Thesis",
-            options=list(by_id),
-            format_func=lambda document_id: document_label(by_id[document_id]),
-            key="active_document",
-            help="One thesis is active at a time. Each question searches only that one.",
-        )
+    chosen = st.selectbox(
+        "Thesis",
+        options=list(by_id),
+        format_func=lambda document_id: document_label(by_id[document_id]),
+        key="active_document",
+        help="One thesis is active at a time. Each question searches only that one.",
+    )
     return by_id[chosen]
 
 
@@ -944,8 +944,12 @@ def main() -> None:
     if "pending_view" in st.session_state:
         st.session_state.view = st.session_state.pop("pending_view")
 
-    with st.sidebar:
-        view = st.radio("View", [VIEW_ASK, VIEW_LIBRARY, VIEW_ARTICLE], key="view", label_visibility="collapsed")
+    # The view and the thesis are chosen at the top of the page, not in the sidebar.
+    # On a phone the sidebar opens as a panel over the page and stays open after a
+    # choice, so a control underneath it (such as "I accept this cost") could not
+    # be tapped. The sidebar now holds only the question history.
+    view = st.radio("View", [VIEW_ASK, VIEW_LIBRARY, VIEW_ARTICLE], key="view",
+                    horizontal=True, label_visibility="collapsed")
     document = choose_document()
 
     if view == VIEW_LIBRARY:
