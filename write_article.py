@@ -159,6 +159,9 @@ def main(argv: list[str] | None = None, stream=None) -> int:
     parser.add_argument("--reference", action="append", default=[], type=Path, metavar="FILE",
                         help="a file of your own published writing, for the voice comparison")
     parser.add_argument("--document", metavar="ID", help="an approved uploaded thesis; default is the built-in one")
+    parser.add_argument("--preview", action="store_true",
+                        help="show which passages each section's question would draw on, with pages and scores; "
+                             "one embedding call per section and no model call")
     parser.add_argument("--dry-run", action="store_true", help="print the planned calls and their cost ceiling; send nothing")
     parser.add_argument("--out-dir", type=Path, default=None)
     args = parser.parse_args(argv)
@@ -235,6 +238,9 @@ def main(argv: list[str] | None = None, stream=None) -> int:
     for number, section in enumerate(draft.sections, start=1):
         print(f"  {number}. {section.heading}" + ("" if section.pending else "  (already drafted)"), file=stream)
     print_estimate(estimate(workspace, draft), stream)
+    if args.preview:
+        pending = [section.brief for section in draft.sections if section.pending]
+        print("\n" + pipeline.format_preview([pipeline.preview(workspace, brief) for brief in pending]), file=stream)
     if args.dry_run:
         return 0
 

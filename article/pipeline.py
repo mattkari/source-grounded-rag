@@ -364,6 +364,47 @@ def status(draft: Draft, article: assemble.Article) -> str:
     return REVIEWED if all(v in VERDICTS and v != "does not" for v in given) else DRAFT
 
 
+PREVIEW_PASSAGES = 3
+
+
+def preview(workspace: Workspace, brief: str) -> dict:
+    """What a section's question would draw on, from the embedding step alone: no
+    generation, nothing paid for but one embedding. Pages come from stored provenance.
+
+    The score is the retrieval similarity. It is a diagnostic, never a confidence
+    (hard rule 4): a low best score is a reason to look at the question, and refuses
+    nothing. `below_threshold` is None when no threshold is configured.
+    """
+    found = ask.retrieve(brief, workspace.sources.vectors, workspace.sources.chunks,
+                         PREVIEW_PASSAGES, workspace.document)
+    threshold = ask.settings.preview_min_score
+    best = max((item.score for item in found), default=0.0)
+    return {
+        "brief": brief,
+        "passages": [{"chunk_id": item.chunk["chunk_id"], "pages": ask.page_phrase(item.chunk),
+                      "where": item.chunk.get("section") or item.chunk.get("chapter") or "",
+                      "score": round(item.score, 3)} for item in found],
+        "best_score": round(best, 3),
+        "threshold": threshold,
+        "below_threshold": None if threshold is None else best < threshold,
+    }
+
+
+def format_preview(previews: list[dict]) -> str:
+    """The previews as plain text, for the command line and the view alike."""
+    lines = ["RETRIEVAL PREVIEW (embedding only; scores are diagnostics, not confidence)"]
+    for number, shown in enumerate(previews, start=1):
+        lines.append(f"  {number}. {shown['brief']}")
+        for passage in shown["passages"]:
+            lines.append(f"       {passage['score']:.3f}  {passage['pages']:<14} {passage['where'][:60]}")
+        if shown["below_threshold"]:
+            lines.append(f"       LOOK: the best score, {shown['best_score']:.3f}, is below {shown['threshold']:.3f}. "
+                         "The thesis may not cover this question.")
+    if previews and previews[0]["threshold"] is None:
+        lines.append("  No threshold is set (PREVIEW_MIN_SCORE), so no question is flagged.")
+    return "\n".join(lines)
+
+
 FRAME_KINDS = {"introduction": "an introduction to", "conclusion": "a conclusion for"}
 _BRACKET = re.compile(r"\[[^\]]*\]")
 

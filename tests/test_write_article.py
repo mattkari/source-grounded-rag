@@ -192,3 +192,15 @@ def test_the_command_line_exports_a_reviewed_article_and_refuses_an_unreviewed_o
     assert exported.splitlines()[2].startswith("This article was drafted with an AI system") and "DRAFT" not in exported
     assert (cli.out / article_id / "medium.html").read_text(encoding="utf-8").startswith("<h1>FIXTURE harbour title</h1>")
     assert cli.run("--export", "no-such-article").code == 2
+
+
+def test_the_dry_run_prints_the_retrieval_preview_when_asked_and_still_calls_no_model(cli, monkeypatch):
+    embedded, embed = [], ask.embed_texts
+    monkeypatch.setattr(ask, "embed_texts", lambda texts, **kw: embedded.append(texts) or embed(texts, **kw))
+    plain = cli.new("--dry-run")
+    assert embedded == [] and "RETRIEVAL PREVIEW" not in plain.text      # a plain dry run still sends nothing
+
+    run = cli.new("--dry-run", "--preview")
+    assert run.model.calls == [] and len(embedded) == 3 and not cli.out.exists()
+    assert "RETRIEVAL PREVIEW (embedding only; scores are diagnostics, not confidence)" in run.text
+    assert f"  1. {BRIEFS[0]}" in run.text and "p. 3 " in run.text

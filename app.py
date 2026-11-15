@@ -935,7 +935,18 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
         f"{calls['editorial']} for the editorial pass. Nothing is "
         "retried. Each finished step is saved, so an interrupted draft can be resumed."
     )
+    if st.button("Preview what each section would draw on (no model call)"):
+        with st.spinner("Finding the passages each question would draw on…"):
+            st.session_state.article_preview = pipeline.format_preview(
+                [pipeline.preview(workspace, brief) for _, brief in outline])
+    if st.session_state.get("article_preview"):
+        st.code(st.session_state.article_preview, language="text")
+        st.caption(
+            "One embedding call per section, nothing generated. A low score is a reason to look at the "
+            "question again; it is a diagnostic, not a measure of confidence."
+        )
     if st.button("Draft the article", type="primary"):
+        st.session_state.pop("article_preview", None)
         topic = None if plan["topic"] == OWN_TOPIC else plan["topic"].split(" — ")[0]
         try:
             draft = plan_draft(plan["title"], outline, topic, plan)

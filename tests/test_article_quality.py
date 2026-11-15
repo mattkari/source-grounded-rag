@@ -1232,3 +1232,57 @@ def test_no_shell_calls_the_model_without_evidence_itself():
         assert "suggest_from_text" not in (ROOT / shell).read_text(encoding="utf-8"), shell
     source = (ROOT / "ask.py").read_text(encoding="utf-8")
     assert "suggest_from_text" not in source[source.index("def main()"):]
+
+
+# =====================================================================================
+# ADR 0008, item 7: a retrieval preview before paying
+# =====================================================================================
+
+IN_CORPUS = [*BRIEFS, "FIXTURE: what did the canal survey measure about locks and weirs?",
+             "FIXTURE: what does the unnumbered plate show of the harbour chart?"]
+OUT_OF_CORPUS = ["FIXTURE: what is the glacier melt rate?", "FIXTURE: how do volcanoes form islands?",
+                 "FIXTURE: who invented the bicycle and in which year?",
+                 "FIXTURE: describe photosynthesis in desert cactus plants",
+                 "FIXTURE: which treaties ended the northern wars?"]
+STAND_IN_THRESHOLD = 0.515          # for the offline embedding stand-in only; says nothing of a real model
+
+
+def set_threshold(monkeypatch, value):
+    import dataclasses
+    monkeypatch.setattr(ask, "settings", dataclasses.replace(ask.settings, preview_min_score=value))
+
+
+def test_the_preview_shows_pages_and_scores_from_the_embedding_step_alone(workspace, monkeypatch):
+    monkeypatch.setattr(ask, "call_model", lambda *a, **k: pytest.fail("the preview called the model"))
+    shown = pipeline.preview(workspace, BRIEFS[0])
+
+    assert [passage["pages"] for passage in shown["passages"]][0] == "p. 3"          # from stored provenance
+    assert shown["passages"][0]["where"] == "FIXTURE lamp oil ledger" and len(shown["passages"]) == 3
+    assert shown["best_score"] == shown["passages"][0]["score"] == max(p["score"] for p in shown["passages"])
+    assert shown["below_threshold"] is None and shown["threshold"] is None           # no threshold: no flag
+    assert not any(p["chunk_id"].startswith("fixture-document::00004") for p in shown["passages"])     # never the reference list
+    text = pipeline.format_preview([shown])
+    assert "scores are diagnostics, not confidence" in text and "No threshold is set (PREVIEW_MIN_SCORE)" in text
+    assert "LOOK" not in text and "FIXTURE passage:" not in text        # pages and titles, never passage text
+
+
+def test_a_threshold_separates_questions_the_fixture_covers_from_ones_it_does_not(workspace, monkeypatch):
+    set_threshold(monkeypatch, STAND_IN_THRESHOLD)
+    covered = [pipeline.preview(workspace, brief) for brief in IN_CORPUS]
+    not_covered = [pipeline.preview(workspace, brief) for brief in OUT_OF_CORPUS]
+
+    assert max(p["best_score"] for p in not_covered) < STAND_IN_THRESHOLD < min(p["best_score"] for p in covered)
+    assert [p["below_threshold"] for p in covered] == [False] * 5
+    assert [p["below_threshold"] for p in not_covered] == [True] * 5
+    warned = pipeline.format_preview(not_covered[:1])
+    assert "LOOK: the best score," in warned and "The thesis may not cover this question." in warned
+    assert "LOOK" not in pipeline.format_preview(covered)
+
+
+def test_the_preview_refuses_nothing(workspace, monkeypatch):
+    set_threshold(monkeypatch, 0.99)                                    # everything is "low"
+    scripted(monkeypatch)
+    assert pipeline.preview(workspace, BRIEFS[0])["below_threshold"] is True
+    section = pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])
+
+    assert pipeline.usable(section)                                     # a score never blocks a draft (hard rule 4)
