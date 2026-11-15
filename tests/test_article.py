@@ -106,7 +106,8 @@ def test_the_article_opens_as_a_draft_names_its_source_and_closes_with_the_ai_li
 
 
 def test_the_models_own_reading_is_marked_as_commentary_in_words(three, document):
-    text = assemble.assemble(title="FIXTURE title", document=document, sections=three).markdown
+    assert assemble.COMMENTARY_LABEL not in assemble.assemble(title="FIXTURE title", document=document, sections=three).markdown
+    text = assemble.assemble(title="FIXTURE title", document=document, sections=three, commentary=True).markdown
 
     assert f"{assemble.COMMENTARY_LABEL} FIXTURE a reading of it [3]." in text
     assert text.count(assemble.COMMENTARY_LABEL) == 1

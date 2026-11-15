@@ -66,3 +66,54 @@ def prose_failures(result: dict) -> list[str]:
         shown = "; ".join(f"“{hit}”" for hit in subjects[:3])
         failures.append(f"handle_used_as_subject: a note marker stands where a noun should ({shown})")
     return failures
+
+
+# ---------------------------------------------------------------------------
+# Who acts — a prompt to read, never a verdict (ADR 0005, hard rule 12)
+# ---------------------------------------------------------------------------
+
+# Words that give an act or a decision to someone, grouped so that "decision" in
+# the commentary is looked for as "decided" in the passage.
+_ACTS = {
+    "decide": r"decid\w*|decision\w*",
+    "choose": r"cho(?:ose|oses|se|sen|ice|ices)|choosing",
+    "endow": r"endow\w*",
+    "create": r"creat(?:e|es|ed|ing|ion|or)",
+    "give": r"gives?|gave|given|giving|gifts?",
+    "grant": r"grant(?:s|ed|ing)?",
+    "bestow": r"bestow\w*",
+    "command": r"command(?:s|ed|ing|ment)?",
+    "intend": r"intend(?:s|ed|ing)?|intention\w*",
+    "design": r"design(?:s|ed|ing)?",
+    "ordain": r"ordain\w*",
+    "make": r"makes?|made|making",
+    "establish": r"establish\w*",
+    "impose": r"impos(?:e|es|ed|ing|ition)",
+}
+_ACT = "|".join(f"(?P<{name}>{pattern})" for name, pattern in _ACTS.items())
+_NAME = r"(?P<agent>[A-Z][\w’'ʿʾ-]*?)"
+_NOT_NAMES = {"The", "This", "That", "These", "Those", "It", "He", "She", "They", "His", "Her", "Its", "Their",
+              "FIXTURE", "A", "An", "In", "On", "By", "As", "For", "And", "But"}
+_POSSESSIVE = re.compile(rf"\b{_NAME}(?:’s|'s)\s+(?:\w+\s+){{0,2}}?(?:{_ACT})\b")
+_SUBJECT = re.compile(rf"\b{_NAME}\s+(?:(?:also|then|thus|has|had|have)\s+)?(?:{_ACT})\b")
+
+
+def agent_flags(text: str, passages: list[str]) -> list[str]:
+    """Sentences that give an act to a named agent the cited passages do not show
+    doing it. Raised for the researcher to read; a clean result proves nothing."""
+    passage_sentences = [s for passage in passages for s in sentences(passage)]
+    flags = []
+    for sentence in sentences(text):
+        for match in list(_POSSESSIVE.finditer(sentence)) + list(_SUBJECT.finditer(sentence)):
+            agent = re.sub(r"(?:’s|'s)$", "", match.group("agent"))
+            if agent in _NOT_NAMES:
+                continue
+            act = next(name for name in _ACTS if match.group(name))
+            shown = any(
+                re.search(rf"\b{re.escape(agent)}\b", s) and re.search(rf"\b(?:{_ACTS[act]})\b", s, re.IGNORECASE)
+                for s in passage_sentences
+            )
+            flag = f"gives “{match.group(act)}” to {agent}; the cited passage does not show {agent} doing this"
+            if not shown and flag not in flags:
+                flags.append(flag)
+    return flags

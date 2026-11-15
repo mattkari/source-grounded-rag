@@ -156,6 +156,9 @@ class Draft:
     # chunk id -> {"verdict", "reason", "judged_at"}; the researcher's, never the model's
     verdicts: dict[str, dict] = field(default_factory=dict)
     removed: set[str] = field(default_factory=set)      # passages whose sentences were taken out
+    commentary: bool = False                            # print the model's commentary at all (off by default)
+    # section index -> {"verdict": "accept" | "reject", "judged_at"}; the researcher's
+    commentary_verdicts: dict[int, dict] = field(default_factory=dict)
     article_id: str | None = None
     created: str | None = None
 
@@ -178,7 +181,8 @@ def render(workspace: Workspace, draft: Draft) -> assemble.Article:
         return assemble.assemble(
             title=draft.title, document=workspace.document, sections=draft.sections,
             introduction=draft.introduction, transitions=draft.transitions, conclusion=draft.conclusion,
-            reviewed=reviewed, removed=draft.removed,
+            reviewed=reviewed, removed=draft.removed, commentary=draft.commentary,
+            commentary_rejected={i for i, v in draft.commentary_verdicts.items() if v["verdict"] == "reject"},
         )
 
     article = build(False)
@@ -186,9 +190,13 @@ def render(workspace: Workspace, draft: Draft) -> assemble.Article:
 
 
 def status(draft: Draft, article: assemble.Article) -> str:
-    """Reviewed only when every note in the article has a verdict and none is *does not*."""
+    """Reviewed only when every note in the article has a verdict and none is *does not*,
+    and every commentary paragraph printed in it has been accepted by the researcher."""
     if not article.notes:
         return DRAFT
+    for entry in article.commentary:
+        if entry["printed"] and draft.commentary_verdicts.get(entry["section"], {}).get("verdict") != "accept":
+            return DRAFT
     given = [draft.verdicts.get(note["chunk_id"], {}).get("verdict") for note in article.notes]
     return REVIEWED if all(v in VERDICTS and v != "does not" for v in given) else DRAFT
 
@@ -201,6 +209,18 @@ def set_verdict(draft: Draft, chunk_id: str, verdict: str, reason: str = "") -> 
         "reason": reason.strip(),
         "judged_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+
+
+COMMENTARY_VERDICTS = ("accept", "reject")
+
+
+def set_commentary_verdict(draft: Draft, section: int, verdict: str) -> None:
+    """Commentary is the model's own reading. It is never accepted without the
+    researcher saying so; rejected, it leaves the article and stays in the record."""
+    if verdict not in COMMENTARY_VERDICTS:
+        raise ArticleError(f"A commentary verdict is one of: {', '.join(COMMENTARY_VERDICTS)}.")
+    draft.commentary_verdicts[section] = {
+        "verdict": verdict, "judged_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
 
 def remove_sentences(draft: Draft, chunk_id: str) -> None:
@@ -274,6 +294,16 @@ def voice_columns(article: assemble.Article, reference_text: str = "") -> dict:
 def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, reference_text: str = "") -> dict:
     cut = workspace.sources.removed
     notes = notes_record(draft, article)
+    commentary = {entry["section"]: entry for entry in article.commentary}
+
+    def commentary_record(index: int) -> dict | None:
+        entry = commentary.get(index)
+        if entry is None:
+            return None
+        given = draft.commentary_verdicts.get(index, {})
+        return {"printed": entry["printed"], "items_held_back": entry["held_back"], "raised": entry["flags"],
+                "verdict": given.get("verdict"), "judged_at": given.get("judged_at"),
+                "judged_by": "researcher" if given else None}
 
     def section_record(section: SectionDraft) -> dict:
         retrieved = [item.chunk["chunk_id"] for item in section.outcome.items] if section.outcome else []
@@ -287,6 +317,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             # The one limit printed for this section, as printed; every limitation
             # and gap the model gave is in `result` below.
             "limitation_printed": article.limits_printed.get(section.heading),
+            "commentary": commentary_record(draft.sections.index(section)),
             "footnote_text_cut_from": [chunk_id for chunk_id in retrieved if chunk_id in cut],
             "voice": voice.measure(answer) if answer else None,
             **_outcome_record(section.outcome, section.error),
@@ -307,6 +338,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "prompts": {checks.SECTION_PROMPT: checks.load_prompt(checks.SECTION_PROMPT)[1]},
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
+        "commentary_switched_on": draft.commentary,
         "sections": [section_record(section) for section in draft.sections],
         "frame": {
             "introduction": _frame_record(draft.introduction),
@@ -402,6 +434,12 @@ def load(folder: Path, workspace: Workspace) -> Draft:
             for note in record["notes"] if note["verdict"]
         },
         removed={note["chunk_id"] for note in record["notes"] if note["sentences_removed"]},
+        commentary=record.get("commentary_switched_on", False),
+        commentary_verdicts={
+            index: {"verdict": entry["commentary"]["verdict"], "judged_at": entry["commentary"]["judged_at"]}
+            for index, entry in enumerate(record["sections"])
+            if (entry.get("commentary") or {}).get("verdict")
+        },
         article_id=record["article_id"],
         created=record["created"],
     )

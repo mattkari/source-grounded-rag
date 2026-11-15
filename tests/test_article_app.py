@@ -313,3 +313,30 @@ def test_a_cited_passage_is_shown_whole_and_reflowed(view):
 
     assert [t.value for t in view.text] == [" ".join(workspace.by_id[n["chunk_id"]]["text"].split()) for n in notes]
     assert not any("\n" in t.value for t in view.text)
+
+
+# --- commentary (ADR 0005) -------------------------------------------------------------------
+
+
+def test_commentary_is_off_until_switched_on_and_then_waits_for_a_verdict(view):
+    view.model.script["FIXTURE-A"] = {**SCRIPT["FIXTURE-A"], "ai_interpretation": ["FIXTURE a reading of the ledger [E1]."]}
+    draft(view)
+
+    assert assemble.COMMENTARY_LABEL not in article_file(view)         # off by default
+    next(c for c in view.checkbox if c.label == "Show the model's commentary in the article").check()
+    view.run()
+    assert f"{assemble.COMMENTARY_LABEL} FIXTURE a reading of the ledger [1]." in article_file(view)
+
+    judge(view, ["supports"] * 4)                                       # every note judged; the commentary is not
+    assert record(view)["status"] == "draft"
+    assert "a commentary paragraph is waiting for your verdict" in all_text(view)
+
+    view.radio(key="article_commentary_verdict_0").set_value("reject")
+    view.run()
+    button(view, "Record my verdicts").click()
+    view.run()
+
+    assert record(view)["status"] == "reviewed"
+    assert assemble.COMMENTARY_LABEL not in article_file(view)
+    assert record(view)["sections"][0]["commentary"]["verdict"] == "reject"
+    assert len(view.model.calls) == 3

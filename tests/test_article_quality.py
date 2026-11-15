@@ -191,3 +191,84 @@ def test_a_long_or_report_style_limitation_is_not_a_reader_line():
     long_line = "The thesis does not " + "say " * assemble.LIMIT_MAX_WORDS + "[E1]."
     assert assemble.reader_limit({"limitations": [long_line, REPORT_LINES[0]]}) is None
     assert assemble.reader_limit({"limitations": [REPORT_LINES[0], "the thesis does not date it [E2]. "]}) == "the thesis does not date it [E2]."
+
+
+# =====================================================================================
+# 3. Commentary discipline
+# =====================================================================================
+
+# The first draft's wrong commentary, rebuilt from invented text. In the passage one
+# party gives and another describes; the commentary turns the describer into the giver.
+SWAP_PASSAGE = ("FIXTURE: the Maker gives the keeper three lamps and sets no limit on them. "
+                "Harland describes the three lamps and what follows when one is left unlit.")
+SWAPPED = "FIXTURE Harland's decision to endow the keeper with unlimited lamps shows a concern for freedom [E1]."
+FAITHFUL = "FIXTURE the Maker gives the lamps without limit, which Harland describes as a test [E1]."
+
+
+def test_an_act_given_to_someone_the_passage_does_not_show_doing_it_is_raised():
+    assert checks.agent_flags(SWAPPED, [SWAP_PASSAGE]) == [
+        "gives “decision” to Harland; the cited passage does not show Harland doing this"]
+    assert checks.agent_flags(FAITHFUL, [SWAP_PASSAGE]) == []
+    assert checks.agent_flags("FIXTURE Harland decided to endow the keeper [E1].", [SWAP_PASSAGE]) != []
+    assert checks.agent_flags("FIXTURE The decision was made early. This gave the keeper time.", [SWAP_PASSAGE]) == []
+
+
+def commented(workspace, monkeypatch, comments, **draft_options):
+    scripted(monkeypatch, lighthouse=payload("FIXTURE the keeper logged lamp oil [E1].", cites=["E1"],
+                                             interpretation=comments))
+    section = pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])
+    return pipeline.Draft("FIXTURE title", [section], **draft_options)
+
+
+def test_commentary_is_off_by_default_and_stays_in_the_record(workspace, monkeypatch):
+    draft = commented(workspace, monkeypatch, [SWAPPED, "FIXTURE a second reading [E1]."])
+    article = pipeline.render(workspace, draft)
+    record = pipeline.build_record(workspace, draft, article)
+
+    assert assemble.COMMENTARY_LABEL not in article.markdown and "Harland" not in article.markdown
+    assert record["commentary_switched_on"] is False
+    assert record["sections"][0]["commentary"] == {
+        "printed": False, "items_held_back": 1, "verdict": None, "judged_at": None, "judged_by": None,
+        "raised": ["gives “decision” to Harland; the cited passage does not show Harland doing this"]}
+    assert record["sections"][0]["result"]["ai_interpretation"] == [SWAPPED, "FIXTURE a second reading [E1]."]
+
+
+def test_switched_on_a_section_prints_one_commentary_paragraph_at_most(workspace, monkeypatch):
+    draft = commented(workspace, monkeypatch, [FAITHFUL, "FIXTURE a second reading [E1].", "FIXTURE a third [E1]."],
+                      commentary=True)
+    text = pipeline.render(workspace, draft).markdown
+
+    assert text.count(assemble.COMMENTARY_LABEL) == 1
+    assert f"{assemble.COMMENTARY_LABEL} FIXTURE the Maker gives the lamps without limit" in text
+    assert "second reading" not in text and "a third" not in text
+
+
+def test_commentary_is_never_accepted_without_the_researchers_verdict(workspace, monkeypatch):
+    draft = commented(workspace, monkeypatch, [SWAPPED], commentary=True)
+    article = pipeline.render(workspace, draft)
+    for note in article.notes:
+        pipeline.set_verdict(draft, note["chunk_id"], "supports")      # the note is fine; the commentary is not judged
+
+    assert pipeline.status(draft, pipeline.render(workspace, draft)) == "draft"
+    assert assemble.DRAFT_LINE in pipeline.render(workspace, draft).markdown
+    with pytest.raises(pipeline.ArticleError):
+        pipeline.set_commentary_verdict(draft, 0, "fine")
+
+    pipeline.set_commentary_verdict(draft, 0, "reject")
+    after = pipeline.render(workspace, draft)
+    assert "Harland" not in after.markdown and pipeline.status(draft, after) == "reviewed"
+    record = pipeline.build_record(workspace, draft, after)["sections"][0]["commentary"]
+    assert (record["printed"], record["verdict"], record["judged_by"]) == (False, "reject", "researcher")
+
+    pipeline.set_commentary_verdict(draft, 0, "accept")
+    accepted = pipeline.render(workspace, draft)
+    assert SWAPPED.replace("[E1]", "[1]") in accepted.markdown and pipeline.status(draft, accepted) == "reviewed"
+
+
+def test_a_commentary_verdict_survives_saving_and_reopening(workspace, monkeypatch, tmp_path):
+    draft = commented(workspace, monkeypatch, [FAITHFUL], commentary=True)
+    pipeline.set_commentary_verdict(draft, 0, "reject")
+    reopened = pipeline.load(pipeline.save(workspace, draft, tmp_path / "out"), workspace)
+
+    assert reopened.commentary is True and reopened.commentary_verdicts[0]["verdict"] == "reject"
+    assert pipeline.render(workspace, reopened).markdown == pipeline.render(workspace, draft).markdown

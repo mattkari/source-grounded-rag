@@ -74,6 +74,9 @@ class Article:
     # section heading -> the one limitation line printed for it, as printed
     limits_printed: dict[str, str] = field(default_factory=dict)
     limits_held_back: int = 0                            # limitation lines kept in the record only
+    # One entry per section the model gave commentary for (ADR 0005):
+    # {section, heading, text, printed, flags, held_back}. `text` is as printed.
+    commentary: list[dict] = field(default_factory=list)
 
 
 def block_reason(outcome: ask.QueryOutcome | None, error: str | None = None) -> str | None:
@@ -138,15 +141,29 @@ class _Notes:
         return "\n".join(paragraphs).strip()
 
 
+def _cited_passages(text: str, items: list[ask.EvidenceItem]) -> list[str]:
+    cited = {f"E{n}" for n in ask.MARKER_RE.findall(text)}
+    return [item.chunk["text"] for item in items if item.handle in cited] or [item.chunk["text"] for item in items]
+
+
 def _section_body(outcome: ask.QueryOutcome, notes: _Notes) -> list[str]:
-    result = outcome.result
-    paragraphs = [notes.renumber(result["answer"], outcome.items)]
-    paragraphs += [
-        f"{COMMENTARY_LABEL} {text}"
-        for text in (notes.renumber(line, outcome.items) for line in result.get("ai_interpretation", []))
-        if text
-    ]
-    return [paragraph for paragraph in paragraphs if paragraph]
+    body = notes.renumber(outcome.result["answer"], outcome.items)
+    return [body] if body else []
+
+
+def _commentary(index: int, section: SectionDraft, notes: _Notes, show: bool) -> dict | None:
+    """The one commentary paragraph a section may carry: the model's first. It is
+    printed only when the researcher has switched commentary on and not rejected it."""
+    given = section.outcome.result.get("ai_interpretation", [])
+    if not given:
+        return None
+    entry = {"section": index, "heading": section.heading, "text": "", "printed": False,
+             "flags": checks.agent_flags(given[0], _cited_passages(given[0], section.outcome.items)),
+             "held_back": len(given) - 1}
+    if show:
+        entry["text"] = notes.renumber(given[0], section.outcome.items)
+        entry["printed"] = bool(entry["text"])
+    return entry
 
 
 def reader_limit(result: dict) -> str | None:
@@ -187,6 +204,8 @@ def assemble(
     conclusion: FrameElement | None = None,
     reviewed: bool = False,
     removed: set[str] | None = None,
+    commentary: bool = False,
+    commentary_rejected: set[int] | None = None,
 ) -> Article:
     """`removed` holds the passages whose sentences the researcher took out after
     judging that the passage does not support them (§9)."""
@@ -234,6 +253,13 @@ def assemble(
         out += [f"## {section.heading}", ""]
         for paragraph in body:
             out += [paragraph, ""]
+        if drafted:
+            index = sections.index(section)
+            entry = _commentary(index, section, notes, commentary and index not in (commentary_rejected or ()))
+            if entry:
+                article.commentary.append(entry)
+                if entry["printed"]:
+                    out += [f"{COMMENTARY_LABEL} {entry['text']}", ""]
         previous = section if drafted else None
 
     ending = _frame_text(conclusion, "conclusion", notes, article)

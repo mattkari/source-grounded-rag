@@ -644,7 +644,7 @@ def start_draft(workspace: pipeline.Workspace, title: str, outline: list[tuple[s
     """Sections first, then the frame. Each model call is made once."""
     sections = [pipeline.draft_section(workspace, heading, brief) for heading, brief in outline]
     draft = pipeline.Draft(title=title.strip(), sections=sections, topic=topic,
-                           transitions=[None] * (len(sections) - 1))
+                           transitions=[None] * (len(sections) - 1), commentary=frame["commentary"])
     if frame["introduction"] == GENERATE:
         draft.introduction = pipeline.draft_introduction(title, sections)
     else:
@@ -715,7 +715,14 @@ def render_article_setup(workspace: pipeline.Workspace, document: Document) -> N
             if frame[part] == I_WRITE else ""
         )
 
-    st.subheader("4. Your own writing, for comparison (optional)", divider="grey")
+    st.subheader("4. Options", divider="grey")
+    frame["commentary"] = st.checkbox(
+        "Include the model's own commentary (one paragraph per section at most)", key="article_commentary",
+        help="Commentary is the model's inference, not the author's position. It is marked as such, "
+             "and each paragraph needs your own verdict before the article can leave draft.",
+    )
+
+    st.subheader("5. Your own writing, for comparison (optional)", divider="grey")
     reference = st.file_uploader("A piece of your published writing (text or Markdown)", type=["txt", "md"],
                                  key="article_reference_file")
     st.session_state.article_reference = reference.getvalue().decode("utf-8", errors="replace") if reference else ""
@@ -798,11 +805,33 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
                     pipeline.remove_sentences(draft, note["chunk_id"])
                     persist(workspace, draft)
                     st.rerun()
+    commentary_choices = {}
+    printed = [entry for entry in article.commentary if entry["printed"]]
+    if printed:
+        st.subheader("Judge the commentary", divider="grey")
+        st.caption(
+            "Commentary is the model's own reading. Nothing checks it but you, so it is never accepted "
+            "on its own. Rejected commentary leaves the article and stays in the record."
+        )
+    for entry in printed:
+        with st.container(border=True):
+            st.markdown(f"**Commentary in “{entry['heading']}”**")
+            st.markdown(f"> {entry['text']}")
+            for flag in entry["flags"]:
+                st.warning(f"Check who acts: this {flag}.")
+            options = [NOT_JUDGED, *pipeline.COMMENTARY_VERDICTS]
+            recorded = draft.commentary_verdicts.get(entry["section"], {}).get("verdict", NOT_JUDGED)
+            commentary_choices[entry["section"]] = st.radio(
+                "Keep this commentary?", options, horizontal=True, index=options.index(recorded),
+                key=f"article_commentary_verdict_{entry['section']}")
     if article.notes and st.button("Record my verdicts", type="primary"):
         for chunk_id, (verdict, reason) in choices.items():
             recorded = draft.verdicts.get(chunk_id, {})
             if verdict != NOT_JUDGED and (verdict, reason.strip()) != (recorded.get("verdict"), recorded.get("reason")):
                 pipeline.set_verdict(draft, chunk_id, verdict, reason)
+        for section, verdict in commentary_choices.items():
+            if verdict != NOT_JUDGED and verdict != draft.commentary_verdicts.get(section, {}).get("verdict"):
+                pipeline.set_commentary_verdict(draft, section, verdict)
         persist(workspace, draft)
         st.rerun()
 
@@ -813,6 +842,13 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
         st.rerun()
 
     render_section_choices(workspace, draft)
+    if any(s.outcome and s.outcome.result.get("ai_interpretation") for s in draft.sections):
+        show = st.checkbox("Show the model's commentary in the article", value=draft.commentary,
+                           key="article_commentary_shown")
+        if show != draft.commentary:
+            draft.commentary = show
+            persist(workspace, draft)
+            st.rerun()
     article = pipeline.render(workspace, draft)
     state = pipeline.status(draft, article)
     counts = assemble.support_rate(pipeline.notes_record(draft, article))
@@ -835,7 +871,8 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
     if state == pipeline.REVIEWED:
         st.success("Reviewed: every note has your verdict.")
     else:
-        st.info("Draft: not every note has been judged, or a note judged “does not” is still in the article.")
+        st.info("Draft: not every note has been judged, a note judged “does not” is still in the article, "
+                "or a commentary paragraph is waiting for your verdict.")
     st.markdown(
         f"**Notes:** {counts['notes']} — supports {counts['supports']}, partly {counts['partly']}, "
         f"does not {counts['does not']}, not judged {counts['not judged']}"
