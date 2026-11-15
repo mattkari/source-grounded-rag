@@ -62,7 +62,7 @@ def three(items):
                                                           interpretation=["FIXTURE a reading of it [E1]."]), reordered)),
         SectionDraft("FIXTURE three", "b3", outcome(payload("FIXTURE the timetable changed [E3].", cites=["E3"],
                                                             sufficiency="partial",
-                                                            limitations=["FIXTURE the passages give no date [E3]."]), items)),
+                                                            limitations=["The thesis does not give a date for the change [E3]."]), items)),
     ]
 
 
@@ -106,11 +106,12 @@ def test_the_article_opens_as_a_draft_names_its_source_and_closes_with_the_ai_li
 
 
 def test_the_models_own_reading_is_marked_as_commentary_in_words(three, document):
-    text = assemble.assemble(title="FIXTURE title", document=document, sections=three).markdown
+    assert assemble.COMMENTARY_LABEL not in assemble.assemble(title="FIXTURE title", document=document, sections=three).markdown
+    text = assemble.assemble(title="FIXTURE title", document=document, sections=three, commentary=True).markdown
 
     assert f"{assemble.COMMENTARY_LABEL} FIXTURE a reading of it [3]." in text
     assert text.count(assemble.COMMENTARY_LABEL) == 1
-    assert "FIXTURE the passages give no date [4]." in text      # a stated limit is kept in the section
+    assert "- The thesis does not give a date for the change [4]." in text   # a stated limit is kept, at the close
 
 
 @pytest.mark.parametrize(
@@ -235,6 +236,8 @@ def test_voice_measures_are_plain_counts():
         "first_person_per_100_sentences": 50.0,
         "connective_openings_per_100_sentences": 25.0,
         "report_phrases_per_1000_words": 40.0,
+        "connectives_per_1000_words": 40.0,            # one opening "But" in 25 words; the inner "and" is not counted
+        "em_dashes": 0,
     }
     assert voice.measure("")["sentences"] == 0
 
@@ -304,9 +307,10 @@ class Scripted:
     """Stand-in for `ask.call_model`. Records every call and the passages it was given."""
 
     def __init__(self, script):
-        self.script, self.calls, self.seen = script, [], []
+        self.script, self.calls, self.seen, self.instructions = script, [], [], []
 
-    def __call__(self, question, items):
+    def __call__(self, question, items, instructions=None):
+        self.instructions.append(instructions)
         self.seen += [item.chunk for item in items]
         self.calls.append((question, [item.chunk["chunk_id"] for item in items], [item.handle for item in items]))
         behaviour = next(value for key, value in self.script.items() if key in question)
@@ -767,7 +771,7 @@ def test_the_record_holds_what_the_plan_says_and_no_passage_text(workspace, draf
     record = json.loads(text)
 
     assert "FIXTURE passage:" not in text                              # passages by id, never by text
-    assert record["schema_version"] == 2 and record["status"] == "draft"
+    assert record["schema_version"] == 3 and record["status"] == "draft"
     assert record["model"] == ask.settings.llm_model and record["sections"][0]["prompt_sha256_12"] == "fixturehash"
     section = record["sections"][0]
     assert {"heading", "brief", "kept_by_researcher", "gap_stated", "blocked", "evidence", "result",
@@ -840,7 +844,7 @@ def test_the_researcher_can_drop_a_section_or_state_that_the_thesis_does_not_cov
 
 
 def test_a_note_on_an_unnumbered_page_is_listed_as_it_is_cited_today(workspace, monkeypatch):
-    monkeypatch.setattr(ask, "call_model", lambda question, items: (
+    monkeypatch.setattr(ask, "call_model", lambda question, items, instructions=None: (
         payload(f"FIXTURE the plate shows a chart [{next(i.handle for i in items if i.chunk['page_start'] is None)}].",
                 cites=[next(i.handle for i in items if i.chunk["page_start"] is None)]), "fixturehash"))
     section = pipeline.draft_section(workspace, "FIXTURE plate", "FIXTURE: what does the unnumbered plate show of the harbour chart?")

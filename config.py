@@ -145,6 +145,16 @@ class Settings:
     llm_provider: str = os.environ.get("LLM_PROVIDER", "anthropic")
     llm_model: str = os.environ.get("LLM_MODEL", "claude-haiku-4-5")
     llm_max_tokens: int = 16000
+    # Optional, for the cost shown by `write_article.py --dry-run` (ADR 0005). US
+    # dollars per million tokens for the configured generation model, input and
+    # output. Left unset, the dry run shows calls and tokens only: a price is
+    # never assumed.
+    llm_price_input_per_mtok: float | None = (
+        float(os.environ["LLM_PRICE_INPUT_PER_MTOK"]) if os.environ.get("LLM_PRICE_INPUT_PER_MTOK") else None
+    )
+    llm_price_output_per_mtok: float | None = (
+        float(os.environ["LLM_PRICE_OUTPUT_PER_MTOK"]) if os.environ.get("LLM_PRICE_OUTPUT_PER_MTOK") else None
+    )
 
     # --- local generation fallback (LLM_PROVIDER=ollama) --------------------
     # Removes the API dependency entirely, at a real cost in speed and in

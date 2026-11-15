@@ -289,3 +289,37 @@ as an article, or cannot be brought near the researcher's voice, the plan stops 
 Roughly six focused days, stated as an estimate and not a commitment: W0 one and a half days, W1
 three days (the footnote filter and the frame carry the risk), W2 one and a half days. The
 researcher's time is the W0 reading, supplying the reference sample, and one approval per sprint.
+
+## 16. Amendments after the first real draft (15 November 2026)
+
+Added, not rewritten: the sections above stand as approved. Where an entry below differs from them,
+the entry is what the code does. The reasons and the sources are in
+[`docs/decisions/0005-article-quality.md`](../decisions/0005-article-quality.md).
+
+| § above | Was | Now |
+|---|---|---|
+| §5, `limitations` | "The section is written and its limits are stated in it" | At most one line per section, written for a reader, gathered under one closing heading. Every limitation and gap stays in the record. |
+| §5, `ai_interpretation` | Printed as commentary | Off by default; one paragraph per section at most; each printed paragraph needs the researcher's own verdict. |
+| §5, what blocks a section | A validation failure, a refusal, a table | Also: a note marker used as a word of the sentence, a direct quotation over 25 words, quotation over one fifth of the section. |
+| §5, the call | The question alone | The question plus a hashed prompt of rules of form (`prompts/article_section_v1.md`), through an `instructions` argument on the one pipeline. Questions and evaluation runs never pass it. |
+| §9, status | "draft" until every note has a verdict | "drafting" while steps of the plan remain; then "draft"; "reviewed" also needs every printed commentary accepted. |
+| §9, saving | When the draft is finished | After every section, rewrite and frame element. An unfinished article is resumed from its record. |
+| §10, voice | Measured | Measured, and an optional editorial pass (`prompts/article_editorial_v1.md`) may rewrite a section for flow. It is kept only if it preserves; see ADR 0005. |
+| §12 | Command line for the W0 trial only | `write_article.py`, the same pipeline and records as the web view, with a dry run. |
+
+Further limits, added to §13:
+
+- **The checks of form are patterns.** A marker used as a noun in a way the patterns do not list
+  passes; a sound sentence that happens to match is blocked. A blocked section has been paid for.
+- **The editorial checks guard what a rewrite may not add** (names, numbers, transliterated terms,
+  markers moved between paragraphs). They do not show that a rewrite kept the meaning: a changed
+  verb, a dropped hedge or a new lower-case claim passes them. The researcher's verdict on each
+  note is still the only check of support, and it is given on the text as printed.
+- **The "who acts" check on commentary is a prompt to read, not a verdict** (hard rule 12). It
+  looks for a fixed list of verbs beside a capitalised name.
+- **Only two of the eight checks of the researcher's voice profile are built in**, the two whose
+  targets were given: connectives per thousand words, and em dashes. The connective count uses this
+  project's own list, so it will not equal a rate measured with another list.
+- **One reader-facing limit per section** means other limits the model stated are not printed.
+- **The step in flight when a restart happens may have been charged** and is sent again on resume.
+

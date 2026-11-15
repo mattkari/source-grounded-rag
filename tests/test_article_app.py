@@ -48,8 +48,12 @@ class Scripted:
     def __init__(self, script):
         self.script, self.calls = dict(script), []
 
-    def __call__(self, question, items):
+    def __call__(self, question, items, instructions=None):
         self.calls.append(question)
+        if instructions and instructions.startswith("EDITORIAL TASK"):
+            self.edits = getattr(self, "edits", 0) + 1
+            key = next(key for key in self.script if key in question)
+            return self.script.get(f"EDIT:{key}", self.script[key]), "fixturehash"
         return next(value for key, value in self.script.items() if key in question), "fixturehash"
 
 
@@ -313,3 +317,89 @@ def test_a_cited_passage_is_shown_whole_and_reflowed(view):
 
     assert [t.value for t in view.text] == [" ".join(workspace.by_id[n["chunk_id"]]["text"].split()) for n in notes]
     assert not any("\n" in t.value for t in view.text)
+
+
+# --- commentary (ADR 0005) -------------------------------------------------------------------
+
+
+def test_commentary_is_off_until_switched_on_and_then_waits_for_a_verdict(view):
+    view.model.script["FIXTURE-A"] = {**SCRIPT["FIXTURE-A"], "ai_interpretation": ["FIXTURE a reading of the ledger [E1]."]}
+    draft(view)
+
+    assert assemble.COMMENTARY_LABEL not in article_file(view)         # off by default
+    next(c for c in view.checkbox if c.label == "Show the model's commentary in the article").check()
+    view.run()
+    assert f"{assemble.COMMENTARY_LABEL} FIXTURE a reading of the ledger [1]." in article_file(view)
+
+    judge(view, ["supports"] * 4)                                       # every note judged; the commentary is not
+    assert record(view)["status"] == "draft"
+    assert "a commentary paragraph is waiting for your verdict" in all_text(view)
+
+    view.radio(key="article_commentary_verdict_0").set_value("reject")
+    view.run()
+    button(view, "Record my verdicts").click()
+    view.run()
+
+    assert record(view)["status"] == "reviewed"
+    assert assemble.COMMENTARY_LABEL not in article_file(view)
+    assert record(view)["sections"][0]["commentary"]["verdict"] == "reject"
+    assert len(view.model.calls) == 3
+
+
+# --- the editorial pass (ADR 0005) -----------------------------------------------------------
+
+
+def test_the_editorial_pass_is_off_by_default_and_shows_what_it_kept_and_what_it_rejected(view):
+    view.model.script["EDIT:FIXTURE-B"] = payload("FIXTURE the calendar, moreover, lists rootstock [E3].", ["E3"])
+    view.model.script["EDIT:FIXTURE-C"] = payload("FIXTURE Harland changed the timetable [E4].", ["E4"])
+    assert view.checkbox(key="article_editorial").value is False
+    view.checkbox(key="article_editorial").check()
+    draft(view)
+    text, saved = article_file(view), record(view)
+
+    assert len(view.model.calls) == 6 and view.model.edits == 3         # one more call per section, once
+    assert "FIXTURE the calendar, moreover, lists rootstock [3]." in text
+    assert "FIXTURE the timetable changed [4]." in text and "Harland" not in text      # rejected: the original stands
+    assert [s["editorial"]["accepted"] for s in saved["sections"]] == [True, True, False]
+    assert saved["sections"][2]["editorial"]["rejected_because"] == ["new_terms: the rewrite adds “Harland”"]
+    shown = all_text(view)
+    assert "rewrite rejected; the original stands" in shown and "new_terms: the rewrite adds “Harland”" in shown
+
+
+# --- save as you go, and resume (ADR 0005) -----------------------------------------------------
+
+
+class Restart(BaseException):
+    """The container going away in the middle of a call."""
+
+
+def test_a_draft_cut_short_is_on_disk_and_resumes_without_resending_what_was_done(view, monkeypatch):
+    # The container goes away during the third section: the pipeline is run here, outside the page.
+    outline = [tuple(part.strip() for part in line.split("|")) for line in OUTLINE.splitlines()]
+    workspace = pipeline.open_workspace()
+
+    def dying(question, items, instructions=None):
+        if "FIXTURE-C" in question:
+            raise Restart()
+        return view.model(question, items, instructions)
+
+    monkeypatch.setattr(ask, "call_model", dying)
+    with pytest.raises(Restart):
+        pipeline.run(workspace, pipeline.new_draft("FIXTURE harbour title", outline))
+    saved = record(view)
+    assert saved["status"] == "drafting" and [bool(s.get("pending")) for s in saved["sections"]] == [False, False, True]
+
+    monkeypatch.setattr(ask, "call_model", view.model)                  # the container is back; the page is opened afresh
+    view.run()
+    listed = view.selectbox(key="article_saved")
+    assert listed.format_func(listed.value) == "FIXTURE harbour title — unfinished, 1 model call(s) left"
+    button(view, "Open this article").click()
+    view.run()
+    assert "1 model call(s) remain" in all_text(view) and "## FIXTURE third heading" not in article_file(view)
+    before = len(view.model.calls)
+    button(view, "Resume drafting").click()
+    view.run()
+
+    assert len(view.model.calls) == before + 1 and "FIXTURE-C" in view.model.calls[-1]      # one call: the missing one
+    assert record(view)["status"] == "draft" and "## FIXTURE third heading" in article_file(view)
+    assert len(list(view.out.glob("*"))) == 1 and not view.exception

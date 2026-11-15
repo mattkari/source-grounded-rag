@@ -66,9 +66,11 @@ pip install -r requirements.txt -r requirements-dev.txt
 python scripts/check_gold.py     # validate evaluation/questions_v1.yaml; no API call
 pytest                           # offline suite; no API key, no network
 python evaluate.py               # live evaluation run; spends API credit on both providers
+python write_article.py --dry-run --title "<t>" --outline outline.txt   # planned article calls; sends nothing
 ```
 
-`ask.py`, `main.py`, `app.py` and `evaluate.py` all go through `ask.run_query()`. Never add a second
+`ask.py`, `main.py`, `app.py`, `evaluate.py` and the article writer (`article/`, `write_article.py`)
+all go through `ask.run_query()`. Never add a second
 pipeline. Tests replace the generation model at `ask.call_model` only, and never make a live call.
 
 ### Environment variables

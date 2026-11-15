@@ -639,27 +639,22 @@ def persist(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
     pipeline.save(workspace, draft, reference_text=st.session_state.get("article_reference", ""))
 
 
-def start_draft(workspace: pipeline.Workspace, title: str, outline: list[tuple[str, str]], topic: str | None,
-                frame: dict) -> pipeline.Draft:
-    """Sections first, then the frame. Each model call is made once."""
-    sections = [pipeline.draft_section(workspace, heading, brief) for heading, brief in outline]
-    draft = pipeline.Draft(title=title.strip(), sections=sections, topic=topic,
-                           transitions=[None] * (len(sections) - 1))
-    if frame["introduction"] == GENERATE:
-        draft.introduction = pipeline.draft_introduction(title, sections)
-    else:
-        draft.introduction = pipeline.written(frame["introduction_text"])
-    if frame["transitions"] == GENERATE:
-        draft.transitions = [pipeline.draft_transition(a, b) for a, b in zip(sections, sections[1:])]
-    else:
-        typed = [line.strip() for line in frame["transitions_text"].splitlines() if line.strip()]
-        typed += [""] * (len(sections) - 1 - len(typed))
-        draft.transitions = [pipeline.written(text) for text in typed[: len(sections) - 1]]
-    if frame["conclusion"] == GENERATE:
-        draft.conclusion = pipeline.draft_conclusion(title, sections)
-    else:
-        draft.conclusion = pipeline.written(frame["conclusion_text"])
-    return draft
+def plan_draft(title: str, outline: list[tuple[str, str]], topic: str | None, frame: dict) -> pipeline.Draft:
+    """The plan only: no model is called here."""
+    origin = {I_WRITE: pipeline.RESEARCHER, GENERATE: pipeline.GENERATED}
+    return pipeline.new_draft(
+        title, outline, topic=topic, commentary=frame["commentary"], editorial=frame["editorial"],
+        introduction=origin[frame["introduction"]], introduction_text=frame["introduction_text"],
+        transitions=origin[frame["transitions"]],
+        transitions_text=[line.strip() for line in frame["transitions_text"].splitlines() if line.strip()],
+        conclusion=origin[frame["conclusion"]], conclusion_text=frame["conclusion_text"],
+    )
+
+
+def carry_out(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
+    """Run what the plan still needs. The record is saved after every step, so a
+    restart loses at most the step in flight; the draft can then be resumed."""
+    pipeline.run(workspace, draft, reference_text=st.session_state.get("article_reference", ""))
 
 
 def render_article_setup(workspace: pipeline.Workspace, document: Document) -> None:
@@ -670,8 +665,10 @@ def render_article_setup(workspace: pipeline.Workspace, document: Document) -> N
             by_id = {row["article_id"]: row for row in saved}
             chosen = st.selectbox(
                 "Saved article", list(by_id), key="article_saved",
-                format_func=lambda i: f"{by_id[i]['title']} — {by_id[i]['status']}, "
-                                      f"{by_id[i]['support']['notes']} notes",
+                format_func=lambda i: f"{by_id[i]['title']} — " + (
+                    f"unfinished, {by_id[i]['model_calls_remaining']} model call(s) left"
+                    if by_id[i]["status"] == pipeline.DRAFTING
+                    else f"{by_id[i]['status']}, {by_id[i]['support']['notes']} notes"),
             )
             if st.button("Open this article"):
                 try:
@@ -715,7 +712,20 @@ def render_article_setup(workspace: pipeline.Workspace, document: Document) -> N
             if frame[part] == I_WRITE else ""
         )
 
-    st.subheader("4. Your own writing, for comparison (optional)", divider="grey")
+    st.subheader("4. Options", divider="grey")
+    frame["commentary"] = st.checkbox(
+        "Include the model's own commentary (one paragraph per section at most)", key="article_commentary",
+        help="Commentary is the model's inference, not the author's position. It is marked as such, "
+             "and each paragraph needs your own verdict before the article can leave draft.",
+    )
+
+    frame["editorial"] = st.checkbox(
+        "Editorial pass: rewrite each section for flow (one more model call per section)", key="article_editorial",
+        help="The rewrite is kept only if it carries the same notes in each paragraph and adds no name, "
+             "number or term. Otherwise the original stands and the reason is shown.",
+    )
+
+    st.subheader("5. Your own writing, for comparison (optional)", divider="grey")
     reference = st.file_uploader("A piece of your published writing (text or Markdown)", type=["txt", "md"],
                                  key="article_reference_file")
     st.session_state.article_reference = reference.getvalue().decode("utf-8", errors="replace") if reference else ""
@@ -723,21 +733,22 @@ def render_article_setup(workspace: pipeline.Workspace, document: Document) -> N
     outline = parse_outline(outline_text)
     generated = sum(frame[part] == GENERATE for part in ("introduction", "conclusion"))
     generated += max(len(outline) - 1, 0) if frame["transitions"] == GENERATE else 0
+    generated += len(outline) if frame["editorial"] else 0
     st.caption(
         f"Drafting makes {len(outline)} model call(s) for the sections and up to {generated} for generated "
-        "frame text. Nothing is retried."
+        "frame text and the editorial pass. Nothing is retried."
     )
     if st.button("Draft the article", type="primary"):
         try:
-            pipeline.check_outline(title, outline)
+            draft = plan_draft(title, outline, topic.chapter if topic else None, frame)
         except pipeline.ArticleError as exc:
             st.error(str(exc))
             return
-        with st.spinner("Drafting from the thesis…"):
-            draft = start_draft(workspace, title, outline, topic.chapter if topic else None, frame)
-            persist(workspace, draft)       # the record on disk first; the screen second
+        persist(workspace, draft)           # the plan is on disk before the first call
         st.session_state.article_draft = draft
         st.session_state.article_draft_document = document.document_id
+        with st.spinner("Drafting from the thesis… each finished step is saved."):
+            carry_out(workspace, draft)
         st.rerun()
 
 
@@ -798,11 +809,33 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
                     pipeline.remove_sentences(draft, note["chunk_id"])
                     persist(workspace, draft)
                     st.rerun()
+    commentary_choices = {}
+    printed = [entry for entry in article.commentary if entry["printed"]]
+    if printed:
+        st.subheader("Judge the commentary", divider="grey")
+        st.caption(
+            "Commentary is the model's own reading. Nothing checks it but you, so it is never accepted "
+            "on its own. Rejected commentary leaves the article and stays in the record."
+        )
+    for entry in printed:
+        with st.container(border=True):
+            st.markdown(f"**Commentary in “{entry['heading']}”**")
+            st.markdown(f"> {entry['text']}")
+            for flag in entry["flags"]:
+                st.warning(f"Check who acts: this {flag}.")
+            options = [NOT_JUDGED, *pipeline.COMMENTARY_VERDICTS]
+            recorded = draft.commentary_verdicts.get(entry["section"], {}).get("verdict", NOT_JUDGED)
+            commentary_choices[entry["section"]] = st.radio(
+                "Keep this commentary?", options, horizontal=True, index=options.index(recorded),
+                key=f"article_commentary_verdict_{entry['section']}")
     if article.notes and st.button("Record my verdicts", type="primary"):
         for chunk_id, (verdict, reason) in choices.items():
             recorded = draft.verdicts.get(chunk_id, {})
             if verdict != NOT_JUDGED and (verdict, reason.strip()) != (recorded.get("verdict"), recorded.get("reason")):
                 pipeline.set_verdict(draft, chunk_id, verdict, reason)
+        for section, verdict in commentary_choices.items():
+            if verdict != NOT_JUDGED and verdict != draft.commentary_verdicts.get(section, {}).get("verdict"):
+                pipeline.set_commentary_verdict(draft, section, verdict)
         persist(workspace, draft)
         st.rerun()
 
@@ -812,7 +845,28 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
         del st.session_state["article_draft"]
         st.rerun()
 
+    if not draft.complete:
+        left = pipeline.planned_calls(draft)
+        st.warning(
+            f"This article was not finished: {left['model_calls']} model call(s) remain. What was drafted is "
+            "saved. Resuming sends only what is missing; finished sections are not sent or charged again."
+        )
+        if st.button("Resume drafting", type="primary"):
+            with st.spinner("Drafting what is missing… each finished step is saved."):
+                carry_out(workspace, draft)
+            st.rerun()
+        with st.container(border=True):
+            st.markdown(re.sub(r"^(#{1,2}) ", r"##\1 ", pipeline.render(workspace, draft).markdown, flags=re.MULTILINE))
+        return
+
     render_section_choices(workspace, draft)
+    if any(s.outcome and s.outcome.result.get("ai_interpretation") for s in draft.sections):
+        show = st.checkbox("Show the model's commentary in the article", value=draft.commentary,
+                           key="article_commentary_shown")
+        if show != draft.commentary:
+            draft.commentary = show
+            persist(workspace, draft)
+            st.rerun()
     article = pipeline.render(workspace, draft)
     state = pipeline.status(draft, article)
     counts = assemble.support_rate(pipeline.notes_record(draft, article))
@@ -826,10 +880,17 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
             "Check that they add no fact of their own."
         )
 
+    if article.limits_held_back:
+        st.caption(
+            f"{article.limits_held_back} limitation line(s) from the model are kept in the record only. The "
+            f"article prints at most one per section, under “{assemble.NOT_COVERED_HEADING}”."
+        )
+
     if state == pipeline.REVIEWED:
         st.success("Reviewed: every note has your verdict.")
     else:
-        st.info("Draft: not every note has been judged, or a note judged “does not” is still in the article.")
+        st.info("Draft: not every note has been judged, a note judged “does not” is still in the article, "
+                "or a commentary paragraph is waiting for your verdict.")
     st.markdown(
         f"**Notes:** {counts['notes']} — supports {counts['supports']}, partly {counts['partly']}, "
         f"does not {counts['does not']}, not judged {counts['not judged']}"
@@ -842,6 +903,20 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
         st.markdown(re.sub(r"^(#{1,2}) ", r"##\1 ", article.markdown, flags=re.MULTILINE))
     st.download_button("Download article.md", article.markdown, file_name="article.md", mime="text/markdown")
     st.caption(f"Saved in `output/articles/{draft.article_id}/` with its record.")
+
+    edited = [s for s in draft.sections if s.editorial]
+    if edited:
+        with st.expander(f"Editorial pass — {sum(1 for s in edited if s.editorial['accepted'])} of {len(edited)} rewrites kept"):
+            for section in edited:
+                outcome = section.editorial
+                if outcome["accepted"]:
+                    st.markdown(f"**{section.heading}** — rewrite kept.")
+                else:
+                    st.markdown(f"**{section.heading}** — rewrite rejected; the original stands.")
+                    for reason in outcome["rejected_because"]:
+                        st.warning(reason)
+                if outcome["voice_after"]:
+                    st.code(voice.format_comparison({"before": outcome["voice_before"], "after": outcome["voice_after"]}))
 
     with st.expander("Voice — plain counts beside your own writing"):
         columns = pipeline.voice_columns(article, st.session_state.get("article_reference", ""))

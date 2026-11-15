@@ -291,17 +291,28 @@ cited passage side by side. The article and its record are saved after every ste
 can be reopened, and `article.md` can be downloaded. With Docker, `compose.yaml` mounts `./output`
 so drafts outlive the container.
 
-**From the command line**, for a quick draft without the review step:
+**From the command line**, with the same pipeline and the same records as the web view:
 
 ```bash
-python scripts/article_trial.py --topics          # what the thesis covers; no model call
-python scripts/article_trial.py --sources         # what the footnote filter leaves to draft from; no model call
-python scripts/article_trial.py --chapter <n> --title "<your title>" --reference <your_writing.md>
+python write_article.py --topics                       # what the thesis covers; no model call
+python write_article.py --title "<your title>" --outline outline.txt --dry-run
+python write_article.py --title "<your title>" --outline outline.txt
+python write_article.py --title "<your title>" --outline outline.txt --editorial --frame generate
+python write_article.py --list                         # saved articles, and which are unfinished
+python write_article.py --resume <article-id>          # finish an interrupted draft
 ```
 
-The third command drafts an article and spends API credit: one embedding call and one model call per
-section, plus one model call for each generated introduction, transition and conclusion. Nothing is
-retried. It writes `output/articles/<id>/article.md` and `record.json`; `output/` is ignored by git.
+`outline.txt` has one section per line, `Heading | the question the section must answer`, three to
+six of them. `--from-record <record.json>` takes the title and outline from an earlier article
+instead. `--dry-run` sends nothing: it prints the calls the plan would make and a ceiling on their
+tokens, and a cost only if `LLM_PRICE_INPUT_PER_MTOK` and `LLM_PRICE_OUTPUT_PER_MTOK` are set.
+
+Drafting spends API credit: one embedding call and one model call per section, one more model call
+per section with `--editorial`, and one for each generated introduction, transition and conclusion.
+Nothing is retried. It writes `output/articles/<id>/article.md` and `record.json`; `output/` is
+ignored by git. **The record is saved after every step**, so a restart loses at most the step in
+flight, and resuming does not send finished sections again. The verdicts on the notes are given in
+the web view.
 
 - **Every section goes through `ask.run_query`**, so facts come only from retrieved passages and are
   validated as any answer is. A section that fails validation, is refused, or contains a table is
@@ -317,7 +328,21 @@ retried. It writes `output/articles/<id>/article.md` and `record.json`; `output/
   inferences, open with the words "Commentary (the article's own reading, not the author's):". A
   generated sentence that carries no note is raised for you to check.
 - **Notes are plain `[n]` markers** with a Sources list resolved from stored provenance, in a form
-  Medium can import: no tables, no footnotes.
+  Medium can import: no tables, no footnotes. A marker closes the clause it supports and is never a
+  word of the sentence: a section that writes "[5] states…" or "according to [2]" is blocked.
+- **Quotation is limited.** A direct quotation is at most 25 words and quotations at most a fifth of
+  a section; over either, the section is blocked.
+- **Limits are gathered at the close**, under "What this article does not cover", at most one line
+  per section and written for a reader. Everything else the model said about limits and gaps is in
+  the record.
+- **Commentary is off by default.** Switched on, a section prints at most one paragraph of the
+  model's own reading, and each one needs your own verdict before the article can leave draft.
+  A sentence that gives an act to a named person the cited passage does not show acting is raised
+  for you to read.
+- **The editorial pass is optional and off by default.** It asks for each section to be rewritten
+  for flow, and keeps the rewrite only if every paragraph carries the notes it carried, no name,
+  number or transliterated term is added, and there is no em dash. Otherwise the original stands
+  and the reason is shown. The voice counts before and after are shown.
 - **Your verdicts.** Each note is judged *supports*, *partly* or *does not*. The article is marked
   DRAFT until every note has a verdict. A note judged *does not* keeps it a draft until its sentences
   are removed; the verdict stays in the record. The record gives the counts.
@@ -444,6 +469,8 @@ implemented and approved — existing rows are never removed or reordered.
 | 2026-08-12 | — (Dissemination) | Prepare the 20-minute ITCC-2026 conference deck: 16 slides in English covering the hallucination and audit-trail problem, relevance to cooperative governance, the grounding pipeline, the opaque-handle mechanism that makes a fabricated page reference structurally impossible, the three outcome types, the three demonstration questions as UI screenshots, the evaluator view, and current status including what is not yet done. Speaker notes with per-slide timings on every slide, plus anticipated questions; notes also exported as a standalone run sheet. Screenshots captured from the web UI with the model call stubbed — provenance, citations and retrieval diagnostics in them are read from the real index. | Committed to `claude/itcc-2026-deck` | `docs/presentations/ITCC-2026-Source-Grounded-Research-Assistant.pptx`, `docs/presentations/ITCC-2026-speaker-notes.md`, `README.md` |
 | 2026-11-15 | — (Citation fix) | Correct the citation wording for a passage that runs onto a page with no printed number. `ask.page_phrase` named the passage's first PDF page as unprinted even when that page carried a number; it now names the pages recorded in the passage's own `pages_unresolved` and keeps the one label it has (`p. 42 and PDF p. 67, which has no printed number [VERIFY]`). No label is computed (hard rule 2). The evaluation record follows the renderer, so a partly numbered citation now carries its label. 11 tests written first and failing on the old code. | Implemented and approved; merged to `main` in PR #10 | `ask.py`, `evaluate.py`, `tests/test_citations.py` |
 | 2026-11-15 | E2 (Repeats and baseline) | Implement `docs/plans/PLAN_V5.md`. `evaluate.py --baseline no-rag` asks the same questions with retrieval switched off: the identical prompt and model with an empty evidence block, through the same `ask.run_query` (`retrieve_evidence=False`), so the two conditions differ in one variable. Baseline records, summaries and rating sheets are labelled `baseline_no_rag`; a baseline outcome refuses to be rendered as a cited answer and no interface exposes the switch. Page numbers the model writes are checked against the printed labels; one the thesis does not print is counted as a fabricated citation. `--repeat N` runs the set N times under one run group and reports each metric per run with its minimum and maximum, with no average. `scripts/results_tables.py` writes Markdown and LaTeX tables from recorded runs, as `n/N`, labelling baseline runs and showing `n/a` where a metric does not apply. All tests offline and written first. **No results yet: the question set is still unwritten and no live run has been made.** | Implemented and approved; merged to `main` in PRs #11, #13 and #14 | `ask.py`, `evaluate.py`, `evaluation/metrics.py`, `scripts/results_tables.py`, `tests/`, `docs/plans/PLAN_V5.md`, `README.md` |
+| 2026-11-15 | W0–W2 (Article writer) | Implement `docs/plans/PLAN_V6.md`. `article/topics.py` lists what a thesis covers from its printed structure, with no model. `article/sources.py` builds the filtered view an article drafts from: reference-list passages left out, footnote text cut from what the model sees, a passage that is mostly footnote left out; the filter is a side file of passage ids and character offsets with no thesis text (`footnote_maps/`), tied to the index by its corpus hash, and the index is never changed. Sections go through `ask.run_query`; introduction, transitions and conclusion through `ask.draft_from_evidence`, the same model call and validation on passages the sections already cite. `article/assemble.py` lays validated sections out as Markdown with plain `[n]` notes and a Sources list from stored provenance; a section that fails validation, is refused or holds a table is blocked with its reason. `article/pipeline.py` holds the draft, the researcher's verdict on each note (*supports* / *partly* / *does not*), the record, saving and reopening. The web app gains a "Write an article" view. All tests offline and shown red under deliberate breaks. **No live draft had been run when this was merged.** | Implemented and approved; merged to `main` in PR #19 (with #17 and #18) | `article/`, `footnote_maps/`, `scripts/article_trial.py`, `ask.py`, `app.py`, `tests/`, `compose.yaml`, `Dockerfile`, `docs/plans/PLAN_V6.md`, `README.md` |
+| 2026-11-15 | — (Article quality) | Seven changes after the first real draft read badly as an article, with the research behind them in `docs/decisions/0005-article-quality.md`. (1) A note marker closes its clause and is never a word of the sentence; "[5] states" blocks the section. The article path sends a hashed prompt of rules of form through a new `instructions` argument on the one pipeline; questions and evaluation runs never pass it and are sent exactly as before. (2) Limits are gathered into one closing list, one reader-facing line per section at most; all of them stay in the record. (3) Commentary is off by default, one paragraph per section at most, and needs the researcher's own verdict; a pattern check raises sentences that give an act to someone the cited passage does not show acting. (4) A direct quotation is at most 25 words and quotation at most a fifth of a section. (5) An optional editorial pass rewrites a section for flow and is kept only if each paragraph carries the same notes, no name, number or transliterated term is added and there is no em dash; otherwise the original stands. (6) The record is saved after every step and an unfinished article is resumed without sending finished sections again. (7) `write_article.py` is a command-line shell over the same pipeline, with a dry run that never assumes a price. All tests offline, each change shown red under named deliberate breaks. **Not verified: no live draft has been made with these changes.** | Implemented; awaiting approval | `article/`, `prompts/article_section_v1.md`, `prompts/article_editorial_v1.md`, `ask.py`, `app.py`, `write_article.py`, `config.py`, `.env.example`, `tests/`, `docs/decisions/0005-article-quality.md`, `docs/plans/PLAN_V6.md`, `README.md` |
 
 ## Companion: Work Brain template
 
