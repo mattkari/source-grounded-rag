@@ -90,9 +90,25 @@ def fill(at: AppTest, title="FIXTURE harbour title", outline=OUTLINE) -> AppTest
     return at.run()
 
 
-def draft(at: AppTest, **kwargs) -> AppTest:
+def draft(at: AppTest, options=None, **kwargs) -> AppTest:
+    """Walk the steps a researcher walks: outline, frame and options, the plan, draft.
+    `options` sets the frame and option widgets on their own step."""
     fill(at, **kwargs)
+    button(at, "Next: frame and options").click()
+    at.run()
+    if not any(b.label == "Next: check the plan" for b in at.button):
+        return at                                                        # the outline was not accepted
+    if options:
+        options(at)
+        at.run()
+    button(at, "Next: check the plan").click()
+    at.run()
     button(at, "Draft the article").click()
+    return at.run()
+
+
+def finish(at: AppTest) -> AppTest:
+    button(at, "Next: the finished article").click()
     return at.run()
 
 
@@ -106,14 +122,20 @@ def article_file(at: AppTest) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def current_verdict(at: AppTest):
+    """The one verdict control on the screen: a note's, or a commentary paragraph's."""
+    (radio,) = [r for r in at.radio if r.key and r.key.startswith(("article_verdict_", "article_commentary_verdict_"))]
+    return radio
+
+
 def judge(at: AppTest, verdicts: list[str]) -> AppTest:
-    radios = [r for r in at.radio if r.key and r.key.startswith("article_verdict_")]
-    assert len(radios) == len(verdicts)
-    for radio, verdict in zip(radios, verdicts):
-        radio.set_value(verdict)
-    at.run()
-    button(at, "Record my verdicts").click()
-    return at.run()
+    """Judge the items in order from the one now on screen, one at a time."""
+    for verdict in verdicts:
+        current_verdict(at).set_value(verdict)
+        at.run()
+        next(b for b in at.button if b.label in ("Save and next", "Save my verdict")).click()
+        at.run()
+    return at
 
 
 # ---------------------------------------------------------------------------
@@ -160,8 +182,7 @@ def test_nothing_is_drafted_from_an_outline_that_is_not_ready(view, title, outli
 
 
 def test_a_topic_becomes_a_saved_reviewed_article_with_no_file_edited_by_hand(view):
-    view.text_area(key="article_introduction_text").set_value("FIXTURE my own opening words.")
-    draft(view)
+    draft(view, options=lambda at: at.text_area(key="article_introduction_text").set_value("FIXTURE my own opening words."))
     saved = record(view)
 
     assert not view.exception
@@ -171,11 +192,13 @@ def test_a_topic_becomes_a_saved_reviewed_article_with_no_file_edited_by_hand(vi
     text = article_file(view)
     assert text.startswith(f"*{assemble.DRAFT_LINE}*") and "## FIXTURE second heading" in text and "## Sources" in text
     assert "FIXTURE my own opening words." in text and assemble.COMMENTARY_LABEL not in text
-    assert "Draft: not every note has been judged" in all_text(view)
-    assert len(view.text) == 4                                          # each note beside the passage it cites
+    assert "**1 of 4** · judged so far: 0 of 4" in all_text(view)
+    assert len(view.text) == 1                                          # one note on screen, beside the passage it cites
 
     judge(view, ["supports", "supports", "partly", "supports"])
     saved = record(view)
+    assert "**4 of 4** · judged so far: 4 of 4" in all_text(view)
+    finish(view)
 
     assert saved["status"] == "reviewed"
     assert saved["support"] == {"supports": 3, "partly": 1, "does not": 0, "not judged": 0, "notes": 4}
@@ -192,6 +215,11 @@ def test_a_note_judged_does_not_keeps_the_draft_until_its_sentences_are_removed(
 
     assert record(view)["status"] == "draft"
     assert "FIXTURE and it says another [2]." in article_file(view)
+    button(view, "Previous").click()
+    view.run()
+    button(view, "Previous").click()
+    view.run()                                                          # back on the note judged "does not"
+    assert "**2 of 4**" in all_text(view) and current_verdict(view).value == "does not"
     assert "The article stays a draft until these sentences are removed." in all_text(view)
 
     button(view, "Remove the sentences that carry this note").click()
@@ -207,9 +235,11 @@ def test_a_note_judged_does_not_keeps_the_draft_until_its_sentences_are_removed(
 
 
 def test_generated_frame_text_is_marked_as_commentary_and_costs_one_call_each(view):
-    for part in ("introduction", "transitions", "conclusion"):
-        view.radio(key=f"article_{part}_origin").set_value("Generate as labelled commentary")
-    draft(view)
+    def generate(at):
+        for part in ("introduction", "transitions", "conclusion"):
+            at.radio(key=f"article_{part}").set_value("Generate as labelled commentary")
+
+    draft(view, options=generate)
     text = article_file(view)
 
     assert len(view.model.calls) == 3 + 1 + 2 + 1
@@ -240,6 +270,7 @@ def test_a_blocked_section_is_shown_with_its_reason_and_a_refused_one_can_be_sta
 
 def test_the_researcher_can_drop_a_drafted_section(view):
     draft(view)
+    assert "3 of 3 drafted sections kept" in view.expander[0].label
     next(c for c in view.checkbox if c.label == "Keep section: FIXTURE second heading").uncheck()
     view.run()
 
@@ -250,18 +281,22 @@ def test_the_researcher_can_drop_a_drafted_section(view):
 
 def test_a_saved_article_is_reopened_with_its_verdicts_and_no_model_call(view):
     draft(view)
-    judge(view, ["supports", "not judged", "not judged", "not judged"])
+    judge(view, ["supports"])
     button(view, "Start another article").click()
     view.run()
-    assert view.text_input(key="article_title") is not None            # back on the setup steps
+    assert view.text_input(key="article_title").value == ""             # back on the first step, with a clean plan
 
     button(view, "Open this article").click()
     view.run()
-    radios = [r.value for r in view.radio if r.key and r.key.startswith("article_verdict_")]
 
     assert not view.exception
-    assert radios == ["supports", "not judged", "not judged", "not judged"]
-    assert "## FIXTURE first heading" in all_text(view)
+    assert "**2 of 4** · judged so far: 1 of 4" in all_text(view)        # it opens on the first note still to judge
+    assert current_verdict(view).value == "not judged"
+    button(view, "Previous").click()
+    view.run()
+    assert current_verdict(view).value == "supports"                    # the verdict given before is still there
+    finish(view)
+    assert "#### FIXTURE first heading" in all_text(view)
     assert len(view.model.calls) == 3 and len(list(view.out.glob("*"))) == 1
 
 
@@ -301,6 +336,7 @@ def test_captions_and_quoted_sentences_take_the_themes_text_colour(view):
 
 def test_each_page_has_one_title_and_no_skipped_heading_level(view):
     draft(view)
+    finish(view)
     shown = "\n".join(m.value for m in view.markdown)
 
     assert len(view.title) == 1 and len(view.header) == 1                  # h1, then the thesis as h2
@@ -315,8 +351,8 @@ def test_a_cited_passage_is_shown_whole_and_reflowed(view):
     workspace = pipeline.open_workspace()
     notes = record(view)["notes"]
 
-    assert [t.value for t in view.text] == [" ".join(workspace.by_id[n["chunk_id"]]["text"].split()) for n in notes]
-    assert not any("\n" in t.value for t in view.text)
+    assert [t.value for t in view.text] == [" ".join(workspace.by_id[notes[0]["chunk_id"]]["text"].split())]
+    assert "\n" not in view.text[0].value
 
 
 # --- commentary (ADR 0005) -------------------------------------------------------------------
@@ -333,12 +369,10 @@ def test_commentary_is_off_until_switched_on_and_then_waits_for_a_verdict(view):
 
     judge(view, ["supports"] * 4)                                       # every note judged; the commentary is not
     assert record(view)["status"] == "draft"
-    assert "a commentary paragraph is waiting for your verdict" in all_text(view)
+    assert "**5 of 5** · judged so far: 4 of 5" in all_text(view)        # the commentary is the last thing to judge
+    assert current_verdict(view).key == "article_commentary_verdict_0"
 
-    view.radio(key="article_commentary_verdict_0").set_value("reject")
-    view.run()
-    button(view, "Record my verdicts").click()
-    view.run()
+    judge(view, ["reject"])
 
     assert record(view)["status"] == "reviewed"
     assert assemble.COMMENTARY_LABEL not in article_file(view)
@@ -352,9 +386,11 @@ def test_commentary_is_off_until_switched_on_and_then_waits_for_a_verdict(view):
 def test_the_editorial_pass_is_off_by_default_and_shows_what_it_kept_and_what_it_rejected(view):
     view.model.script["EDIT:FIXTURE-B"] = payload("FIXTURE the calendar, moreover, lists rootstock [E3].", ["E3"])
     view.model.script["EDIT:FIXTURE-C"] = payload("FIXTURE Harland changed the timetable [E4].", ["E4"])
-    assert view.checkbox(key="article_editorial").value is False
-    view.checkbox(key="article_editorial").check()
-    draft(view)
+    def editorial(at):
+        assert at.checkbox(key="article_editorial").value is False
+        at.checkbox(key="article_editorial").check()
+
+    draft(view, options=editorial)
     text, saved = article_file(view), record(view)
 
     assert len(view.model.calls) == 6 and view.model.edits == 3         # one more call per section, once
@@ -362,7 +398,7 @@ def test_the_editorial_pass_is_off_by_default_and_shows_what_it_kept_and_what_it
     assert "FIXTURE the timetable changed [4]." in text and "Harland" not in text      # rejected: the original stands
     assert [s["editorial"]["accepted"] for s in saved["sections"]] == [True, True, False]
     assert saved["sections"][2]["editorial"]["rejected_because"] == ["new_terms: the rewrite adds “Harland”"]
-    shown = all_text(view)
+    shown = all_text(finish(view))
     assert "rewrite rejected; the original stands" in shown and "new_terms: the rewrite adds “Harland”" in shown
 
 
@@ -403,3 +439,118 @@ def test_a_draft_cut_short_is_on_disk_and_resumes_without_resending_what_was_don
     assert len(view.model.calls) == before + 1 and "FIXTURE-C" in view.model.calls[-1]      # one call: the missing one
     assert record(view)["status"] == "draft" and "## FIXTURE third heading" in article_file(view)
     assert len(list(view.out.glob("*"))) == 1 and not view.exception
+
+
+# --- steps, navigation and copying (docs/decisions/0007-steps-navigation-copy.md) -------------
+
+
+def html_blocks(at: AppTest) -> list[str]:
+    return [str(element.proto.body) for element in at.get("html")]
+
+
+def test_the_three_views_sit_in_one_bar_that_the_page_style_keeps_in_view(view):
+    style = page_style(view)
+    bar = style[style.index(".st-key-topnav {"):style.index("}", style.index(".st-key-topnav {"))]
+
+    assert view.radio(key="view").options == ["Ask", "Library", "Write"]     # short names, so the bar is one row
+    assert "position: fixed" in bar and "top: 0" in bar
+    assert "light-dark(" in bar and not __import__("re").search(r"background:\s*#", bar)     # dark in a dark theme
+    assert "justify-content: flex-end" in style                         # clear of the open sidebar and its button
+    header = style[style.index('[data-testid="stHeader"], [data-testid="stHeader"] *'):]
+    assert header.startswith('[data-testid="stHeader"], [data-testid="stHeader"] * {pointer-events: none !important;}')
+    assert "scroll-padding-top" in style                                # focus is not left under the bar (WCAG 2.4.11)
+    assert any('id="page-top"' in block for block in html_blocks(view))
+    assert "[Back to top](#page-top)" in [m.value for m in view.markdown]
+
+
+def test_the_plan_is_made_one_step_at_a_time_and_going_back_loses_nothing(view):
+    assert "Step 1 of 5" in all_text(view) and "**Outline (now)**" in all_text(view)
+    fill(view)
+    button(view, "Next: frame and options").click()
+    view.run()
+    assert "Step 2 of 5" in all_text(view) and "Outline (done) · **Frame and options (now)**" in all_text(view)
+    assert not [t for t in view.text_input if t.key == "article_title"]         # one thing on the screen at a time
+    view.text_area(key="article_conclusion_text").set_value("FIXTURE my closing words.")
+    view.checkbox(key="article_commentary").check()
+    view.run()
+    button(view, "Next: check the plan").click()
+    view.run()
+
+    plan = all_text(view)
+    assert "Step 3 of 5" in plan and "**FIXTURE harbour title**" in plan
+    assert "1. **FIXTURE first heading** — FIXTURE-A what does the harbour ledger say?" in plan
+    assert "- Introduction: left out" in plan and "- Conclusion: yours" in plan and "- Commentary: on" in plan
+    assert "Drafting makes 3 model call(s) for the sections and up to 0" in plan
+
+    button(view, "Back to frame and options").click()
+    view.run()
+    assert view.text_area(key="article_conclusion_text").value == "FIXTURE my closing words."
+    assert view.checkbox(key="article_commentary").value is True
+    button(view, "Back to the outline").click()
+    view.run()
+    assert view.text_input(key="article_title").value == "FIXTURE harbour title"
+    assert view.text_area(key="article_outline").value == OUTLINE
+    assert view.model.calls == [] and not view.out.exists()            # planning costs nothing and saves nothing
+
+
+def test_an_outline_that_is_not_ready_does_not_leave_the_first_step(view):
+    fill(view, title="")
+    button(view, "Next: frame and options").click()
+    view.run()
+
+    assert "Give the article a title." in all_text(view) and "Step 1 of 5" in all_text(view)
+
+
+def test_review_shows_one_note_at_a_time_and_saves_each_verdict_as_it_is_given(view):
+    draft(view)
+    assert "Step 4 of 5" in all_text(view) and button(view, "Previous").disabled
+
+    judge(view, ["partly"])
+    assert [note["verdict"] for note in record(view)["notes"]] == ["partly", None, None, None]     # saved at once
+    assert "**2 of 4** · judged so far: 1 of 4" in all_text(view)
+
+    button(view, "Save and next").click()                               # moving on without choosing judges nothing
+    view.run()
+    assert [note["verdict"] for note in record(view)["notes"]] == ["partly", None, None, None]
+    assert "**3 of 4** · judged so far: 1 of 4" in all_text(view)
+
+
+def test_an_answer_and_an_article_each_have_a_button_that_copies_them(view, monkeypatch):
+    draft(view)
+    finish(view)
+    (block,) = [b for b in html_blocks(view) if "sgrag-copy-button" in b]
+
+    assert ">Copy the article</button>" in block and 'role="status"' in block and 'aria-live="polite"' in block
+    assert json.dumps(article_file(view), ensure_ascii=False).replace("</", "<\\/") in block     # the article itself, whole
+    assert "document.execCommand(\"copy\")" in block                 # the fallback for a page served over plain http
+    assert "navigator.clipboard" in block
+
+    view.radio(key="view").set_value("Ask questions")
+    view.run()
+    monkeypatch.setattr(ask, "call_model", lambda question, items: (
+        payload("FIXTURE an answer </script> with a tag in it [E1].", ["E1"]), "fixturehash"))
+    view.chat_input[0].set_value("FIXTURE: what does the ledger say?")
+    view.run()
+    (answer,) = [b for b in html_blocks(view) if "sgrag-copy-button" in b]
+
+    assert ">Copy the answer</button>" in answer
+    assert "FIXTURE: what does the ledger say?" in answer and "with a tag in it ¹." in answer
+    assert "Sources:\\n1. " in answer                                   # the sources travel with it
+    assert "RETRIEVAL" not in answer and "score" not in answer and "──" not in answer      # the diagnostics do not
+    assert answer.count("</script>") == 1                               # text cannot close the script it sits in
+
+
+def test_starting_another_article_begins_from_a_clean_plan(view):
+    def options(at):
+        at.text_area(key="article_conclusion_text").set_value("FIXTURE my closing words.")
+        at.checkbox(key="article_editorial").check()
+
+    draft(view, options=options)
+    button(view, "Start another article").click()
+    view.run()
+    fill(view, title="FIXTURE a second title")
+    button(view, "Next: frame and options").click()
+    view.run()
+
+    assert view.text_area(key="article_conclusion_text").value == ""    # nothing carried over from the last article
+    assert view.checkbox(key="article_editorial").value is False

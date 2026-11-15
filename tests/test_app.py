@@ -90,7 +90,7 @@ def test_the_view_and_thesis_are_chosen_on_the_page_not_in_the_sidebar(app):
     assert not app.exception
     assert len(app.sidebar.radio) == 0
     assert len(app.sidebar.selectbox) == 0
-    assert app.radio[0].options == ["Ask questions", "Thesis library", "Write an article"]
+    assert app.radio[0].options == ["Ask", "Library", "Write"]
     assert app.selectbox[0].label == "Thesis"
 
 
@@ -201,7 +201,7 @@ def test_a_question_to_an_uploaded_thesis_is_cited_and_recorded_under_that_thesi
     text = all_text(app)
 
     assert not app.exception
-    assert "FIXTURE answer from the uploaded thesis ¹." in text
+    assert "FIXTURE answer from the uploaded thesis ¹." in text.replace("\u00a0", " ")
     assert "1. Fixture, A. (2001), " in text
     assert f"{settings.document_author} ({settings.document_year})" not in text
     assert record["document_id"] == document_id
