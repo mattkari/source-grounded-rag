@@ -298,11 +298,39 @@ def validate(result: dict, items: list[EvidenceItem]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def _pdf_pages(pages: list[int]) -> str:
+    """"PDF p. 67", "PDF pp. 66–67" for a run, "PDF pp. 28, 31" otherwise."""
+    if len(pages) == 1:
+        return f"PDF p. {pages[0]}"
+    if pages == list(range(pages[0], pages[-1] + 1)):
+        return f"PDF pp. {pages[0]}–{pages[-1]}"
+    return "PDF pp. " + ", ".join(str(page) for page in pages)
+
+
 def page_phrase(chunk: dict) -> str:
+    """The page reference a reader is shown. Everything in it is stored provenance.
+
+    A printed label appears only if it was stored for the first or last page of
+    the passage. A page with no printed number is never given one: it is named
+    by its PDF page, taken from the passage's own record of which of its pages
+    carry no number, and marked for verification (hard rules 2 and 6).
+    """
     start, end = chunk["page_start"], chunk["page_end"]
-    if start is None or end is None:
-        return f"page not printed on source page (PDF p. {chunk['pdf_page_start']}) [VERIFY]"
-    return f"p. {start}" if start == end else f"pp. {start}–{end}"
+    if start is not None and end is not None:
+        return f"p. {start}" if start == end else f"pp. {start}–{end}"
+
+    recorded = chunk.get("pages_unresolved")
+    span = list(range(chunk["pdf_page_start"], chunk["pdf_page_end"] + 1))
+    label = start if start is not None else end
+
+    if label is None:
+        # No printed number at either end. An older index did not record which
+        # pages lack one; the stored PDF range is then all that can be named.
+        return f"page not printed on source page ({_pdf_pages(recorded or span)}) [VERIFY]"
+    if recorded:
+        verb = "has" if len(recorded) == 1 else "have"
+        return f"p. {label} and {_pdf_pages(recorded)}, which {verb} no printed number [VERIFY]"
+    return f"p. {label} and {_pdf_pages(span)}, at least one of which has no printed number [VERIFY]"
 
 
 def footnote(index: int, item: EvidenceItem) -> str:
