@@ -205,7 +205,7 @@ def test_topics_come_from_printed_structure_and_leave_out_the_reference_list(chu
                                                  "FIXTURE canal survey"]
     assert (second.passages, second.pages, second.sections[0].passages) == (2, "pp. 12–14", 2)
     report = topics.format_topics(listed)
-    assert "FIXTURE unnumbered plate — 1 passages, pages not printed" in report
+    assert "FIXTURE unnumbered plate — 1 passage, pages not printed" in report
     assert " 2. FIXTURE second chapter — 2 passages, pp. 12–14  (thin: few passages)" in report
     assert "passage:" not in report                   # never the text of a passage
 
