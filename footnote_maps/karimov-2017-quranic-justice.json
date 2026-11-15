@@ -1,0 +1,1468 @@
+{
+ "schema_version": 1,
+ "document_id": "karimov-2017-quranic-justice",
+ "corpus_text_sha256": "2a2152cb5d5818e8557ed39663f5be42ac7d6ef7c81526a0054262e2fe519b55",
+ "footnotes_found": 213,
+ "pages_with_footnotes": 213,
+ "unclear_foot_blocks": 37,
+ "spans": {
+  "karimov-2017-quranic-justice::00006::9e881e2b9875": [
+   [
+    148,
+    226
+   ]
+  ],
+  "karimov-2017-quranic-justice::00014::5b7c168aec05": [
+   [
+    1736,
+    2266
+   ]
+  ],
+  "karimov-2017-quranic-justice::00015::e98bb0b625cb": [
+   [
+    1299,
+    2092
+   ]
+  ],
+  "karimov-2017-quranic-justice::00016::7ca0e6ed0134": [
+   [
+    1298,
+    2000
+   ]
+  ],
+  "karimov-2017-quranic-justice::00017::90e49163a0a9": [
+   [
+    1385,
+    1855
+   ]
+  ],
+  "karimov-2017-quranic-justice::00018::ccdcaa0a3c61": [
+   [
+    1235,
+    1567
+   ]
+  ],
+  "karimov-2017-quranic-justice::00019::4c6e5da11aae": [
+   [
+    1246,
+    2159
+   ]
+  ],
+  "karimov-2017-quranic-justice::00024::7366b493e672": [
+   [
+    321,
+    1113
+   ]
+  ],
+  "karimov-2017-quranic-justice::00025::30ed6c5e3da4": [
+   [
+    216,
+    922
+   ],
+   [
+    2917,
+    3013
+   ]
+  ],
+  "karimov-2017-quranic-justice::00026::22dd1b1d6cb5": [
+   [
+    127,
+    443
+   ]
+  ],
+  "karimov-2017-quranic-justice::00027::4e58dd50096c": [
+   [
+    372,
+    556
+   ],
+   [
+    2804,
+    2868
+   ]
+  ],
+  "karimov-2017-quranic-justice::00028::8790e9ac8daf": [
+   [
+    240,
+    521
+   ],
+   [
+    2664,
+    2913
+   ]
+  ],
+  "karimov-2017-quranic-justice::00029::60c32d159b09": [
+   [
+    0,
+    249
+   ],
+   [
+    2552,
+    2734
+   ]
+  ],
+  "karimov-2017-quranic-justice::00030::3fae84d09ccb": [
+   [
+    0,
+    171
+   ],
+   [
+    2261,
+    2419
+   ]
+  ],
+  "karimov-2017-quranic-justice::00031::34965dd04b40": [
+   [
+    1394,
+    1480
+   ]
+  ],
+  "karimov-2017-quranic-justice::00032::f37a689d5bac": [
+   [
+    1134,
+    1356
+   ]
+  ],
+  "karimov-2017-quranic-justice::00033::cb2e7625bdec": [
+   [
+    1345,
+    1375
+   ]
+  ],
+  "karimov-2017-quranic-justice::00034::79e8a19f98da": [
+   [
+    1420,
+    1430
+   ]
+  ],
+  "karimov-2017-quranic-justice::00035::6f68464850de": [
+   [
+    722,
+    735
+   ],
+   [
+    2405,
+    2783
+   ]
+  ],
+  "karimov-2017-quranic-justice::00036::63a4f055e3ad": [
+   [
+    0,
+    261
+   ]
+  ],
+  "karimov-2017-quranic-justice::00039::0a2ef0620acb": [
+   [
+    1925,
+    2175
+   ]
+  ],
+  "karimov-2017-quranic-justice::00040::6ecc831d4625": [
+   [
+    2310,
+    2362
+   ]
+  ],
+  "karimov-2017-quranic-justice::00041::6f9a3109012e": [
+   [
+    186,
+    238
+   ]
+  ],
+  "karimov-2017-quranic-justice::00042::69011883ffb3": [
+   [
+    292,
+    1335
+   ]
+  ],
+  "karimov-2017-quranic-justice::00045::f23c08e73524": [
+   [
+    347,
+    1166
+   ]
+  ],
+  "karimov-2017-quranic-justice::00046::c92e4a7a6ea5": [
+   [
+    1435,
+    1948
+   ]
+  ],
+  "karimov-2017-quranic-justice::00047::eaa26887917f": [
+   [
+    1544,
+    1884
+   ]
+  ],
+  "karimov-2017-quranic-justice::00050::5bc18b5c16db": [
+   [
+    291,
+    393
+   ]
+  ],
+  "karimov-2017-quranic-justice::00051::4303e22cf777": [
+   [
+    240,
+    758
+   ]
+  ],
+  "karimov-2017-quranic-justice::00052::3f29893c9411": [
+   [
+    2449,
+    2485
+   ]
+  ],
+  "karimov-2017-quranic-justice::00053::58eda5b7fcd6": [
+   [
+    1766,
+    1860
+   ]
+  ],
+  "karimov-2017-quranic-justice::00054::d520d72c0b59": [
+   [
+    1342,
+    1597
+   ]
+  ],
+  "karimov-2017-quranic-justice::00055::cca37cd0c4cd": [
+   [
+    1214,
+    1971
+   ]
+  ],
+  "karimov-2017-quranic-justice::00056::453d1dc8ab9f": [
+   [
+    1705,
+    2318
+   ]
+  ],
+  "karimov-2017-quranic-justice::00057::23f3894d55f2": [
+   [
+    2112,
+    2147
+   ]
+  ],
+  "karimov-2017-quranic-justice::00058::ef790f05a3f8": [
+   [
+    2255,
+    2328
+   ]
+  ],
+  "karimov-2017-quranic-justice::00059::0a3eba48f1d0": [
+   [
+    95,
+    179
+   ]
+  ],
+  "karimov-2017-quranic-justice::00060::30fb302c7d49": [
+   [
+    1920,
+    2100
+   ]
+  ],
+  "karimov-2017-quranic-justice::00062::f29b38d6e699": [
+   [
+    170,
+    963
+   ]
+  ],
+  "karimov-2017-quranic-justice::00063::d7a6f40c29c7": [
+   [
+    295,
+    443
+   ]
+  ],
+  "karimov-2017-quranic-justice::00064::16812d8bc44b": [
+   [
+    1397,
+    1802
+   ]
+  ],
+  "karimov-2017-quranic-justice::00065::6ace6475d258": [
+   [
+    1133,
+    1258
+   ]
+  ],
+  "karimov-2017-quranic-justice::00066::cb2abff3c4a4": [
+   [
+    350,
+    1434
+   ]
+  ],
+  "karimov-2017-quranic-justice::00067::23ee53403ec7": [
+   [
+    1010,
+    1407
+   ]
+  ],
+  "karimov-2017-quranic-justice::00068::9ee89388e120": [
+   [
+    421,
+    435
+   ],
+   [
+    2054,
+    2426
+   ]
+  ],
+  "karimov-2017-quranic-justice::00069::da5a366bef09": [
+   [
+    1356,
+    1594
+   ]
+  ],
+  "karimov-2017-quranic-justice::00072::ba3385e3d50b": [
+   [
+    1919,
+    2067
+   ]
+  ],
+  "karimov-2017-quranic-justice::00073::c032ba8a0188": [
+   [
+    2054,
+    2204
+   ]
+  ],
+  "karimov-2017-quranic-justice::00074::b145c4d69423": [
+   [
+    38,
+    286
+   ],
+   [
+    2351,
+    2550
+   ]
+  ],
+  "karimov-2017-quranic-justice::00075::7b83f0f5653a": [
+   [
+    0,
+    163
+   ],
+   [
+    1995,
+    2124
+   ]
+  ],
+  "karimov-2017-quranic-justice::00076::3e74ab5f4f82": [
+   [
+    1858,
+    2018
+   ]
+  ],
+  "karimov-2017-quranic-justice::00077::84754bd4c8bf": [
+   [
+    1554,
+    2015
+   ]
+  ],
+  "karimov-2017-quranic-justice::00078::8b13140e96fb": [
+   [
+    0,
+    242
+   ],
+   [
+    2360,
+    2431
+   ]
+  ],
+  "karimov-2017-quranic-justice::00079::e96c37b2f625": [
+   [
+    198,
+    347
+   ]
+  ],
+  "karimov-2017-quranic-justice::00080::626e5232fb37": [
+   [
+    352,
+    563
+   ]
+  ],
+  "karimov-2017-quranic-justice::00081::785b9fe8576c": [
+   [
+    498,
+    1183
+   ]
+  ],
+  "karimov-2017-quranic-justice::00082::03113da37bd4": [
+   [
+    1075,
+    1234
+   ]
+  ],
+  "karimov-2017-quranic-justice::00084::baadd37ea5a9": [
+   [
+    487,
+    722
+   ]
+  ],
+  "karimov-2017-quranic-justice::00085::1823e467fa72": [
+   [
+    786,
+    1302
+   ]
+  ],
+  "karimov-2017-quranic-justice::00086::552f9c089f75": [
+   [
+    1732,
+    1791
+   ]
+  ],
+  "karimov-2017-quranic-justice::00087::a07d272c4c4c": [
+   [
+    1488,
+    1931
+   ]
+  ],
+  "karimov-2017-quranic-justice::00088::df8314f0c8ff": [
+   [
+    1311,
+    1977
+   ]
+  ],
+  "karimov-2017-quranic-justice::00089::b70ed746baca": [
+   [
+    1875,
+    2236
+   ]
+  ],
+  "karimov-2017-quranic-justice::00090::56d5cc35051d": [
+   [
+    0,
+    134
+   ],
+   [
+    2104,
+    2279
+   ]
+  ],
+  "karimov-2017-quranic-justice::00091::8a1f7b932206": [
+   [
+    0,
+    182
+   ]
+  ],
+  "karimov-2017-quranic-justice::00092::ed7e58e4ef14": [
+   [
+    1205,
+    1637
+   ]
+  ],
+  "karimov-2017-quranic-justice::00093::851361601a1a": [
+   [
+    1628,
+    1969
+   ]
+  ],
+  "karimov-2017-quranic-justice::00095::2ab3e94a615e": [
+   [
+    1033,
+    1168
+   ]
+  ],
+  "karimov-2017-quranic-justice::00096::9b6516363b0d": [
+   [
+    1251,
+    1512
+   ]
+  ],
+  "karimov-2017-quranic-justice::00097::fbb7eb95778e": [
+   [
+    2009,
+    2118
+   ]
+  ],
+  "karimov-2017-quranic-justice::00098::9391af6d4fe5": [
+   [
+    0,
+    134
+   ]
+  ],
+  "karimov-2017-quranic-justice::00099::4a96e52658fe": [
+   [
+    173,
+    684
+   ]
+  ],
+  "karimov-2017-quranic-justice::00100::080ddcf07d93": [
+   [
+    334,
+    553
+   ]
+  ],
+  "karimov-2017-quranic-justice::00101::895833934e7c": [
+   [
+    1186,
+    1367
+   ]
+  ],
+  "karimov-2017-quranic-justice::00102::efc49943e124": [
+   [
+    1190,
+    1257
+   ]
+  ],
+  "karimov-2017-quranic-justice::00103::50ba55d4f233": [
+   [
+    986,
+    1089
+   ],
+   [
+    1635,
+    1745
+   ]
+  ],
+  "karimov-2017-quranic-justice::00108::4fa5ffc96e99": [
+   [
+    423,
+    1287
+   ]
+  ],
+  "karimov-2017-quranic-justice::00109::58916f9cc555": [
+   [
+    909,
+    1816
+   ]
+  ],
+  "karimov-2017-quranic-justice::00110::48f6b31726c5": [
+   [
+    1232,
+    2053
+   ]
+  ],
+  "karimov-2017-quranic-justice::00111::0d664e4ede51": [
+   [
+    1846,
+    2459
+   ]
+  ],
+  "karimov-2017-quranic-justice::00112::12d850d59a9e": [
+   [
+    0,
+    23
+   ],
+   [
+    1866,
+    2358
+   ]
+  ],
+  "karimov-2017-quranic-justice::00113::c0942ed87f8a": [
+   [
+    921,
+    2414
+   ]
+  ],
+  "karimov-2017-quranic-justice::00114::53156723c7d9": [
+   [
+    0,
+    217
+   ],
+   [
+    1849,
+    2401
+   ]
+  ],
+  "karimov-2017-quranic-justice::00115::ca1b88759e9a": [
+   [
+    0,
+    710
+   ],
+   [
+    2466,
+    2656
+   ]
+  ],
+  "karimov-2017-quranic-justice::00116::70263ab13278": [
+   [
+    0,
+    536
+   ],
+   [
+    2440,
+    2798
+   ]
+  ],
+  "karimov-2017-quranic-justice::00117::b975f0bc6505": [
+   [
+    0,
+    265
+   ],
+   [
+    2345,
+    2784
+   ]
+  ],
+  "karimov-2017-quranic-justice::00118::cdd91db1f5b6": [
+   [
+    0,
+    317
+   ],
+   [
+    2087,
+    2548
+   ]
+  ],
+  "karimov-2017-quranic-justice::00119::39357c9c5937": [
+   [
+    0,
+    597
+   ],
+   [
+    2124,
+    2406
+   ]
+  ],
+  "karimov-2017-quranic-justice::00120::d540b9af7fb8": [
+   [
+    0,
+    652
+   ]
+  ],
+  "karimov-2017-quranic-justice::00121::f6bcec24c987": [
+   [
+    1522,
+    2172
+   ]
+  ],
+  "karimov-2017-quranic-justice::00122::b9177da88827": [
+   [
+    0,
+    113
+   ],
+   [
+    1839,
+    2571
+   ]
+  ],
+  "karimov-2017-quranic-justice::00123::fe3021d2cd63": [
+   [
+    0,
+    41
+   ],
+   [
+    1768,
+    2221
+   ]
+  ],
+  "karimov-2017-quranic-justice::00124::5b602a995c99": [
+   [
+    1989,
+    2333
+   ]
+  ],
+  "karimov-2017-quranic-justice::00125::817c73884820": [
+   [
+    1925,
+    2270
+   ]
+  ],
+  "karimov-2017-quranic-justice::00126::d52acbd76297": [
+   [
+    2068,
+    2412
+   ]
+  ],
+  "karimov-2017-quranic-justice::00127::087d3058a4bd": [
+   [
+    0,
+    23
+   ],
+   [
+    2056,
+    2441
+   ]
+  ],
+  "karimov-2017-quranic-justice::00128::97eca5742ec3": [
+   [
+    1940,
+    2510
+   ]
+  ],
+  "karimov-2017-quranic-justice::00129::88f8443f53f1": [
+   [
+    0,
+    23
+   ],
+   [
+    2290,
+    2551
+   ]
+  ],
+  "karimov-2017-quranic-justice::00130::af6651806f7c": [
+   [
+    0,
+    33
+   ],
+   [
+    1909,
+    2195
+   ]
+  ],
+  "karimov-2017-quranic-justice::00131::c107e23badfd": [
+   [
+    1735,
+    2198
+   ]
+  ],
+  "karimov-2017-quranic-justice::00132::0fbadd821a73": [
+   [
+    1911,
+    2338
+   ]
+  ],
+  "karimov-2017-quranic-justice::00133::806f2f827229": [
+   [
+    1761,
+    2282
+   ]
+  ],
+  "karimov-2017-quranic-justice::00134::aa8dc1b63892": [
+   [
+    0,
+    90
+   ]
+  ],
+  "karimov-2017-quranic-justice::00135::c0007187a67f": [
+   [
+    939,
+    1278
+   ],
+   [
+    1897,
+    2034
+   ]
+  ],
+  "karimov-2017-quranic-justice::00136::b4c1ab9c2523": [
+   [
+    0,
+    59
+   ],
+   [
+    1218,
+    1650
+   ]
+  ],
+  "karimov-2017-quranic-justice::00137::370ce6800e8b": [
+   [
+    322,
+    585
+   ]
+  ],
+  "karimov-2017-quranic-justice::00138::80fc9ca54661": [
+   [
+    1029,
+    1121
+   ]
+  ],
+  "karimov-2017-quranic-justice::00139::a304f593b390": [
+   [
+    1793,
+    1893
+   ]
+  ],
+  "karimov-2017-quranic-justice::00141::8baf48d890b5": [
+   [
+    897,
+    1009
+   ]
+  ],
+  "karimov-2017-quranic-justice::00142::d1cdfa9b2d67": [
+   [
+    299,
+    532
+   ]
+  ],
+  "karimov-2017-quranic-justice::00143::0c87ae3e6bd7": [
+   [
+    1952,
+    2355
+   ]
+  ],
+  "karimov-2017-quranic-justice::00144::a6e22db94aba": [
+   [
+    1882,
+    1967
+   ]
+  ],
+  "karimov-2017-quranic-justice::00146::bd09aab02ae4": [
+   [
+    277,
+    487
+   ],
+   [
+    2459,
+    2608
+   ]
+  ],
+  "karimov-2017-quranic-justice::00147::5db85df84f7b": [
+   [
+    0,
+    161
+   ],
+   [
+    1422,
+    1630
+   ]
+  ],
+  "karimov-2017-quranic-justice::00149::c9ba6bfaf82b": [
+   [
+    914,
+    945
+   ]
+  ],
+  "karimov-2017-quranic-justice::00150::eb912756e894": [
+   [
+    296,
+    430
+   ],
+   [
+    2460,
+    2895
+   ]
+  ],
+  "karimov-2017-quranic-justice::00151::4d5f1719d742": [
+   [
+    0,
+    26
+   ],
+   [
+    2086,
+    2322
+   ]
+  ],
+  "karimov-2017-quranic-justice::00152::509918188771": [
+   [
+    1723,
+    2196
+   ]
+  ],
+  "karimov-2017-quranic-justice::00153::5e31c7c2c413": [
+   [
+    1502,
+    2111
+   ]
+  ],
+  "karimov-2017-quranic-justice::00154::d124b276c51d": [
+   [
+    1938,
+    2074
+   ]
+  ],
+  "karimov-2017-quranic-justice::00155::4b545bfd6ef7": [
+   [
+    544,
+    879
+   ]
+  ],
+  "karimov-2017-quranic-justice::00156::b258d8cda2f8": [
+   [
+    700,
+    734
+   ],
+   [
+    2726,
+    2845
+   ]
+  ],
+  "karimov-2017-quranic-justice::00157::db8a07089406": [
+   [
+    0,
+    201
+   ]
+  ],
+  "karimov-2017-quranic-justice::00158::3e29308e2be4": [
+   [
+    745,
+    1347
+   ]
+  ],
+  "karimov-2017-quranic-justice::00159::60c870c4ced3": [
+   [
+    927,
+    952
+   ],
+   [
+    2934,
+    2975
+   ]
+  ],
+  "karimov-2017-quranic-justice::00160::606c85677fd0": [
+   [
+    162,
+    203
+   ],
+   [
+    2072,
+    2299
+   ]
+  ],
+  "karimov-2017-quranic-justice::00161::a4a3d069e461": [
+   [
+    1246,
+    1354
+   ]
+  ],
+  "karimov-2017-quranic-justice::00162::87bd2f437723": [
+   [
+    710,
+    855
+   ],
+   [
+    2816,
+    2884
+   ]
+  ],
+  "karimov-2017-quranic-justice::00163::4e7a7b1f16ee": [
+   [
+    154,
+    222
+   ],
+   [
+    2058,
+    2392
+   ]
+  ],
+  "karimov-2017-quranic-justice::00164::5f6d3333a065": [
+   [
+    1310,
+    1431
+   ]
+  ],
+  "karimov-2017-quranic-justice::00165::b1407e45b90f": [
+   [
+    1502,
+    2164
+   ]
+  ],
+  "karimov-2017-quranic-justice::00166::67aab14c2e69": [
+   [
+    2000,
+    2025
+   ]
+  ],
+  "karimov-2017-quranic-justice::00167::95ad0549afb2": [
+   [
+    928,
+    1134
+   ]
+  ],
+  "karimov-2017-quranic-justice::00168::6fed404e895b": [
+   [
+    1823,
+    1918
+   ]
+  ],
+  "karimov-2017-quranic-justice::00171::e44e66d3b834": [
+   [
+    632,
+    723
+   ],
+   [
+    2503,
+    2846
+   ]
+  ],
+  "karimov-2017-quranic-justice::00172::76e30483a21d": [
+   [
+    934,
+    1272
+   ]
+  ],
+  "karimov-2017-quranic-justice::00173::3a45e21b29ae": [
+   [
+    663,
+    921
+   ]
+  ],
+  "karimov-2017-quranic-justice::00174::72361aca2046": [
+   [
+    1449,
+    1803
+   ]
+  ],
+  "karimov-2017-quranic-justice::00175::28d14592706f": [
+   [
+    1314,
+    1748
+   ]
+  ],
+  "karimov-2017-quranic-justice::00176::0cafeb7118b1": [
+   [
+    2021,
+    2346
+   ]
+  ],
+  "karimov-2017-quranic-justice::00177::37cce2c3875f": [
+   [
+    0,
+    90
+   ],
+   [
+    2118,
+    2422
+   ]
+  ],
+  "karimov-2017-quranic-justice::00178::7cf8124329af": [
+   [
+    0,
+    56
+   ],
+   [
+    1655,
+    2385
+   ]
+  ],
+  "karimov-2017-quranic-justice::00179::cf7a2fc97369": [
+   [
+    0,
+    521
+   ]
+  ],
+  "karimov-2017-quranic-justice::00180::9342ecdb0443": [
+   [
+    317,
+    622
+   ]
+  ],
+  "karimov-2017-quranic-justice::00181::d3dbc6f3fd49": [
+   [
+    246,
+    622
+   ]
+  ],
+  "karimov-2017-quranic-justice::00182::dd920643d594": [
+   [
+    255,
+    590
+   ]
+  ],
+  "karimov-2017-quranic-justice::00183::5a056f907e51": [
+   [
+    1098,
+    1737
+   ]
+  ],
+  "karimov-2017-quranic-justice::00184::19528f1bb66f": [
+   [
+    1516,
+    1936
+   ]
+  ],
+  "karimov-2017-quranic-justice::00185::f1491ab34054": [
+   [
+    2100,
+    2554
+   ]
+  ],
+  "karimov-2017-quranic-justice::00186::aa1de65d49d7": [
+   [
+    0,
+    405
+   ]
+  ],
+  "karimov-2017-quranic-justice::00187::1fa10a095c07": [
+   [
+    879,
+    1484
+   ]
+  ],
+  "karimov-2017-quranic-justice::00188::fe78e156f90c": [
+   [
+    946,
+    1309
+   ]
+  ],
+  "karimov-2017-quranic-justice::00189::6be2c76b8df5": [
+   [
+    738,
+    1464
+   ]
+  ],
+  "karimov-2017-quranic-justice::00190::1631dcfbd75f": [
+   [
+    1647,
+    1940
+   ]
+  ],
+  "karimov-2017-quranic-justice::00191::3b2cb99e4a97": [
+   [
+    1820,
+    2315
+   ]
+  ],
+  "karimov-2017-quranic-justice::00192::cdf7d94058af": [
+   [
+    0,
+    150
+   ]
+  ],
+  "karimov-2017-quranic-justice::00193::d4806b82f919": [
+   [
+    421,
+    630
+   ],
+   [
+    2643,
+    2698
+   ]
+  ],
+  "karimov-2017-quranic-justice::00194::8576800df1bc": [
+   [
+    194,
+    598
+   ]
+  ],
+  "karimov-2017-quranic-justice::00195::b01f5eb0c159": [
+   [
+    1157,
+    1414
+   ]
+  ],
+  "karimov-2017-quranic-justice::00196::db5bb0daf7d1": [
+   [
+    995,
+    1042
+   ]
+  ],
+  "karimov-2017-quranic-justice::00197::a970082d2588": [
+   [
+    314,
+    516
+   ],
+   [
+    2996,
+    3088
+   ]
+  ],
+  "karimov-2017-quranic-justice::00198::1b35657625a7": [
+   [
+    170,
+    376
+   ]
+  ],
+  "karimov-2017-quranic-justice::00199::badec02b99b9": [
+   [
+    737,
+    985
+   ]
+  ],
+  "karimov-2017-quranic-justice::00200::23166cc2c479": [
+   [
+    500,
+    1208
+   ]
+  ],
+  "karimov-2017-quranic-justice::00201::80b1ff7a8cf5": [
+   [
+    1012,
+    1190
+   ]
+  ],
+  "karimov-2017-quranic-justice::00202::eb9722e701ed": [
+   [
+    1264,
+    1425
+   ]
+  ],
+  "karimov-2017-quranic-justice::00203::9d6656e8afe3": [
+   [
+    914,
+    998
+   ]
+  ],
+  "karimov-2017-quranic-justice::00204::b2497473962c": [
+   [
+    839,
+    1009
+   ]
+  ],
+  "karimov-2017-quranic-justice::00205::453473e45c43": [
+   [
+    275,
+    633
+   ],
+   [
+    2739,
+    2831
+   ]
+  ],
+  "karimov-2017-quranic-justice::00206::f91c698dbe6f": [
+   [
+    252,
+    558
+   ]
+  ],
+  "karimov-2017-quranic-justice::00207::e59e01e30754": [
+   [
+    496,
+    760
+   ],
+   [
+    2939,
+    2973
+   ]
+  ],
+  "karimov-2017-quranic-justice::00208::e5ef3962e1fe": [
+   [
+    369,
+    447
+   ]
+  ],
+  "karimov-2017-quranic-justice::00209::113beb8f8402": [
+   [
+    784,
+    848
+   ]
+  ],
+  "karimov-2017-quranic-justice::00210::d35646aac5a1": [
+   [
+    506,
+    693
+   ]
+  ],
+  "karimov-2017-quranic-justice::00211::c56ddce0413f": [
+   [
+    1215,
+    1226
+   ]
+  ],
+  "karimov-2017-quranic-justice::00212::44d18d0f8acf": [
+   [
+    560,
+    594
+   ]
+  ],
+  "karimov-2017-quranic-justice::00215::fcb973cf6ecb": [
+   [
+    1750,
+    1837
+   ]
+  ],
+  "karimov-2017-quranic-justice::00216::943ffed556ad": [
+   [
+    1343,
+    1396
+   ]
+  ],
+  "karimov-2017-quranic-justice::00217::5575a01fd3a6": [
+   [
+    1589,
+    1708
+   ]
+  ],
+  "karimov-2017-quranic-justice::00218::09d4cf31afff": [
+   [
+    1734,
+    1947
+   ]
+  ],
+  "karimov-2017-quranic-justice::00219::7fc6c529900e": [
+   [
+    1890,
+    1977
+   ]
+  ],
+  "karimov-2017-quranic-justice::00220::ed0bb38a80f9": [
+   [
+    1825,
+    2196
+   ]
+  ],
+  "karimov-2017-quranic-justice::00221::8f5d0a101920": [
+   [
+    1590,
+    1972
+   ]
+  ],
+  "karimov-2017-quranic-justice::00222::2c423c7f6217": [
+   [
+    2342,
+    2453
+   ]
+  ],
+  "karimov-2017-quranic-justice::00224::f8f82d66649d": [
+   [
+    771,
+    908
+   ]
+  ],
+  "karimov-2017-quranic-justice::00225::e51c939cbcca": [
+   [
+    337,
+    882
+   ]
+  ],
+  "karimov-2017-quranic-justice::00226::604c9f97f390": [
+   [
+    858,
+    1145
+   ]
+  ],
+  "karimov-2017-quranic-justice::00227::fced4f66a84c": [
+   [
+    1288,
+    1935
+   ]
+  ],
+  "karimov-2017-quranic-justice::00229::1e948e694c83": [
+   [
+    1333,
+    1648
+   ]
+  ],
+  "karimov-2017-quranic-justice::00230::7d94e3a303f4": [
+   [
+    1288,
+    1631
+   ]
+  ],
+  "karimov-2017-quranic-justice::00231::b2f46de7790b": [
+   [
+    1232,
+    1703
+   ]
+  ],
+  "karimov-2017-quranic-justice::00232::5b08a0bbf777": [
+   [
+    1346,
+    1595
+   ]
+  ],
+  "karimov-2017-quranic-justice::00233::0a4c3f1e3b29": [
+   [
+    1267,
+    1583
+   ]
+  ],
+  "karimov-2017-quranic-justice::00234::b12cfdc75eb4": [
+   [
+    1369,
+    1958
+   ]
+  ],
+  "karimov-2017-quranic-justice::00235::2cde19a3e30d": [
+   [
+    1503,
+    1866
+   ]
+  ],
+  "karimov-2017-quranic-justice::00236::bc507d2451e4": [
+   [
+    1055,
+    1281
+   ]
+  ],
+  "karimov-2017-quranic-justice::00237::5f187cd81779": [
+   [
+    777,
+    1613
+   ]
+  ],
+  "karimov-2017-quranic-justice::00238::df9eb705742a": [
+   [
+    1664,
+    1838
+   ]
+  ],
+  "karimov-2017-quranic-justice::00239::182760ec784b": [
+   [
+    1426,
+    2201
+   ]
+  ],
+  "karimov-2017-quranic-justice::00240::69d47c97841a": [
+   [
+    0,
+    403
+   ]
+  ],
+  "karimov-2017-quranic-justice::00241::9b8ef03c5f08": [
+   [
+    565,
+    779
+   ]
+  ],
+  "karimov-2017-quranic-justice::00242::6b3481b2f8fd": [
+   [
+    507,
+    689
+   ]
+  ],
+  "karimov-2017-quranic-justice::00243::97c863360837": [
+   [
+    958,
+    1249
+   ]
+  ],
+  "karimov-2017-quranic-justice::00247::fda6fa1255af": [
+   [
+    1849,
+    2051
+   ]
+  ],
+  "karimov-2017-quranic-justice::00248::41df5f6d6a04": [
+   [
+    1884,
+    2074
+   ]
+  ],
+  "karimov-2017-quranic-justice::00249::8315314056c9": [
+   [
+    1859,
+    2069
+   ]
+  ],
+  "karimov-2017-quranic-justice::00250::4c4aad2f8782": [
+   [
+    1978,
+    2508
+   ]
+  ],
+  "karimov-2017-quranic-justice::00252::47588ac958a4": [
+   [
+    894,
+    1155
+   ]
+  ],
+  "karimov-2017-quranic-justice::00253::b3ae2b58c187": [
+   [
+    1324,
+    1399
+   ]
+  ],
+  "karimov-2017-quranic-justice::00255::7f744bd54d3e": [
+   [
+    185,
+    233
+   ]
+  ],
+  "karimov-2017-quranic-justice::00256::292161947ccb": [
+   [
+    1044,
+    1078
+   ]
+  ],
+  "karimov-2017-quranic-justice::00257::e8e825d1f5d0": [
+   [
+    2695,
+    2831
+   ]
+  ],
+  "karimov-2017-quranic-justice::00258::96eed78dda97": [
+   [
+    0,
+    365
+   ]
+  ],
+  "karimov-2017-quranic-justice::00259::ed61b0ad5323": [
+   [
+    236,
+    556
+   ]
+  ],
+  "karimov-2017-quranic-justice::00260::581734c8a0bd": [
+   [
+    2425,
+    2605
+   ]
+  ]
+ }
+}

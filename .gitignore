@@ -14,3 +14,7 @@ __pycache__/
 
 # Drafted articles (PLAN_V6): researcher-reviewed output, kept local.
 output/
+# Footnote maps (PLAN_V6 §7): chunk ids and character offsets, no text. The
+# built-in thesis's map is committed; maps of uploaded theses are rebuilt locally.
+footnote_maps/*
+!footnote_maps/karimov-2017-quranic-justice.json

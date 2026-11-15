@@ -277,35 +277,42 @@ What to know before relying on it:
 - The measurement rules, their cut-offs, and what running them on the built-in thesis revealed are
   in [`docs/decisions/0003-automatic-layout-measurement.md`](docs/decisions/0003-automatic-layout-measurement.md).
 
-## Drafting an article from the thesis (trial)
+## Drafting an article from the thesis
 
-Sprint W0 of [`docs/plans/PLAN_V6.md`](docs/plans/PLAN_V6.md): a command-line trial, no web page yet.
-It exists to answer one question before anything more is built: does an assembled draft read like an
-article you would put your name to?
+[`docs/plans/PLAN_V6.md`](docs/plans/PLAN_V6.md). The article writer turns what a thesis says into a
+draft for general readers in which every claim carries a note back to a printed page. It drafts; you
+decide and publish. Nothing is posted anywhere.
 
 ```bash
 python scripts/article_trial.py --topics          # what the thesis covers; no model call
+python scripts/article_trial.py --sources         # what the footnote filter leaves to draft from; no model call
 python scripts/article_trial.py --chapter <n> --title "<your title>" --reference <your_writing.md>
 ```
 
-The second command drafts three sections and their frame and spends API credit: one embedding call
-and one model call per section, plus one model call for each generated introduction, transition and
-conclusion. Nothing is retried. It writes `output/articles/<id>/article.md` and `record.json`;
-`output/` is ignored by git.
+The third command drafts an article and spends API credit: one embedding call and one model call per
+section, plus one model call for each generated introduction, transition and conclusion. Nothing is
+retried. It writes `output/articles/<id>/article.md` and `record.json`; `output/` is ignored by git.
 
 - **Every section goes through `ask.run_query`**, so facts come only from retrieved passages and are
   validated as any answer is. A section that fails validation, is refused, or contains a table is
   left out, and the reason is printed and recorded.
-- **Introduction, transitions and conclusion** are drafted only from passages the sections already
-  cite. Nothing new is retrieved. They, and the model's own inferences, open with the words
-  "Commentary (the article's own reading, not the author's):".
-- **Notes are plain `[n]` markers** with a Sources list resolved from stored provenance. The article
-  opens with a DRAFT line until you have checked the notes.
+- **Footnotes and the reference list are never drafted from.** A footnote usually cites another
+  writer, and the built-in index holds the thesis's footnotes as body text. `article/sources.py` cuts
+  footnote text out of what the model sees, leaves out reference-list passages, and leaves out a
+  passage that is mostly footnote. The index itself is never changed: the filter is a side file of
+  passage ids and character offsets (`footnote_maps/`), with no text of the thesis in it. Every
+  exclusion is counted and shown. It is a heuristic about the shape of a page, tested on one thesis.
+- **Introduction, transitions and conclusion** are either your own words or drafted only from
+  passages the sections already cite. Nothing new is retrieved. Generated ones, and the model's own
+  inferences, open with the words "Commentary (the article's own reading, not the author's):". A
+  generated sentence that carries no note is raised for you to check.
+- **Notes are plain `[n]` markers** with a Sources list resolved from stored provenance, in a form
+  Medium can import: no tables, no footnotes.
+- **Your verdicts.** Each note is judged *supports*, *partly* or *does not*. The article is marked
+  DRAFT until every note has a verdict. A note judged *does not* keeps it a draft until its sentences
+  are removed; the verdict stays in the record. The record gives the counts.
 - **Voice** is reported as plain counts beside the same counts for your own writing (`--reference`).
   There is no score and no threshold: whether it is close enough is your call.
-- **Footnote text.** The built-in index holds the thesis's footnotes as body text. The trial counts
-  how many of the passages it cited contain footnote text. It does not yet filter them: that is a
-  requirement of Sprint W1, so read a trial draft knowing a note may point at another writer's words.
 
 ## Evaluation
 

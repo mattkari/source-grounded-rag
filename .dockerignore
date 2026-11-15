@@ -41,4 +41,3 @@ requirements-dev.txt
 
 # Drafted articles stay on the machine that drafted them.
 output/
-article/
