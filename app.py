@@ -381,6 +381,7 @@ def attempt(action, *args, **kwargs) -> bool:
 
 def refresh() -> None:
     load_collection.clear()
+    cost_estimate.clear()
     st.rerun()
 
 
@@ -452,6 +453,14 @@ def render_remove(record: dict) -> None:
             refresh()
 
 
+@st.cache_data(show_spinner="Counting what would be sent for embedding…")
+def cost_estimate(document_id: str, audited_hash: str | None) -> dict:
+    """The estimate re-reads the whole PDF, so it is worked out once per audited
+    extraction and not on every redraw. It is for display only: `upload.build_index`
+    re-derives and re-checks the passages itself before anything is sent."""
+    return upload.estimate_cost(document_id)
+
+
 def render_record(record: dict) -> None:
     key, state = record["document_id"], record["state"]
     name = record["identity"]["title"] or record["source_filename"]
@@ -502,7 +511,7 @@ def render_record(record: dict) -> None:
             if failures:
                 st.warning(f"The last attempt to embed failed: `{failures[-1]['detail']}`", icon="⚠️")
             try:
-                estimate = upload.estimate_cost(key)
+                estimate = cost_estimate(key, record.get("audited_corpus_sha256"))
             except upload.UploadRefused as exc:
                 st.error(str(exc))
                 estimate = None

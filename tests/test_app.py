@@ -239,3 +239,24 @@ def test_removing_a_thesis_needs_a_tick_and_then_deletes_it(app, library):
     assert upload.list_records() == []
     assert not any(p.is_dir() for p in library.path.iterdir())
     assert "No thesis has been uploaded yet." in all_text(app)
+
+
+def test_ticking_the_cost_box_does_not_re_extract_the_thesis(app, monkeypatch):
+    """The estimate re-reads the whole PDF. Done on every redraw, a tick on a slow
+    machine looks like a box that does not work."""
+    add_thesis(app)
+    confirm_and_approve(app)
+    calls = []
+    real = upload.estimate_cost
+    monkeypatch.setattr(upload, "estimate_cost", lambda key: calls.append(key) or real(key))
+    app.run()
+    counted = len(calls)
+
+    box = next(c for c in app.checkbox if c.label == "I accept this cost")
+    box.check()
+    app.run()
+    app.run()
+
+    assert next(c for c in app.checkbox if c.label == "I accept this cost").value is True
+    assert button(app, "Embed and index").disabled is False
+    assert len(calls) == counted <= 1                  # redraws reuse the estimate already shown
