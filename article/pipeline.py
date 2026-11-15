@@ -20,13 +20,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ask
-from article import assemble, checks, sources, topics, voice
+from article import assemble, checks, sentences, sources, topics, voice
 from article.assemble import GENERATED, RESEARCHER, VERDICTS, FrameElement, SectionDraft
 from documents import Document, default_document
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "output" / "articles"
-SCHEMA_VERSION = 3
-READABLE_SCHEMAS = (2, 3)      # 2: before plans and step-by-step saving; read as finished
+SCHEMA_VERSION = 4
+READABLE_SCHEMAS = (2, 3, 4)      # 2: before plans and step-by-step saving; read as finished
 MIN_SECTIONS, MAX_SECTIONS = 3, 6
 DRAFTING, DRAFT, REVIEWED = "drafting", "draft", "reviewed"
 FRAME_ORIGINS = (RESEARCHER, GENERATED, "none")
@@ -214,6 +214,10 @@ class Draft:
     # The plan, fixed before the first call, so an interrupted draft can be resumed
     # from its record (ADR 0005). `frame_plan` maps introduction / transitions /
     # conclusion to "researcher", "generated" or "none".
+    # Sentence by sentence (ADR 0008). An edit is {"text": str | None, "original": str,
+    # "edited_at": iso}; text None means the researcher deleted the sentence.
+    sentence_edits: dict[str, dict] = field(default_factory=dict)
+    own_words: dict[str, dict] = field(default_factory=dict)     # sid -> {"kept_at": iso}: unnoted, kept as theirs
     frame_plan: dict[str, str] = field(default_factory=dict)
     editorial: bool = False
     frame_done: set[str] = field(default_factory=set)   # generated frame steps already made
@@ -329,6 +333,7 @@ def render(workspace: Workspace, draft: Draft) -> assemble.Article:
             introduction=draft.introduction, transitions=draft.transitions, conclusion=draft.conclusion,
             reviewed=reviewed, removed=draft.removed, commentary=draft.commentary,
             commentary_rejected={i for i, v in draft.commentary_verdicts.items() if v["verdict"] == "reject"},
+            edits=draft.sentence_edits, own_words=set(draft.own_words),
         )
 
     article = build(False)
@@ -341,8 +346,8 @@ def status(draft: Draft, article: assemble.Article) -> str:
     While steps of the plan remain it is still being drafted."""
     if not draft.complete:
         return DRAFTING
-    if not article.notes:
-        return DRAFT
+    if not article.notes or article.held_back:
+        return DRAFT                                      # a sentence with no note is still waiting for a decision
     for entry in article.commentary:
         if entry["printed"] and draft.commentary_verdicts.get(entry["section"], {}).get("verdict") != "accept":
             return DRAFT
@@ -358,6 +363,33 @@ def set_verdict(draft: Draft, chunk_id: str, verdict: str, reason: str = "") -> 
         "reason": reason.strip(),
         "judged_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _unit(draft: Draft, sid: str):
+    section = draft.sections[int(sid.split(".")[0])]
+    return next(unit for unit in sentences.units(int(sid.split(".")[0]), assemble.base_text(section)) if unit.sid == sid)
+
+
+def delete_sentence(draft: Draft, sid: str) -> None:
+    """Take a sentence out of the article. The record keeps what it said."""
+    original = draft.sentence_edits.get(sid, {}).get("original", _unit(draft, sid).text)
+    draft.sentence_edits[sid] = {"text": None, "original": original, "edited_at": _now()}
+    draft.own_words.pop(sid, None)
+
+
+def keep_as_own_words(draft: Draft, sid: str) -> None:
+    """A sentence with no note may stay only as the researcher's own words. It is
+    printed without a note and recorded with origin "researcher": no claim of
+    support is made for it."""
+    unit = _unit(draft, sid)
+    current = draft.sentence_edits.get(sid, {}).get("text", unit.text)
+    if current is None or sentences.handles(current):
+        raise ArticleError("Only a sentence that carries no note can be kept as your own words.")
+    draft.own_words[sid] = {"kept_at": _now()}
 
 
 COMMENTARY_VERDICTS = ("accept", "reject")
@@ -507,6 +539,12 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "blocked": article.blocked,
         "frame_sentences_without_a_note": article.unnoted,
         "limitations_kept_in_record_only": article.limits_held_back,
+        "sentences": {
+            "held_back_without_a_note": article.held_back,
+            "kept_as_own_words": [{**entry, "origin": RESEARCHER, **draft.own_words[entry["sid"]]}
+                                  for entry in article.own_words],
+            "edits": {sid: {**edit, "edited_by": RESEARCHER} for sid, edit in draft.sentence_edits.items()},
+        },
         "em_dashes_in_print": em_dashes(draft),
         "notes": notes,
         "support": assemble.support_rate(notes),
@@ -605,6 +643,10 @@ def load(folder: Path, workspace: Workspace) -> Draft:
             for note in record["notes"] if note["verdict"]
         },
         removed={note["chunk_id"] for note in record["notes"] if note["sentences_removed"]},
+        sentence_edits={sid: {key: edit[key] for key in ("text", "original", "edited_at")}
+                        for sid, edit in record.get("sentences", {}).get("edits", {}).items()},
+        own_words={entry["sid"]: {"kept_at": entry["kept_at"]}
+                   for entry in record.get("sentences", {}).get("kept_as_own_words", [])},
         commentary=record.get("commentary_switched_on", False),
         commentary_verdicts={
             index: {"verdict": entry["commentary"]["verdict"], "judged_at": entry["commentary"]["judged_at"]}

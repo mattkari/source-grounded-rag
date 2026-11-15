@@ -554,3 +554,21 @@ def test_starting_another_article_begins_from_a_clean_plan(view):
 
     assert view.text_area(key="article_conclusion_text").value == ""    # nothing carried over from the last article
     assert view.checkbox(key="article_editorial").value is False
+
+
+# --- ADR 0008: sentence by sentence --------------------------------------------------------------
+
+
+def test_a_sentence_with_no_note_is_put_to_the_researcher_before_anything_else(view):
+    view.model.script["FIXTURE-C"] = payload("FIXTURE the timetable changed [E4]. FIXTURE this shaped the town.", ["E4"])
+    draft(view)
+
+    assert "FIXTURE this shaped the town" not in article_file(view)
+    assert "**A sentence with no note**, in “FIXTURE third heading”" in all_text(view)
+    assert "it is not printed" in all_text(view) and "**1 of 5**" in all_text(view)
+    button(view, "Keep it as my own words").click()
+    view.run()
+
+    assert "FIXTURE the timetable changed [4]. FIXTURE this shaped the town." in article_file(view)
+    assert record(view)["sentences"]["kept_as_own_words"][0]["origin"] == "researcher"
+    assert "**1 of 4**" in all_text(view)                               # only the notes are left to judge

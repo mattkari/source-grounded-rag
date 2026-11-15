@@ -968,11 +968,13 @@ def render_section_choices(workspace: pipeline.Workspace, draft: pipeline.Draft)
 def review_items(article: assemble.Article) -> list[tuple[str, dict]]:
     """Everything that needs the researcher's verdict, in reading order: the notes,
     then each commentary paragraph that is printed."""
-    return [("note", note) for note in article.notes] + [
+    return [("held", held) for held in article.held_back] + [("note", note) for note in article.notes] + [
         ("commentary", entry) for entry in article.commentary if entry["printed"]]
 
 
 def is_judged(draft: pipeline.Draft, kind: str, item: dict) -> bool:
+    if kind == "held":
+        return False                                    # it leaves the list once deleted or kept
     if kind == "note":
         return bool(draft.verdicts.get(item["chunk_id"], {}).get("verdict"))
     return bool(draft.commentary_verdicts.get(item["section"], {}).get("verdict"))
@@ -1010,6 +1012,29 @@ def render_note(workspace: pipeline.Workspace, draft: pipeline.Draft, article: a
         if verdict != NOT_JUDGED and (verdict, reason.strip()) != (recorded.get("verdict"), recorded.get("reason")):
             pipeline.set_verdict(draft, note["chunk_id"], verdict, reason)
     return save
+
+
+def render_held_back(workspace: pipeline.Workspace, draft: pipeline.Draft, held: dict):
+    """A sentence of section prose with no note. It is not printed until the researcher
+    decides: nothing here may pass as sourced that is not."""
+    st.markdown(f"**A sentence with no note**, in “{held['heading']}”")
+    st.markdown(f"> {held['text']}")
+    st.warning(
+        "This sentence cites no passage, so it is not printed. Delete it, or keep it as your own "
+        "words: it is then printed without a note and recorded as yours, not as the thesis's."
+    )
+    keep, drop = st.columns(2)
+    with keep:
+        if st.button("Keep it as my own words", key=f"article_keep_own_{held['sid']}", use_container_width=True):
+            pipeline.keep_as_own_words(draft, held["sid"])
+            persist(workspace, draft)
+            st.rerun()
+    with drop:
+        if st.button("Delete this sentence", key=f"article_delete_{held['sid']}", use_container_width=True):
+            pipeline.delete_sentence(draft, held["sid"])
+            persist(workspace, draft)
+            st.rerun()
+    return lambda: None
 
 
 def render_commentary(draft: pipeline.Draft, entry: dict):
@@ -1050,7 +1075,9 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
     )
     st.markdown(f"**{index + 1} of {len(items)}** · judged so far: {judged} of {len(items)}")
     with st.container(border=True):
-        save = render_note(workspace, draft, article, item) if kind == "note" else render_commentary(draft, item)
+        save = (render_held_back(workspace, draft, item) if kind == "held"
+                else render_note(workspace, draft, article, item) if kind == "note"
+                else render_commentary(draft, item))
     back, forward = st.columns(2)
     with back:
         if st.button("Previous", disabled=index == 0, use_container_width=True):

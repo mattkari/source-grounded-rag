@@ -665,10 +665,13 @@ def test_the_assembled_article_never_holds_a_raw_handle_whatever_was_let_through
     section = pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])
     monkeypatch.setattr(assemble, "block_reason", lambda outcome, error=None: None)
     monkeypatch.setattr(ask, "MARKER_RE", re.compile(r"\[E(1)\]"))     # and a renumberer that leaves [E9] behind
-    text = pipeline.render(workspace, pipeline.Draft("FIXTURE title", [section])).markdown
+    article = pipeline.render(workspace, pipeline.Draft("FIXTURE title", [section]))
+    text = article.markdown
 
     assert "FIXTURE oil [1]." in text and "[E" not in text
-    assert text.count(ask.UNRESOLVED_NOTE) == 2
+    # Since ADR 0008 a sentence with no handle that resolves is not printed at all.
+    assert [held["text"] for held in article.held_back] == ["FIXTURE balance [E1, E2].", "FIXTURE more [E9]."]
+    assert ask.scrub_handles("FIXTURE [E1, E2] and [E9].").count(ask.UNRESOLVED_NOTE) == 2
 
 
 def test_the_prompts_state_the_handle_format_and_their_new_versions_are_what_is_recorded(workspace, monkeypatch):
@@ -721,3 +724,80 @@ def test_a_rewrite_accepted_before_the_fix_gives_way_to_the_original_when_reopen
 
     assert "FIXTURE the keeper logged lamp oil [1]. FIXTURE the oil came in winter [2]." in text      # the validated original
     assert "[E" not in text and ask.UNRESOLVED_NOTE not in text
+
+
+# =====================================================================================
+# ADR 0008, item 1: every sourced sentence carries a note
+# =====================================================================================
+
+UNNOTED = ("FIXTURE the keeper logged lamp oil [E1]. FIXTURE the oil came in winter [E2]. "
+           "FIXTURE this is why the harbour prospered.")
+
+
+def one_section(workspace, monkeypatch, answer, **options):
+    scripted(monkeypatch, lighthouse=payload(answer, cites=sorted(set(re.findall(r"E\d+", answer))), **options))
+    return pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+
+
+def test_a_sentence_with_no_note_is_held_back_and_not_printed_as_sourced_prose(workspace, monkeypatch):
+    """The sixth error of the first published draft: the last sentence of a section
+    carried no handle, passed validation (the section cited something), and was printed."""
+    draft = one_section(workspace, monkeypatch, UNNOTED)
+    article = pipeline.render(workspace, draft)
+
+    assert draft.sections[0].outcome.failures == [] and article.blocked == []       # the section itself is sound
+    assert "this is why the harbour prospered" not in article.markdown
+    assert "FIXTURE the keeper logged lamp oil [1]. FIXTURE the oil came in winter [2]." in article.markdown
+    assert article.held_back == [{"sid": "0.2", "section": 0, "heading": "FIXTURE heading",
+                                  "text": "FIXTURE this is why the harbour prospered."}]
+    assert pipeline.status(draft, article) == "draft"
+
+
+def test_a_held_back_sentence_keeps_the_article_in_draft_until_it_is_deleted_or_kept(workspace, monkeypatch):
+    draft = one_section(workspace, monkeypatch, UNNOTED)
+    for note in pipeline.render(workspace, draft).notes:
+        pipeline.set_verdict(draft, note["chunk_id"], "supports")
+    assert pipeline.status(draft, pipeline.render(workspace, draft)) == "draft"     # judged, but one sentence waits
+
+    pipeline.delete_sentence(draft, "0.2")
+    deleted = pipeline.render(workspace, draft)
+    assert deleted.held_back == [] and "prospered" not in deleted.markdown
+    assert pipeline.status(draft, deleted) == "reviewed"
+    edit = pipeline.build_record(workspace, draft, deleted)["sentences"]["edits"]["0.2"]
+    assert (edit["text"], edit["original"], edit["edited_by"]) == (None, "FIXTURE this is why the harbour prospered.", "researcher")
+
+
+def test_a_sentence_kept_as_the_researchers_own_words_is_printed_without_a_note_and_recorded_as_theirs(workspace, monkeypatch):
+    draft = one_section(workspace, monkeypatch, UNNOTED)
+    with pytest.raises(pipeline.ArticleError):
+        pipeline.keep_as_own_words(draft, "0.0")                        # a sourced sentence is not the researcher's
+    pipeline.keep_as_own_words(draft, "0.2")
+    article = pipeline.render(workspace, draft)
+    kept = pipeline.build_record(workspace, draft, article)["sentences"]["kept_as_own_words"]
+
+    assert "FIXTURE the oil came in winter [2]. FIXTURE this is why the harbour prospered." in article.markdown
+    assert article.held_back == [] and len(article.notes) == 2          # it adds no note
+    assert [(k["sid"], k["origin"], k["text"]) for k in kept] == [("0.2", "researcher", "FIXTURE this is why the harbour prospered.")]
+    assert kept[0]["kept_at"].startswith("20")
+
+
+def test_what_was_decided_about_a_sentence_survives_saving_and_reopening(workspace, monkeypatch, tmp_path):
+    draft = one_section(workspace, monkeypatch, UNNOTED + " FIXTURE and so it goes.")
+    pipeline.keep_as_own_words(draft, "0.2")
+    pipeline.delete_sentence(draft, "0.3")
+    reopened = pipeline.load(pipeline.save(workspace, draft, tmp_path / "out"), workspace)
+
+    assert reopened.own_words.keys() == {"0.2"} and reopened.sentence_edits["0.3"]["text"] is None
+    assert pipeline.render(workspace, reopened).markdown == pipeline.render(workspace, draft).markdown
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("FIXTURE one thing [E1]. FIXTURE another [E2].", 2),
+    ("FIXTURE the scholar (d. 1111) wrote much, e.g. on lamps [E1]. FIXTURE another [E2].", 2),
+    ("FIXTURE as A. Harland wrote, oil is dear [E1]. al-FIXTURE agreed [E2].", 2),
+    ("FIXTURE one thing. [E1] FIXTURE another [E2].", 2),
+    ("FIXTURE is it so? FIXTURE it is [E1]!", 2),
+])
+def test_sentences_are_split_at_their_ends_and_not_at_abbreviations(text, expected):
+    from article import sentences
+    assert len(sentences.split(text)) == expected
