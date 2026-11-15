@@ -50,6 +50,10 @@ class Scripted:
 
     def __call__(self, question, items, instructions=None):
         self.calls.append(question)
+        if instructions and instructions.startswith("EDITORIAL TASK"):
+            self.edits = getattr(self, "edits", 0) + 1
+            key = next(key for key in self.script if key in question)
+            return self.script.get(f"EDIT:{key}", self.script[key]), "fixturehash"
         return next(value for key, value in self.script.items() if key in question), "fixturehash"
 
 
@@ -340,3 +344,23 @@ def test_commentary_is_off_until_switched_on_and_then_waits_for_a_verdict(view):
     assert assemble.COMMENTARY_LABEL not in article_file(view)
     assert record(view)["sections"][0]["commentary"]["verdict"] == "reject"
     assert len(view.model.calls) == 3
+
+
+# --- the editorial pass (ADR 0005) -----------------------------------------------------------
+
+
+def test_the_editorial_pass_is_off_by_default_and_shows_what_it_kept_and_what_it_rejected(view):
+    view.model.script["EDIT:FIXTURE-B"] = payload("FIXTURE the calendar, moreover, lists rootstock [E3].", ["E3"])
+    view.model.script["EDIT:FIXTURE-C"] = payload("FIXTURE Harland changed the timetable [E4].", ["E4"])
+    assert view.checkbox(key="article_editorial").value is False
+    view.checkbox(key="article_editorial").check()
+    draft(view)
+    text, saved = article_file(view), record(view)
+
+    assert len(view.model.calls) == 6 and view.model.edits == 3         # one more call per section, once
+    assert "FIXTURE the calendar, moreover, lists rootstock [3]." in text
+    assert "FIXTURE the timetable changed [4]." in text and "Harland" not in text      # rejected: the original stands
+    assert [s["editorial"]["accepted"] for s in saved["sections"]] == [True, True, False]
+    assert saved["sections"][2]["editorial"]["rejected_because"] == ["new_terms: the rewrite adds “Harland”"]
+    shown = all_text(view)
+    assert "rewrite rejected; the original stands" in shown and "new_terms: the rewrite adds “Harland”" in shown

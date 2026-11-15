@@ -317,3 +317,135 @@ def test_a_section_built_from_long_quotations_is_blocked_and_recorded(workspace,
     assert [failure.split(":")[0] for failure in failures] == ["quotation_too_long", "too_much_quotation"]
     assert article.blocked[0]["reason"].startswith("article check failed: quotation_too_long: 3 direct quotation(s)")
     assert "FIXTURE heading" not in article.markdown and len(model.calls) == 1
+
+
+# =====================================================================================
+# 5. The editorial pass
+# =====================================================================================
+
+ORIGINAL = "FIXTURE the keeper logged lamp oil [E1]. FIXTURE the oil came in winter [E2]."
+REWRITE = "FIXTURE the keeper logged lamp oil [E1]. However, the oil came only in winter [E2]."
+TWO_PARAGRAPHS = "FIXTURE the keeper logged lamp oil [E1].\nFIXTURE the oil came in winter [E2]."
+
+
+class Editor(Scripted):
+    """Answers a brief from the script, and an editorial call with the rewrite it was given."""
+
+    def __init__(self, original, rewrite):
+        super().__init__({**SCRIPT, "lighthouse": payload(original, cites=["E1", "E2"])})
+        self.rewrite, self.edits = rewrite, []
+
+    def __call__(self, question, items, instructions=None):
+        if instructions and instructions.startswith("EDITORIAL TASK"):
+            self.edits.append((instructions, [item.chunk["chunk_id"] for item in items], [item.handle for item in items]))
+            if isinstance(self.rewrite, BaseException):
+                raise self.rewrite
+            return self.rewrite, "fixturehash"
+        return super().__call__(question, items, instructions)
+
+
+def edited(workspace, monkeypatch, rewrite, original=ORIGINAL):
+    if isinstance(rewrite, str):
+        rewrite = payload(rewrite, cites=sorted(set(re.findall(r"E\d+", rewrite))))
+    model = Editor(original, rewrite)
+    monkeypatch.setattr(ask, "call_model", model)
+    section = pipeline.edit_section(pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0]))
+    return section, model
+
+
+def test_a_rewrite_that_preserves_replaces_the_original_and_is_recorded(workspace, monkeypatch):
+    embedded, embed = [], ask.embed_texts
+    monkeypatch.setattr(ask, "embed_texts", lambda texts, **kw: embedded.append(texts) or embed(texts, **kw))
+    section, model = edited(workspace, monkeypatch, REWRITE)
+    assert len(embedded) == 1                                           # the brief, once; the editor retrieves nothing
+    draft = pipeline.Draft("FIXTURE title", [section])
+    article = pipeline.render(workspace, draft)
+    record = pipeline.build_record(workspace, draft, article)
+    prompt, digest = checks.load_prompt(checks.EDITORIAL_PROMPT)
+    instructions, chunk_ids, handles = model.edits[0]
+
+    assert "However, the oil came only in winter [2]." in article.markdown and "FIXTURE the oil came in winter" not in article.markdown
+    assert instructions == f"{prompt}\nDRAFT\n=====\n{ORIGINAL}"
+    assert chunk_ids == [item.chunk["chunk_id"] for item in section.outcome.items]        # the same passages: nothing retrieved
+    assert handles == [item.handle for item in section.outcome.items]                      # under the same handles
+    assert len(model.calls) == 1 and len(model.edits) == 1
+    editorial = record["sections"][0]["editorial"]
+    assert editorial["accepted"] is True and editorial["rejected_because"] == []
+    assert editorial["prompt_sha256_12"] == digest == record["prompts"][checks.EDITORIAL_PROMPT]
+    assert editorial["result"]["answer"] == REWRITE and 0.8 < editorial["similarity_to_original"] < 1
+    assert record["sections"][0]["result"]["answer"] == ORIGINAL                           # the original is kept too
+    assert editorial["voice_before"]["connectives_per_1000_words"] == 0.0
+    assert editorial["voice_after"]["connectives_per_1000_words"] > 0
+
+
+@pytest.mark.parametrize(("rewrite", "reason"), [
+    ("FIXTURE the keeper logged lamp oil, which came in winter [E1].", "handles_changed: paragraph 1 carried [E1] [E2], the rewrite carries [E1]"),
+    ("FIXTURE the keeper logged lamp oil [E1]. FIXTURE it came in winter [E2] [E3].", "handles_changed: paragraph 1 carried [E1] [E2], the rewrite carries [E1] [E2] [E3]"),
+    ("FIXTURE the keeper Harland logged lamp oil [E1]. FIXTURE the oil came in winter [E2].", "new_terms: the rewrite adds “Harland”"),
+    ("FIXTURE the keeper logged lamp oil in 1923 [E1]. FIXTURE the oil came in winter [E2].", "new_terms: the rewrite adds “1923”"),
+    ("FIXTURE the keeper logged lamp oil, his amāna [E1]. FIXTURE the oil came in winter [E2].", "new_terms: the rewrite adds “amāna”"),
+    ("FIXTURE the keeper logged lamp oil [E1] — and the oil came in winter [E2].", "em_dash: the rewrite uses an em dash"),
+    ("[E1] states that the keeper logged lamp oil. FIXTURE the oil came in winter [E2].", "handle_used_as_subject"),
+    ("FIXTURE the keeper logged lamp oil [E1]. FIXTURE the oil came in winter [E2] [E9].", "validation failed: citation_hallucination"),
+    (RuntimeError("FIXTURE provider outage"), "the pipeline failed: RuntimeError: FIXTURE provider outage"),
+    (REFUSAL, "no_rewrite: the model returned no rewritten text"),
+])
+def test_a_rewrite_that_does_not_preserve_is_rejected_and_the_original_stays(workspace, monkeypatch, rewrite, reason):
+    section, model = edited(workspace, monkeypatch, rewrite)
+    draft = pipeline.Draft("FIXTURE title", [section])
+    article = pipeline.render(workspace, draft)
+    editorial = pipeline.build_record(workspace, draft, article)["sections"][0]["editorial"]
+
+    assert editorial["accepted"] is False
+    assert any(failure.startswith(reason) for failure in editorial["rejected_because"]), editorial["rejected_because"]
+    assert "FIXTURE the keeper logged lamp oil [1]. FIXTURE the oil came in winter [2]." in article.markdown
+    assert article.blocked == []                                        # the section itself is still good
+    pipeline.edit_section(section)
+    assert len(model.edits) == 1                                        # rejected, recorded, not sent again
+
+
+def test_a_marker_may_not_move_from_one_paragraph_to_another(workspace, monkeypatch):
+    moved = "FIXTURE the keeper logged lamp oil [E1] [E2].\nFIXTURE the oil came in winter."
+    merged = "FIXTURE the keeper logged lamp oil [E1], and it came in winter [E2]."
+    kept = "FIXTURE the keeper logged lamp oil [E1].\nMoreover, the oil came in winter [E2]."
+
+    assert edited(workspace, monkeypatch, moved, TWO_PARAGRAPHS)[0].editorial["rejected_because"][0].startswith("handles_changed: paragraph 1")
+    assert edited(workspace, monkeypatch, merged, TWO_PARAGRAPHS)[0].editorial["rejected_because"] == [
+        "paragraphs_changed: the draft has 2 paragraph(s), the rewrite 1"]
+    assert edited(workspace, monkeypatch, kept, TWO_PARAGRAPHS)[0].editorial["accepted"] is True
+
+
+def test_a_joining_word_is_not_a_new_name_but_a_name_in_its_place_is():
+    assert checks.new_terms(ORIGINAL, "However, FIXTURE the keeper logged oil [E1]. Together, FIXTURE these came in winter [E2].") == []
+    assert checks.new_terms(ORIGINAL, "Harland logged lamp oil [E1].") == ["Harland"]
+    assert checks.new_terms(ORIGINAL, "FIXTURE the Keeper logged 2 lamps of oil [E1].") == ["2"]      # "keeper" is known
+
+
+def test_no_editorial_call_is_made_for_a_section_that_is_blocked(workspace, monkeypatch):
+    section, model = edited(workspace, monkeypatch, REWRITE, original="[E1] states that oil was logged [E2].")
+
+    assert model.edits == [] and section.editorial is None and section.prose is None
+
+
+def test_an_accepted_rewrite_survives_saving_and_reopening_without_a_call(workspace, monkeypatch, tmp_path):
+    section, model = edited(workspace, monkeypatch, REWRITE)
+    draft = pipeline.Draft("FIXTURE title", [section])
+    folder = pipeline.save(workspace, draft, tmp_path / "out")
+    monkeypatch.setattr(ask, "call_model", lambda *a, **k: pytest.fail("reopening called the model"))
+
+    reopened = pipeline.load(folder, workspace)
+
+    assert reopened.sections[0].prose == REWRITE
+    assert pipeline.render(workspace, reopened).markdown == pipeline.render(workspace, draft).markdown
+
+
+def test_the_known_targets_of_the_voice_profile_are_checked_and_the_rest_are_not_invented():
+    from article import voice
+    flat = voice.measure("FIXTURE one thing. FIXTURE another thing — a third.")
+    joined = voice.measure("FIXTURE one thing. However, another thing. Therefore, a third follows from it.")
+
+    assert voice.profile_checks(flat) == [
+        {"check": "connectives_per_1000_words", "target": "at least 12.0", "value": 0.0, "met": False},
+        {"check": "em_dashes", "target": "at most 0", "value": 1, "met": False}]
+    assert [check["met"] for check in voice.profile_checks(joined)] == [True, True]
+    assert len(voice.PROFILE) == 2

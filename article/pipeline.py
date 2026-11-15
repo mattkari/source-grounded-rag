@@ -12,6 +12,7 @@ reason, and shown.
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from dataclasses import dataclass, field
@@ -77,6 +78,40 @@ def draft_section(workspace: Workspace, heading: str, brief: str) -> SectionDraf
                               workspace.document, instructions=instructions)
     )
     return SectionDraft(heading.strip(), brief.strip(), outcome, error)
+
+
+def edit_section(section: SectionDraft) -> SectionDraft:
+    """The optional editorial pass: one more call, through the same model call and
+    the same validation, asking for the validated prose to be rewritten for flow.
+
+    The rewrite replaces the original only if it preserves: the same markers in
+    each paragraph, no new name, number or transliterated term, no em dash, and
+    every usual check passed. Otherwise the original stands. Either way the
+    outcome is recorded, and nothing is sent again (hard rule 9).
+    """
+    if not usable(section) or section.editorial is not None:
+        return section
+    original = section.outcome.result["answer"]
+    prompt, digest = checks.load_prompt(checks.EDITORIAL_PROMPT)
+    instructions = f"{prompt}\nDRAFT\n=====\n{original}"
+    outcome, error = _attempt(lambda: ask.draft_from_evidence(section.brief, section.outcome.items, instructions=instructions))
+    failures = [f"the pipeline failed: {error}"] if outcome is None else checks.editorial_failures(
+        original, outcome.result, outcome.failures)
+    rewrite = (outcome.result.get("answer") or "") if outcome else ""
+    section.editorial = {
+        "prompt": checks.EDITORIAL_PROMPT,
+        "prompt_sha256_12": digest,
+        "accepted": not failures,
+        "rejected_because": failures,
+        "result": outcome.result if outcome else None,
+        "system_prompt_sha256_12": outcome.prompt_hash if outcome else None,
+        "similarity_to_original": round(difflib.SequenceMatcher(None, original, rewrite, autojunk=False).ratio(), 3)
+        if rewrite else None,
+        "voice_before": voice.measure(original),
+        "voice_after": voice.measure(rewrite) if rewrite else None,
+    }
+    section.prose = rewrite if not failures else None
+    return section
 
 
 def usable(section: SectionDraft) -> bool:
@@ -318,6 +353,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             # and gap the model gave is in `result` below.
             "limitation_printed": article.limits_printed.get(section.heading),
             "commentary": commentary_record(draft.sections.index(section)),
+            "editorial": section.editorial,
             "footnote_text_cut_from": [chunk_id for chunk_id in retrieved if chunk_id in cut],
             "voice": voice.measure(answer) if answer else None,
             **_outcome_record(section.outcome, section.error),
@@ -335,7 +371,11 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "provider": ask.settings.llm_provider,
         # Every prompt that shaped this article, by file and hash. The system prompt's
         # own hash is on each section, as on every answer.
-        "prompts": {checks.SECTION_PROMPT: checks.load_prompt(checks.SECTION_PROMPT)[1]},
+        "prompts": {
+            checks.SECTION_PROMPT: checks.load_prompt(checks.SECTION_PROMPT)[1],
+            **({checks.EDITORIAL_PROMPT: checks.load_prompt(checks.EDITORIAL_PROMPT)[1]}
+               if any(section.editorial for section in draft.sections) else {}),
+        },
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
         "commentary_switched_on": draft.commentary,
@@ -420,8 +460,11 @@ def load(folder: Path, workspace: Workspace) -> Draft:
     sections = []
     for entry in record["sections"]:
         outcome, error = _outcome_from(entry, entry["brief"], workspace)
-        sections.append(SectionDraft(entry["heading"], entry["brief"], outcome, error,
-                                     kept=entry["kept_by_researcher"], state_gap=entry["gap_stated"]))
+        editorial = entry.get("editorial")
+        sections.append(SectionDraft(
+            entry["heading"], entry["brief"], outcome, error,
+            kept=entry["kept_by_researcher"], state_gap=entry["gap_stated"], editorial=editorial,
+            prose=editorial["result"]["answer"] if editorial and editorial["accepted"] else None))
     return Draft(
         title=record["title"]["text"],
         sections=sections,

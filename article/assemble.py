@@ -50,6 +50,10 @@ class SectionDraft:
     error: str | None = None
     kept: bool = True                         # False: the researcher dropped the section
     state_gap: bool = False                   # True: print that the thesis does not cover it
+    # The editorial pass, if one was run (ADR 0005). `prose` is the accepted rewrite of
+    # the answer, or None; `editorial` is the full recorded outcome of the pass.
+    prose: str | None = None
+    editorial: dict | None = None
 
 
 @dataclass
@@ -146,8 +150,8 @@ def _cited_passages(text: str, items: list[ask.EvidenceItem]) -> list[str]:
     return [item.chunk["text"] for item in items if item.handle in cited] or [item.chunk["text"] for item in items]
 
 
-def _section_body(outcome: ask.QueryOutcome, notes: _Notes) -> list[str]:
-    body = notes.renumber(outcome.result["answer"], outcome.items)
+def _section_body(section: SectionDraft, notes: _Notes) -> list[str]:
+    body = notes.renumber(section.prose or section.outcome.result["answer"], section.outcome.items)
     return [body] if body else []
 
 
@@ -238,7 +242,7 @@ def assemble(
     previous: SectionDraft | None = None
     shown: list[SectionDraft] = []                           # drafted sections that reached the page
     for section, drafted in printed:
-        body = _section_body(section.outcome, notes) if drafted else [NOT_COVERED_LINE]
+        body = _section_body(section, notes) if drafted else [NOT_COVERED_LINE]
         if not body:
             continue                                         # every sentence of it was removed
         if drafted:

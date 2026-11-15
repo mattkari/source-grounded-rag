@@ -236,6 +236,8 @@ def test_voice_measures_are_plain_counts():
         "first_person_per_100_sentences": 50.0,
         "connective_openings_per_100_sentences": 25.0,
         "report_phrases_per_1000_words": 40.0,
+        "connectives_per_1000_words": 40.0,            # one opening "But" in 25 words; the inner "and" is not counted
+        "em_dashes": 0,
     }
     assert voice.measure("")["sentences"] == 0
 

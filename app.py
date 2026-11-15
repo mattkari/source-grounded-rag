@@ -645,6 +645,9 @@ def start_draft(workspace: pipeline.Workspace, title: str, outline: list[tuple[s
     sections = [pipeline.draft_section(workspace, heading, brief) for heading, brief in outline]
     draft = pipeline.Draft(title=title.strip(), sections=sections, topic=topic,
                            transitions=[None] * (len(sections) - 1), commentary=frame["commentary"])
+    if frame["editorial"]:
+        for section in sections:
+            pipeline.edit_section(section)
     if frame["introduction"] == GENERATE:
         draft.introduction = pipeline.draft_introduction(title, sections)
     else:
@@ -722,6 +725,12 @@ def render_article_setup(workspace: pipeline.Workspace, document: Document) -> N
              "and each paragraph needs your own verdict before the article can leave draft.",
     )
 
+    frame["editorial"] = st.checkbox(
+        "Editorial pass: rewrite each section for flow (one more model call per section)", key="article_editorial",
+        help="The rewrite is kept only if it carries the same notes in each paragraph and adds no name, "
+             "number or term. Otherwise the original stands and the reason is shown.",
+    )
+
     st.subheader("5. Your own writing, for comparison (optional)", divider="grey")
     reference = st.file_uploader("A piece of your published writing (text or Markdown)", type=["txt", "md"],
                                  key="article_reference_file")
@@ -730,9 +739,10 @@ def render_article_setup(workspace: pipeline.Workspace, document: Document) -> N
     outline = parse_outline(outline_text)
     generated = sum(frame[part] == GENERATE for part in ("introduction", "conclusion"))
     generated += max(len(outline) - 1, 0) if frame["transitions"] == GENERATE else 0
+    generated += len(outline) if frame["editorial"] else 0
     st.caption(
         f"Drafting makes {len(outline)} model call(s) for the sections and up to {generated} for generated "
-        "frame text. Nothing is retried."
+        "frame text and the editorial pass. Nothing is retried."
     )
     if st.button("Draft the article", type="primary"):
         try:
@@ -885,6 +895,20 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
         st.markdown(re.sub(r"^(#{1,2}) ", r"##\1 ", article.markdown, flags=re.MULTILINE))
     st.download_button("Download article.md", article.markdown, file_name="article.md", mime="text/markdown")
     st.caption(f"Saved in `output/articles/{draft.article_id}/` with its record.")
+
+    edited = [s for s in draft.sections if s.editorial]
+    if edited:
+        with st.expander(f"Editorial pass — {sum(1 for s in edited if s.editorial['accepted'])} of {len(edited)} rewrites kept"):
+            for section in edited:
+                outcome = section.editorial
+                if outcome["accepted"]:
+                    st.markdown(f"**{section.heading}** — rewrite kept.")
+                else:
+                    st.markdown(f"**{section.heading}** — rewrite rejected; the original stands.")
+                    for reason in outcome["rejected_because"]:
+                        st.warning(reason)
+                if outcome["voice_after"]:
+                    st.code(voice.format_comparison({"before": outcome["voice_before"], "after": outcome["voice_after"]}))
 
     with st.expander("Voice — plain counts beside your own writing"):
         columns = pipeline.voice_columns(article, st.session_state.get("article_reference", ""))
