@@ -42,3 +42,11 @@ These need a change in Streamlit or a move off it. Neither is proposed here (har
 ## Not covered
 
 A screen reader pass, Safari and iOS, zoom to 200 %, and the app under a slow connection.
+
+## Found after deployment (PR #21)
+
+The emulation walked each view with the sidebar closed again after every choice, so it missed this:
+on a phone the sidebar stays open after a view is chosen and lies over the page as a panel, and a
+control under it (the "I accept this cost" box) could not be tapped. The view picker and the thesis
+picker now sit at the top of the page; the sidebar holds only the question history. The style
+changes above are unchanged.

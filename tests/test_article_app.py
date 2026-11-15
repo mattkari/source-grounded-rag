@@ -78,7 +78,7 @@ def view(tmp_path, monkeypatch):
     monkeypatch.setattr(ask, "call_model", model)
 
     at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=180).run()
-    at.sidebar.radio[0].set_value("Write an article")
+    at.radio[0].set_value("Write an article")
     at.run()
     at.model, at.out = model, tmp_path / "articles"
     return at
