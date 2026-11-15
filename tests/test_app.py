@@ -53,7 +53,7 @@ def app(tmp_path, monkeypatch, library):
 
 
 def open_library(at: AppTest) -> AppTest:
-    at.sidebar.radio[0].set_value("Thesis library")
+    at.radio[0].set_value("Thesis library")
     return at.run()
 
 
@@ -83,9 +83,20 @@ def index_thesis(at: AppTest) -> AppTest:
 # ---------------------------------------------------------------------------
 
 
+def test_the_view_and_thesis_are_chosen_on_the_page_not_in_the_sidebar(app):
+    """On a phone the sidebar opens as a panel over the page and stays open after a
+    choice, so controls under it (such as "I accept this cost") could not be tapped.
+    Every control needed to move between views lives on the page itself."""
+    assert not app.exception
+    assert len(app.sidebar.radio) == 0
+    assert len(app.sidebar.selectbox) == 0
+    assert app.radio[0].options == ["Ask questions", "Thesis library", "Write an article"]
+    assert app.selectbox[0].label == "Thesis"
+
+
 def test_the_builtin_thesis_is_the_default_and_carries_no_unevaluated_notice(app):
     assert not app.exception
-    assert app.sidebar.selectbox[0].options == [BUILTIN_LABEL]
+    assert app.selectbox[0].options == [BUILTIN_LABEL]
     assert app.header[0].value.startswith(settings.document_short_title)
     assert "not evaluated" not in all_text(app)
 
@@ -154,8 +165,8 @@ def test_a_ready_thesis_joins_the_picker_and_is_labelled_not_evaluated_when_acti
     confirm_and_approve(app)
     index_thesis(app)
 
-    assert app.sidebar.selectbox[0].options == [BUILTIN_LABEL, UPLOAD_SHORT_TITLE]
-    assert app.sidebar.selectbox[0].value == settings.document_id   # still the built-in until chosen
+    assert app.selectbox[0].options == [BUILTIN_LABEL, UPLOAD_SHORT_TITLE]
+    assert app.selectbox[0].value == settings.document_id   # still the built-in until chosen
 
     button(app, "Ask questions of this thesis").click()
     app.run()
@@ -197,7 +208,7 @@ def test_a_question_to_an_uploaded_thesis_is_cited_and_recorded_under_that_thesi
     assert all(e["chunk_id"].startswith(document_id) for e in record["evidence"])
 
     # The built-in thesis has its own, separate conversation.
-    app.sidebar.selectbox[0].set_value(settings.document_id)
+    app.selectbox[0].set_value(settings.document_id)
     app.run()
     assert "FIXTURE answer from the uploaded thesis" not in all_text(app)
     assert "No questions yet." in "\n".join(c.value for c in app.sidebar.caption)
