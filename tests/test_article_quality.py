@@ -955,3 +955,70 @@ def test_the_flag_is_raised_on_the_pair_and_recorded_and_never_blocks(workspace,
     assert len(raised[0]) == 1 and raised[1] == []
     for pair in article.pairs:                                          # and it accepts nothing either
         assert pipeline.pair_verdict(draft, pair) is None
+
+
+# =====================================================================================
+# ADR 0008, item 4: the researcher edits or deletes a sentence in the app
+# =====================================================================================
+
+TWO = "FIXTURE the keeper logged lamp oil [E1]. FIXTURE the oil came by sea [E1] [E2]."
+
+
+def test_an_edited_sentence_is_printed_keeps_its_notes_and_needs_a_fresh_verdict(workspace, monkeypatch):
+    draft = one_section(workspace, monkeypatch, TWO)
+    before = pipeline.render(workspace, draft)
+    for pair in before.pairs:
+        pipeline.set_pair_verdict(draft, pair, "supports")
+    assert pipeline.status(draft, before) == "reviewed"
+
+    pipeline.edit_sentence(draft, "0.1", "FIXTURE the oil came by road [E2], the ledger says [E1].")
+    after = pipeline.render(workspace, draft)
+
+    assert "FIXTURE the oil came by road [2], the ledger says [1]." in after.markdown and "by sea" not in after.markdown
+    assert [note["chunk_id"] for note in after.notes] == [note["chunk_id"] for note in before.notes]      # the same notes
+    assert [pipeline.pair_verdict(draft, pair) is not None for pair in after.pairs] == [True, False, False]
+    assert pipeline.status(draft, after) == "draft"                     # the old verdict was on the old wording
+    edit = pipeline.build_record(workspace, draft, after)["sentences"]["edits"]["0.1"]
+    assert edit["original"] == "FIXTURE the oil came by sea [E1] [E2]." and edit["edited_by"] == "researcher"
+    assert edit["text"] == "FIXTURE the oil came by road [E2], the ledger says [E1]." and edit["edited_at"].startswith("20")
+    assert all(pair["edited"] for pair in after.pairs[1:]) and not after.pairs[0]["edited"]
+
+
+@pytest.mark.parametrize(("text", "reason"), [
+    ("FIXTURE the oil came by road [E1].", "the sentence must keep its markers exactly ([E1] [E2])"),
+    ("FIXTURE the oil came by road [E1] [E2] [E3].", "the sentence must keep its markers exactly ([E1] [E2])"),
+    ("FIXTURE the oil came by road [E1, E2].", "one marker per bracket, written as [E1]"),
+    ("FIXTURE the oil came by road, see p. 44 [E1] [E2].", "no page number: pages come from the notes"),
+    ("[E1] states the oil came by road [E2].", "a marker closes its clause and is never a word of the sentence"),
+    ("FIXTURE the oil came by road [E1] [E2]. FIXTURE and that is why the town grew.", "every sentence of the edit needs a marker of its own"),
+    ("FIXTURE the ledger says “" + "oil " * 26 + "” [E1] [E2].", "quotation too long"),
+    ("   ", "An edited sentence cannot be empty"),
+])
+def test_an_edit_that_breaks_a_rule_is_refused_with_the_reason_and_changes_nothing(workspace, monkeypatch, text, reason):
+    draft = one_section(workspace, monkeypatch, TWO)
+
+    with pytest.raises(pipeline.ArticleError, match=re.escape(reason)):
+        pipeline.edit_sentence(draft, "0.1", text)
+    assert draft.sentence_edits == {} and "by sea" in pipeline.render(workspace, draft).markdown
+
+
+def test_an_edit_can_be_taken_back_and_survives_saving_and_reopening(workspace, monkeypatch, tmp_path):
+    draft = one_section(workspace, monkeypatch, TWO)
+    pipeline.edit_sentence(draft, "0.0", "FIXTURE the keeper kept a ledger of lamp oil [E1].")
+    reopened = pipeline.load(pipeline.save(workspace, draft, tmp_path / "out"), workspace)
+    assert "FIXTURE the keeper kept a ledger of lamp oil [1]." in pipeline.render(workspace, reopened).markdown
+    assert reopened.sentence_edits["0.0"]["original"] == "FIXTURE the keeper logged lamp oil [E1]."
+
+    pipeline.edit_sentence(reopened, "0.0", "FIXTURE the keeper logged lamp oil [E1].")      # the original wording again
+    assert reopened.sentence_edits == {}
+
+
+def test_a_verdict_carried_over_from_a_note_does_not_cover_an_edited_sentence(workspace, monkeypatch):
+    draft = one_section(workspace, monkeypatch, TWO)
+    article = pipeline.render(workspace, draft)
+    for note in article.notes:
+        pipeline.set_verdict(draft, note["chunk_id"], "supports")       # as an older record holds it
+    pipeline.edit_sentence(draft, "0.0", "FIXTURE the keeper kept a ledger of lamp oil [E1].")
+    after = pipeline.render(workspace, draft)
+
+    assert [bool(pipeline.pair_verdict(draft, pair)) for pair in after.pairs] == [False, True, True]

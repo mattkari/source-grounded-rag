@@ -221,7 +221,7 @@ def test_a_note_judged_does_not_keeps_the_draft_until_its_sentences_are_removed(
     button(view, "Previous").click()
     view.run()                                                          # back on the note judged "does not"
     assert "**2 of 4**" in all_text(view) and current_verdict(view).value == "does not"
-    assert "The article stays a draft until this sentence is deleted." in all_text(view)
+    assert "The article stays a draft until this sentence is edited or deleted." in all_text(view)
 
     button(view, "Delete this sentence").click()
     view.run()
@@ -588,3 +588,26 @@ def test_review_puts_one_sentence_beside_its_passage_and_judges_the_pair(view):
     pair = record(view)["pairs"][0]
     assert (pair["sid"], pair["verdict"], pair["carried_over"], pair["raw"]) == (
         "0.0", "supports", False, "FIXTURE the ledger says one thing [E1].")
+
+
+def test_a_sentence_is_edited_in_the_view_and_a_bad_edit_is_refused_there(view):
+    draft(view)
+    key = "0.0_" + record(view)["pairs"][0]["chunk_id"]
+
+    view.text_area(key=f"article_edit_{key}").set_value("FIXTURE the ledger says one thing, on p. 9 [E1].")
+    view.run()
+    view.button(key=f"article_save_edit_{key}").click()
+    view.run()
+    assert "This edit was not saved: no page number: pages come from the notes." in all_text(view)
+    assert "FIXTURE the ledger says one thing [1]." in article_file(view)
+
+    view.text_area(key=f"article_edit_{key}").set_value("FIXTURE the ledger records one thing [E1].")
+    view.run()
+    view.button(key=f"article_save_edit_{key}").click()
+    view.run()
+    saved = record(view)
+
+    assert "FIXTURE the ledger records one thing [1]." in article_file(view)
+    assert saved["sentences"]["edits"]["0.0"]["original"] == "FIXTURE the ledger says one thing [E1]."
+    assert "The article says (edited by you)" in all_text(view)
+    assert saved["pairs"][0]["verdict"] is None and len(view.model.calls) == 3     # no model call to edit

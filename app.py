@@ -1013,11 +1013,27 @@ def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict
                        index=options.index(recorded.get("verdict", NOT_JUDGED)), key=f"article_verdict_{key}")
     reason = st.text_input("Reason (optional)", value=recorded.get("reason", ""), key=f"article_reason_{key}")
     if recorded.get("verdict") == "does not":
-        st.warning("Judged “does not”. The article stays a draft until this sentence is deleted.")
-        if st.button("Delete this sentence", key=f"article_delete_{key}"):
-            pipeline.delete_sentence(draft, pair["sid"])
-            persist(workspace, draft)
-            st.rerun()
+        st.warning("Judged “does not”. The article stays a draft until this sentence is edited or deleted.")
+    with st.expander("Edit or delete this sentence", expanded=recorded.get("verdict") == "does not"):
+        st.caption(
+            "Keep each marker such as [E1] exactly as it is: it ties the sentence to its passage. "
+            "An edited sentence needs a fresh verdict."
+        )
+        wording = st.text_area("The sentence", value=pair["raw"], key=f"article_edit_{key}", height=110)
+        save_edit, delete = st.columns(2)
+        with save_edit:
+            if st.button("Save my edit", key=f"article_save_edit_{key}", use_container_width=True):
+                try:
+                    pipeline.edit_sentence(draft, pair["sid"], wording)
+                    persist(workspace, draft)
+                    st.rerun()
+                except pipeline.ArticleError as exc:
+                    st.error(str(exc))
+        with delete:
+            if st.button("Delete this sentence", key=f"article_delete_{key}", use_container_width=True):
+                pipeline.delete_sentence(draft, pair["sid"])
+                persist(workspace, draft)
+                st.rerun()
 
     def save() -> None:
         changed = (verdict, reason.strip()) != (recorded.get("verdict"), recorded.get("reason", ""))

@@ -451,6 +451,46 @@ def delete_sentence(draft: Draft, sid: str) -> None:
     draft.own_words.pop(sid, None)
 
 
+def edit_sentence(draft: Draft, sid: str, text: str) -> None:
+    """Replace a sentence with the researcher's wording of it.
+
+    The edit keeps the sentence's notes: the same markers, no more and no fewer.
+    It is checked as the model's text was: no page number, no joined marker, no
+    marker used as a word, quotation within its limits. An edit that fails is
+    refused with the reason and nothing is changed. The record keeps the
+    original; the verdict given on the old wording no longer stands.
+    """
+    index = int(sid.split(".")[0])
+    unit = _unit(draft, sid)
+    text = " ".join(text.split())
+    problems = []
+    if not text:
+        raise ArticleError("An edited sentence cannot be empty. Delete the sentence instead.")
+    if sorted(sentences.handles(text)) != sorted(sentences.handles(unit.text)):
+        kept = " ".join(f"[{handle}]" for handle in sentences.handles(unit.text)) or "no marker"
+        problems.append(f"the sentence must keep its markers exactly ({kept})")
+    if ask.malformed_handles(text):
+        problems.append("one marker per bracket, written as [E1]")
+    if ask.PAGE_CLAIM_RE.findall(text):
+        problems.append("no page number: pages come from the notes")
+    if checks.handle_as_subject(text):
+        problems.append("a marker closes its clause and is never a word of the sentence")
+    if sentences.handles(unit.text) and any(not sentences.handles(part) for part in sentences.split(text)):
+        problems.append("every sentence of the edit needs a marker of its own")
+    section = draft.sections[index]
+    body = " ".join(
+        text if other.sid == sid else (draft.sentence_edits.get(other.sid, {}).get("text", other.text) or "")
+        for other in sentences.units(index, assemble.base_text(section))
+    )
+    problems += [failure.split(":")[0].replace("_", " ") for failure in checks.quotation_failures(body)]
+    if problems:
+        raise ArticleError("This edit was not saved: " + "; ".join(problems) + ".")
+    if text == unit.text:
+        draft.sentence_edits.pop(sid, None)               # back to what the model wrote
+    else:
+        draft.sentence_edits[sid] = {"text": text, "original": unit.text, "edited_at": _now()}
+
+
 def keep_as_own_words(draft: Draft, sid: str) -> None:
     """A sentence with no note may stay only as the researcher's own words. It is
     printed without a note and recorded with origin "researcher": no claim of
