@@ -28,6 +28,8 @@ import pytest
 
 import ask
 import embeddings
+import ingest
+import upload
 
 EMBED_DIM = 64
 
@@ -112,6 +114,9 @@ def offline(monkeypatch):
     monkeypatch.setattr(ask, "_get_client", refuse)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    # The real tokenizer fetches its vocabulary over the network on first use.
+    # Tests count words instead: deterministic, offline, and enough to chunk by.
+    monkeypatch.setattr(ingest, "ntokens", lambda text: len(text.split()))
 
 
 @pytest.fixture
@@ -174,3 +179,25 @@ def fixture_index(tmp_path, monkeypatch, chunks):
     monkeypatch.setattr(ask, "settings", dataclasses.replace(ask.settings, index_dir=index_dir))
     monkeypatch.setattr(ask, "embed_texts", fake_embed_texts)
     return manifest
+
+
+@pytest.fixture
+def library(tmp_path, monkeypatch):
+    """An empty library folder for uploads, and an embedding provider that is
+    the offline fake. `library.embedded` counts the texts sent for embedding."""
+
+    class Library:
+        path = tmp_path / "library"
+        embedded: list[str] = []
+
+    lib = Library()
+    lib.embedded = []
+
+    def counting_embed(texts, **kwargs):
+        lib.embedded.extend(texts)
+        return fake_embed_texts(texts, **kwargs)
+
+    monkeypatch.setattr(upload, "settings", dataclasses.replace(upload.settings, library_dir=lib.path))
+    monkeypatch.setattr(ingest, "embed_texts", counting_embed)
+    monkeypatch.setattr(ask, "embed_texts", fake_embed_texts)
+    return lib

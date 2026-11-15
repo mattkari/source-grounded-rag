@@ -27,6 +27,12 @@ services:
     # a named volume, so they are readable on the host without docker.
     volumes:
       - ./runs:/app/runs
+      # Uploaded theses: PDF, extraction, audit and index (PLAN_V4 §5). Other
+      # people's copyrighted work — it stays on this host, outside the image
+      # and outside git. Create ./runs and ./library yourself before the first
+      # start (see docs/deployment/raspberry-pi.md) so they belong to your
+      # user and the container can write to them.
+      - ./library:/app/library
 
     # An SD card is a small, slow disk — cap the logs so they cannot fill it.
     logging:

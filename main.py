@@ -67,11 +67,26 @@ def main() -> int:
         action="store_true",
         help="start with chunk ids and verbatim passages shown under each footnote",
     )
+    parser.add_argument(
+        "--document",
+        default=None,
+        help="id of an uploaded thesis (default: the built-in thesis)",
+    )
     args = parser.parse_args()
+
+    document = None
+    if args.document:
+        import upload  # only needed for an uploaded thesis; pulls in the PDF tools
+
+        try:
+            document = upload.find_document(args.document)
+        except upload.UploadRefused as exc:
+            print(exc, file=sys.stderr)
+            return 1
 
     # Loaded once for the whole session, not per question.
     try:
-        vectors, chunks, manifest = ask.load_index()
+        vectors, chunks, manifest = ask.load_index(document)
     except SystemExit as exc:
         print(exc, file=sys.stderr)
         return 1
@@ -79,7 +94,7 @@ def main() -> int:
     verbose = args.verbose_provenance
     print(
         BANNER.format(
-            title=settings.document_short_title,
+            title=document.short_title if document else settings.document_short_title,
             chunks=manifest["chunk_count"],
             model=manifest["embedding_model"],
             dim=manifest["embedding_dim"],
@@ -106,7 +121,7 @@ def main() -> int:
             continue
 
         try:
-            outcome = ask.run_query(question, vectors, chunks, args.top_k)
+            outcome = ask.run_query(question, vectors, chunks, args.top_k, document)
         except KeyboardInterrupt:
             # Abandon this question, keep the session alive.
             print("\n(cancelled)\n")

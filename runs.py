@@ -115,8 +115,11 @@ def load(limit: int | None = None) -> list[dict]:
     return records[:limit] if limit else records
 
 
-def rehydrate(record: dict, chunks: list[dict]):
+def rehydrate(record: dict, chunks: list[dict], document=None):
     """Rebuild EvidenceItems from stored chunk ids against the CURRENT index.
+
+    `document` is the thesis those chunks belong to (None = the built-in one),
+    so a citation rendered from history names the right author and year.
 
     Returns (items, unresolved_ids). Provenance is re-read from the index rather
     than trusted from the record, so citations rendered from history are subject
@@ -132,19 +135,21 @@ def rehydrate(record: dict, chunks: list[dict]):
             unresolved.append(entry["chunk_id"])
             continue
         items.append(
-            ask.EvidenceItem(handle=entry["handle"], chunk=chunk, score=entry["score"])
+            ask.EvidenceItem(
+                handle=entry["handle"], chunk=chunk, score=entry["score"], document=document
+            )
         )
     return items, unresolved
 
 
-def as_outcome(record: dict, chunks: list[dict]):
+def as_outcome(record: dict, chunks: list[dict], document=None):
     """A stored record rendered through the same path as a live answer.
 
     Returns (QueryOutcome, unresolved_chunk_ids).
     """
     import ask
 
-    items, unresolved = rehydrate(record, chunks)
+    items, unresolved = rehydrate(record, chunks, document)
     outcome = ask.QueryOutcome(
         question=record["question"],
         result=record["result"],

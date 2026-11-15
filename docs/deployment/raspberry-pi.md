@@ -49,8 +49,16 @@ run `docker history`, so credentials arrive at run time instead.
 ## 3. Build and start
 
 ```bash
+mkdir -p runs library              # create them yourself, as your own user
 docker compose up -d --build
 ```
+
+`runs/` holds the record of every question; `library/` holds any thesis you
+upload. Both are mounted into the container. If Docker creates them for you
+they belong to `root` and the app, which runs as an unprivileged user, cannot
+write to them — the symptom is "could not be saved" under every answer and a
+permission error on upload. The container's user has uid 1000, which is the
+first user on a Raspberry Pi; if yours differs, `sudo chown -R 1000 runs library`.
 
 First build takes a few minutes while the wheels download. After that:
 
@@ -91,7 +99,26 @@ git pull && docker compose up -d --build    # deploy an update
 
 Logs are capped at 3 × 10 MB so they cannot fill an SD card.
 
-**Changing the document collection.** The image bakes in the committed `index/`.
+**Adding another thesis.** Open *Thesis library* in the sidebar and upload a
+PDF. The app measures the layout, extracts the text, and checks the extraction
+against the PDF; you read the report, confirm the author, year and title, and
+approve or reject. Only after approval, and after you accept the cost shown, is
+anything sent to the embedding provider. The first three steps use no API and
+cost nothing.
+
+- Everything about an upload lives in `library/<id>/` on the Pi: the PDF, the
+  extraction, the audit and the index. *Remove this thesis* deletes all of it.
+  Nothing uploaded is ever committed or baked into the image.
+- An uploaded thesis is **ingested and audited, not evaluated**. The audit
+  shows the extraction is faithful to the PDF. It does not show that answers
+  are right; only the built-in thesis has an evaluation.
+- Set `EMBEDDING_PRICE_PER_MTOK` in `.env` to see an estimated cost before
+  embedding. Without it the app shows the token count and assumes no price.
+- Theses with a text layer only. A scan is refused with a message saying so.
+- Upload makes the "no authentication" warning above sharper: anyone who can
+  reach the app can now also spend embedding credit and fill the disk.
+
+**Changing the built-in collection.** The image bakes in the committed `index/`.
 After re-running `python ingest.py` on a machine with the PDF, commit the new
 `index/` and rebuild on the Pi. The Pi never needs the source PDF — `data/` is
 excluded from the build context by `.dockerignore`, which also keeps the thesis
@@ -105,6 +132,7 @@ itself out of any image you might distribute.
 | Container restarts in a loop, logs say `app.py does not exist` | The web UI branch is not merged — see the note at the top. |
 | Every question returns "Something went wrong retrieving the answer" | A key is missing or wrong. Open *Technical details* under the message; it names the cause. |
 | "The research collection could not be loaded" | `index/` missing from the build, or built with a different embedding model than `config.py` names. |
+| Upload fails with a permission error, or answers "could not be saved" | `runs/` or `library/` was created by Docker as `root`. Stop the container, `sudo chown -R $USER runs library`, start it again. |
 | Healthcheck never turns healthy | Streamlit bound to the wrong interface. Inside the container it must be `0.0.0.0`; the Dockerfile sets that. |
 
 ## What this does not do

@@ -23,6 +23,9 @@ __pycache__/
 data/
 docs/
 
+# Uploaded theses are mounted at run time, never copied into an image.
+library/
+
 # The evaluation harness and the offline tests are run from a checkout, never
 # in the container: they need data/canonical and requirements-dev.txt, neither
 # of which is in the image.

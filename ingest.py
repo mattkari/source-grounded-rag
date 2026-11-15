@@ -26,14 +26,16 @@ import pymupdf
 import tiktoken
 
 from config import settings
+from documents import HEADING, RUNNING_HEADER, Document, LayoutProfile, default_document
 from embeddings import active_model_name, embed_texts
 
 # --- layout ---------------------------------------------------------------
 # The measured, document-specific values (type sizes, band positions, which
-# printed feature carries the chapter) live in the layout profile in
-# config.py, so that changing the corpus is a settings change plus a
-# measurement run rather than a code edit. Only document-independent values
-# are constants here.
+# printed feature carries the chapter) live in a LayoutProfile (documents.py):
+# the built-in thesis's is the hand-measured one in config.py, an uploaded
+# thesis's is measured by layout.py. Every function below takes the profile
+# or the document explicitly and falls back to the built-in thesis, so this
+# file holds only document-independent logic.
 # A caption is a label followed by a number ("Table 6.3-1: ..."). Matching on
 # the bare word instead would also swallow real headings such as "Table of
 # contents", costing that page its chapter.
@@ -43,11 +45,16 @@ ROMAN_RE = re.compile(r"^[ivxlcdm]+$")
 ARABIC_RE = re.compile(r"^\d{1,4}$")
 SENTENCE_END_RE = re.compile(r"[.!?][\"'’”)\]]*\s+")
 
-_ENCODER = tiktoken.get_encoding("cl100k_base")
+_encoder = None
 
 
 def ntokens(text: str) -> int:
-    return len(_ENCODER.encode(text, disallowed_special=()))
+    # Loaded on first use, not at import: fetching the vocabulary touches the
+    # network once, and importing this module must not.
+    global _encoder
+    if _encoder is None:
+        _encoder = tiktoken.get_encoding("cl100k_base")
+    return len(_encoder.encode(text, disallowed_special=()))
 
 
 def normalise(text: str) -> str:
@@ -71,22 +78,36 @@ class Page:
     headings: list[tuple[int, int, str]] = field(default_factory=list)  # (offset, level, title)
 
 
-def _is_heading_span(span: dict) -> bool:
+def _layout(layout: LayoutProfile | None) -> LayoutProfile:
+    return layout if layout is not None else default_document(settings).layout
+
+
+def _is_page_label(text: str) -> bool:
+    token = normalise(text).lower()
+    return bool(ARABIC_RE.match(token) or ROMAN_RE.match(token))
+
+
+def _is_heading_span(span: dict, layout: LayoutProfile) -> bool:
     size = round(span["size"], 1)
     font = span["font"]
-    if size >= settings.heading_min_size:
+    if size >= layout.heading_min_size:
         return True
-    return size >= 12.0 and font.startswith(settings.heading_fonts)
+    return (
+        bool(layout.heading_fonts)
+        and size >= layout.body_size
+        and font.startswith(layout.heading_fonts)
+    )
 
 
-def _heading_level(size: float) -> int:
+def _heading_level(size: float, layout: LayoutProfile) -> int:
     """1 = chapter, 2 = section, 3 = anything finer. Thresholds are measured."""
-    if size >= settings.chapter_heading_min_size:
+    if size >= layout.chapter_heading_min_size:
         return 1
-    return 2 if size >= settings.section_heading_min_size else 3
+    return 2 if size >= layout.section_heading_min_size else 3
 
 
-def extract_page(page: pymupdf.Page, pdf_page: int) -> Page:
+def extract_page(page: pymupdf.Page, pdf_page: int, layout: LayoutProfile | None = None) -> Page:
+    layout = _layout(layout)
     blocks = [b for b in page.get_text("dict")["blocks"] if b["type"] == 0]
     blocks.sort(key=lambda b: (round(b["bbox"][1], 1), round(b["bbox"][0], 1)))
 
@@ -103,18 +124,33 @@ def extract_page(page: pymupdf.Page, pdf_page: int) -> Page:
         if not spans:
             continue
 
-        if y_top < settings.header_band_y:
-            header_parts.append(normalise("".join(s["text"] for s in spans)))
+        if layout.header_band_y is not None and y_top < layout.header_band_y:
+            # Spans are joined within a line and lines with a space, so a header
+            # that wraps inside one block does not fuse its two lines.
+            lines = []
+            for line in block["lines"]:
+                kept = [s for s in line["spans"] if s["text"].strip()]
+                if layout.page_number_band == "header":
+                    # The page number shares the band with the running header:
+                    # read it as the label and keep it out of the chapter title.
+                    labels = [s for s in kept if _is_page_label(s["text"])]
+                    if labels:
+                        printed_page = normalise(labels[-1]["text"])
+                    kept = [s for s in kept if not _is_page_label(s["text"])]
+                if kept:
+                    lines.append("".join(s["text"] for s in kept))
+            if lines:
+                header_parts.append(normalise(" ".join(lines)))
             continue
 
-        if y_top > settings.footnote_band_y:
-            for span in spans:
-                token = normalise(span["text"]).lower()
-                if ARABIC_RE.match(token) or ROMAN_RE.match(token):
-                    printed_page = normalise(span["text"])
+        if layout.footnote_band_y is not None and y_top > layout.footnote_band_y:
+            if layout.page_number_band == "footer":
+                for span in spans:
+                    if _is_page_label(span["text"]):
+                        printed_page = normalise(span["text"])
             continue
 
-        body_spans = [s for s in spans if round(s["size"], 1) >= settings.body_min_size]
+        body_spans = [s for s in spans if round(s["size"], 1) >= layout.body_min_size]
         if not body_spans:
             continue  # footnote apparatus at the foot of the text column
 
@@ -126,13 +162,13 @@ def extract_page(page: pymupdf.Page, pdf_page: int) -> Page:
         # Classify by the leading run of heading-styled spans, not by the
         # block as a whole, or the title swallows the body text after it.
         lead = 0
-        while lead < len(body_spans) and _is_heading_span(body_spans[lead]):
+        while lead < len(body_spans) and _is_heading_span(body_spans[lead], layout):
             lead += 1
         title = normalise(" ".join(s["text"] for s in body_spans[:lead]))
         pure_heading = lead == len(body_spans)
         is_heading = lead > 0 and len(title) < 250 and not CAPTION_RE.match(title)
 
-        level = _heading_level(round(body_spans[0]["size"], 1)) if is_heading else None
+        level = _heading_level(round(body_spans[0]["size"], 1), layout) if is_heading else None
 
         # A continuation line of the heading above it — but only if it is set
         # at the same level. A smaller heading directly under a larger one is
@@ -163,9 +199,10 @@ def extract_page(page: pymupdf.Page, pdf_page: int) -> Page:
     )
 
 
-def extract_document(pdf_path) -> list[Page]:
+def extract_document(pdf_path, layout: LayoutProfile | None = None) -> list[Page]:
+    layout = _layout(layout)
     doc = pymupdf.open(pdf_path)
-    return [extract_page(doc[i], i + 1) for i in range(doc.page_count)]
+    return [extract_page(doc[i], i + 1, layout) for i in range(doc.page_count)]
 
 
 # ---------------------------------------------------------------------------
@@ -184,8 +221,10 @@ class Segment:
 Slice = tuple[Page, int, int]  # (page, char_start, char_end) into page.body
 
 
-def chapter_runs(pages: list[Page]) -> list[tuple[str | None, list[Slice]]]:
-    """Group page slices into chapter runs, per the configured chapter source.
+def chapter_runs(
+    pages: list[Page], layout: LayoutProfile | None = None
+) -> list[tuple[str | None, list[Slice]]]:
+    """Group page slices into chapter runs, per the profile's chapter source.
 
     Both sources read structure the document itself prints; neither infers a
     chapter that is not there (hard rule 6).
@@ -195,10 +234,13 @@ def chapter_runs(pages: list[Page]) -> list[tuple[str | None, list[Slice]]]:
       "heading"        — a run starts at a chapter-level printed heading. A
                          chapter opening part-way down a page splits that page,
                          so a run never contains text from two chapters.
+      None             — the document prints neither. Nothing is inferred: the
+                         whole text is one run with no chapter.
 
     Returning slices rather than whole pages is what keeps hard rule 8 exact:
     chunks are built inside a run, so no chunk can cross a chapter boundary.
     """
+    layout = _layout(layout)
     runs: list[tuple[str | None, list[Slice]]] = []
 
     def add(chapter: str | None, piece: Slice) -> None:
@@ -207,14 +249,20 @@ def chapter_runs(pages: list[Page]) -> list[tuple[str | None, list[Slice]]]:
         else:
             runs.append((chapter, [piece]))
 
-    if settings.chapter_source == "running_header":
+    if layout.chapter_source == RUNNING_HEADER:
         for page in pages:
             if page.body.strip():
                 add(page.running_header, (page, 0, len(page.body)))
         return runs
 
-    if settings.chapter_source != "heading":
-        raise RuntimeError(f"Unknown chapter_source: {settings.chapter_source!r}")
+    if layout.chapter_source is None:
+        for page in pages:
+            if page.body.strip():
+                add(None, (page, 0, len(page.body)))
+        return runs
+
+    if layout.chapter_source != HEADING:
+        raise RuntimeError(f"Unknown chapter_source: {layout.chapter_source!r}")
 
     chapter: str | None = None  # front matter before the first chapter heading
     for page in pages:
@@ -230,14 +278,15 @@ def chapter_runs(pages: list[Page]) -> list[tuple[str | None, list[Slice]]]:
     return runs
 
 
-def build_segments(pages: list[Page]) -> list[Segment]:
+def build_segments(pages: list[Page], layout: LayoutProfile | None = None) -> list[Segment]:
+    layout = _layout(layout)
     segments: list[Segment] = []
 
     # When the chapter comes from a heading, that heading is the chapter — it
     # must not also be recorded as the section beneath itself.
-    min_section_level = 2 if settings.chapter_source == "heading" else 1
+    min_section_level = 2 if layout.chapter_source == HEADING else 1
 
-    for chapter, slices in chapter_runs(pages):
+    for chapter, slices in chapter_runs(pages, layout):
         text_parts: list[str] = []
         pagemap: list[tuple[int, int, Page]] = []
         heads: list[tuple[int, int, str]] = []
@@ -336,14 +385,15 @@ def pages_for(seg: Segment, lo: int, hi: int) -> list[Page]:
 # ---------------------------------------------------------------------------
 
 
-def is_apparatus(chapter: str | None) -> bool:
+def is_apparatus(chapter: str | None, layout: LayoutProfile | None = None) -> bool:
     """Reference apparatus is not a source claim (hard rule 5).
 
     Apparatus is indexed like anything else, but carries `kind: "apparatus"`
     so that the model is told what it is and the citation says so. A
     bibliography entry supports "the thesis cites this work" and nothing more.
     """
-    return bool(chapter) and chapter.startswith(settings.apparatus_chapter_prefixes)
+    prefixes = _layout(layout).apparatus_chapter_prefixes
+    return bool(chapter) and bool(prefixes) and chapter.startswith(prefixes)
 
 
 def page_span(segments: list[Segment]) -> tuple[int, int] | tuple[None, None]:
@@ -351,7 +401,8 @@ def page_span(segments: list[Segment]) -> tuple[int, int] | tuple[None, None]:
     return (min(covered), max(covered)) if covered else (None, None)
 
 
-def build_chunks(segments: list[Segment]) -> list[dict]:
+def build_chunks(segments: list[Segment], document: Document | None = None) -> list[dict]:
+    document = document if document is not None else default_document(settings)
     records: list[dict] = []
     for seg in segments:
         for lo, hi in chunk_segment(seg):
@@ -366,9 +417,9 @@ def build_chunks(segments: list[Segment]) -> list[dict]:
             digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
             records.append(
                 {
-                    "chunk_id": f"{settings.document_id}::{len(records):05d}::{digest}",
-                    "document_id": settings.document_id,
-                    "kind": "apparatus" if is_apparatus(seg.chapter) else "source",
+                    "chunk_id": f"{document.document_id}::{len(records):05d}::{digest}",
+                    "document_id": document.document_id,
+                    "kind": "apparatus" if is_apparatus(seg.chapter, document.layout) else "source",
                     "chapter": seg.chapter,
                     "section": seg.section,
                     "page_start": printed[0],
@@ -383,13 +434,14 @@ def build_chunks(segments: list[Segment]) -> list[dict]:
     return records
 
 
-def embed_text(record: dict) -> str:
+def embed_text(record: dict, document: Document | None = None) -> str:
     """Contextual header is prepended for EMBEDDING ONLY (PLAN_V2 §7.1.7).
 
     The stored and cited text stays the bare passage — the header must never
     contaminate quotable evidence.
     """
-    parts = [settings.document_short_title]
+    document = document if document is not None else default_document(settings)
+    parts = [document.short_title]
     if record["chapter"]:
         parts.append(record["chapter"])
     if record["section"]:
@@ -397,57 +449,58 @@ def embed_text(record: dict) -> str:
     return " — ".join(parts) + "\n\n" + record["text"]
 
 
-def embed_all(records: list[dict]) -> np.ndarray:
-    return embed_texts([embed_text(r) for r in records], progress=True)
+def embed_all(records: list[dict], document: Document | None = None, progress: bool = True) -> np.ndarray:
+    return embed_texts([embed_text(r, document) for r in records], progress=progress)
 
 
 # ---------------------------------------------------------------------------
+# Stage 5 — the artefacts on disk. Shared by the built-in thesis (main below)
+# and by an uploaded one (upload.py), so both produce the same shapes.
+# ---------------------------------------------------------------------------
 
 
-def main() -> int:
-    if not settings.pdf_path.exists():
-        print(f"FATAL: {settings.pdf_path} not found", file=sys.stderr)
-        return 1
+def text_but_no_body_pages(pdf_path, pages: list[Page]) -> list[int]:
+    """PDF pages that carry text but yielded no body text.
 
-    print(f"Extracting {settings.pdf_path.name} ...")
-    pages = extract_document(settings.pdf_path)
-    with_body = [p for p in pages if p.body.strip()]
-    unresolved_pages = [p.pdf_page for p in with_body if p.printed_page is None]
-
-    # A page carrying text that yielded no body is a known gap, not a blank
-    # page: its text sits below body_min_size — typically a full-page table,
-    # set at the same size as the footnote apparatus and so inseparable from
-    # it by size alone. Recorded for human verification (hard rules 6 and 9).
-    raw = pymupdf.open(settings.pdf_path)
-    text_but_no_body = [
+    A known gap, not a blank page: the text sits below body_min_size —
+    typically a full-page table, set at the same size as the footnote
+    apparatus and so inseparable from it by size alone. Recorded for human
+    verification (hard rules 6 and 9).
+    """
+    raw = pymupdf.open(pdf_path)
+    return [
         p.pdf_page
         for p in pages
         if not p.body.strip() and raw[p.pdf_page - 1].get_text().strip()
     ]
 
-    settings.canonical_dir.mkdir(parents=True, exist_ok=True)
-    canonical = settings.canonical_dir / "pages.jsonl"
-    with canonical.open("w", encoding="utf-8") as fh:
-        for p in pages:
-            fh.write(
-                json.dumps(
-                    {
-                        "pdf_page": p.pdf_page,
-                        "printed_page": p.printed_page,
-                        "running_header": p.running_header,
-                        "text": p.body,
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
 
-    segments = build_segments(pages)
-    records = build_chunks(segments)
-    chapters = sorted({s.chapter for s in segments if s.chapter})
+def canonical_rows(pages: list[Page]) -> list[dict]:
+    return [
+        {
+            "pdf_page": p.pdf_page,
+            "printed_page": p.printed_page,
+            "running_header": p.running_header,
+            "text": p.body,
+        }
+        for p in pages
+    ]
 
+
+def write_canonical(pages: list[Page], canonical_dir, *, exclusive: bool = False):
+    """Write the per-page extraction. `exclusive` refuses to overwrite one that
+    exists: an uploaded thesis's canonical extraction is written once (hard rule 7)."""
+    canonical_dir.mkdir(parents=True, exist_ok=True)
+    canonical = canonical_dir / "pages.jsonl"
+    with canonical.open("x" if exclusive else "w", encoding="utf-8") as fh:
+        for row in canonical_rows(pages):
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return canonical
+
+
+def apparatus_summary(segments: list[Segment], records: list[dict], layout: LayoutProfile) -> list[dict]:
     apparatus = []
-    for chapter in sorted({s.chapter for s in segments if is_apparatus(s.chapter)}):
+    for chapter in sorted({s.chapter for s in segments if is_apparatus(s.chapter, layout)}):
         start, end = page_span([s for s in segments if s.chapter == chapter])
         apparatus.append(
             {
@@ -460,6 +513,79 @@ def main() -> int:
                 "note": "indexed as reference apparatus — supports bibliographic claims only",
             }
         )
+    return apparatus
+
+
+def corpus_hash(records: list[dict]) -> str:
+    return hashlib.sha256("\n".join(r["text"] for r in records).encode("utf-8")).hexdigest()
+
+
+def build_manifest(
+    document: Document,
+    pages: list[Page],
+    segments: list[Segment],
+    records: list[dict],
+    vectors: np.ndarray,
+    text_but_no_body: list[int],
+) -> dict:
+    with_body = [p for p in pages if p.body.strip()]
+    return {
+        "document_id": document.document_id,
+        "document_title": document.title,
+        "document_author": document.author,
+        "document_year": document.year,
+        "source_pdf": document.pdf_path.name,
+        "pages_total": len(pages),
+        "pages_with_text": len(with_body),
+        "pages_without_printed_number": [p.pdf_page for p in with_body if p.printed_page is None],
+        "pages_with_text_but_no_body": text_but_no_body,
+        "chapter_source": document.layout.chapter_source,
+        "chapters": sorted({s.chapter for s in segments if s.chapter}),
+        "apparatus_chapters": apparatus_summary(segments, records, document.layout),
+        "chunk_count": len(records),
+        "chunk_count_source": sum(1 for r in records if r["kind"] == "source"),
+        "chunk_count_apparatus": sum(1 for r in records if r["kind"] == "apparatus"),
+        "embedding_provider": settings.embedding_provider,
+        "embedding_model": active_model_name(),
+        "embedding_dim": int(vectors.shape[1]),
+        "normalised": True,
+        "chunk_target_tokens": settings.chunk_target_tokens,
+        "chunk_overlap_tokens": settings.chunk_overlap_tokens,
+        "corpus_text_sha256": corpus_hash(records),
+    }
+
+
+def write_index(index_dir, records: list[dict], vectors: np.ndarray, manifest: dict) -> None:
+    index_dir.mkdir(parents=True, exist_ok=True)
+    np.save(index_dir / "vectors.npy", vectors)
+    (index_dir / "chunks.json").write_text(
+        json.dumps(records, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+    (index_dir / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+
+
+def main() -> int:
+    """Re-ingest the built-in thesis from its hand-measured profile."""
+    document = default_document(settings)
+    if not document.pdf_path.exists():
+        print(f"FATAL: {document.pdf_path} not found", file=sys.stderr)
+        return 1
+
+    print(f"Extracting {document.pdf_path.name} ...")
+    pages = extract_document(document.pdf_path, document.layout)
+    with_body = [p for p in pages if p.body.strip()]
+    unresolved_pages = [p.pdf_page for p in with_body if p.printed_page is None]
+    text_but_no_body = text_but_no_body_pages(document.pdf_path, pages)
+
+    canonical = write_canonical(pages, document.canonical_dir)
+
+    segments = build_segments(pages, document.layout)
+    records = build_chunks(segments, document)
+    chapters = sorted({s.chapter for s in segments if s.chapter})
+    apparatus = apparatus_summary(segments, records, document.layout)
 
     print(f"  pages in PDF          : {len(pages)}")
     print(f"  pages with body text  : {len(with_body)}")
@@ -467,7 +593,7 @@ def main() -> int:
     if text_but_no_body:
         print(f"  text but no body text : {len(text_but_no_body)} -> pdf pp. {text_but_no_body}")
         print( "                          (below body_min_size — full-page tables; VERIFY)")
-    print(f"  chapters ({settings.chapter_source:<14}): {len(chapters)}")
+    print(f"  chapters ({document.layout.chapter_source or 'none':<14}): {len(chapters)}")
     for chapter in chapters:
         print(f"      · {chapter[:66]}")
     print(f"  section segments      : {len(segments)}")
@@ -483,47 +609,11 @@ def main() -> int:
         )
 
     print(f"Embedding with {settings.embedding_provider}:{active_model_name()} ...")
-    vectors = embed_all(records)
+    vectors = embed_all(records, document)
 
-    settings.index_dir.mkdir(parents=True, exist_ok=True)
-    np.save(settings.index_dir / "vectors.npy", vectors)
-    (settings.index_dir / "chunks.json").write_text(
-        json.dumps(records, ensure_ascii=False, indent=1), encoding="utf-8"
-    )
-    corpus_hash = hashlib.sha256(
-        "\n".join(r["text"] for r in records).encode("utf-8")
-    ).hexdigest()
-    (settings.index_dir / "manifest.json").write_text(
-        json.dumps(
-            {
-                "document_id": settings.document_id,
-                "document_title": settings.document_title,
-                "document_author": settings.document_author,
-                "document_year": settings.document_year,
-                "source_pdf": settings.pdf_path.name,
-                "pages_total": len(pages),
-                "pages_with_text": len(with_body),
-                "pages_without_printed_number": unresolved_pages,
-                "pages_with_text_but_no_body": text_but_no_body,
-                "chapter_source": settings.chapter_source,
-                "chapters": chapters,
-                "apparatus_chapters": apparatus,
-                "chunk_count": len(records),
-                "chunk_count_source": sum(1 for r in records if r["kind"] == "source"),
-                "chunk_count_apparatus": sum(1 for r in records if r["kind"] == "apparatus"),
-                "embedding_provider": settings.embedding_provider,
-                "embedding_model": active_model_name(),
-                "embedding_dim": int(vectors.shape[1]),
-                "normalised": True,
-                "chunk_target_tokens": settings.chunk_target_tokens,
-                "chunk_overlap_tokens": settings.chunk_overlap_tokens,
-                "corpus_text_sha256": corpus_hash,
-            },
-            indent=1,
-        ),
-        encoding="utf-8",
-    )
-    print(f"Index written to {settings.index_dir}/ (vectors {vectors.shape})")
+    manifest = build_manifest(document, pages, segments, records, vectors, text_but_no_body)
+    write_index(document.index_dir, records, vectors, manifest)
+    print(f"Index written to {document.index_dir}/ (vectors {vectors.shape})")
     return 0
 
 
