@@ -39,7 +39,13 @@ if str(ROOT) not in sys.path:  # so `python scripts/results_tables.py` finds eva
 from evaluation import metrics  # noqa: E402
 
 # Fields every record of one run must agree on, in the order they are checked.
-RUN_FIELDS = ("run_id", "model", "top_k", "prompt_sha256_12")
+RUN_FIELDS = ("run_id", "condition", "model", "top_k", "prompt_sha256_12")
+
+# The no-retrieval baseline of PLAN_V5. Records written before E2 carry no
+# condition and are ordinary runs.
+BASELINE = "baseline_no_rag"
+BASELINE_LABEL = " (baseline, no retrieval)"
+NOT_APPLICABLE = "n/a"
 
 CAPTION_NOTE = "Counts are n/N over the stated population."
 
@@ -58,11 +64,20 @@ class Run:
     top_k: int
     questions_sha256: str | None
     records: list[dict]
+    condition: str | None = None
+
+    @property
+    def baseline(self) -> bool:
+        return self.condition == BASELINE
+
+    @property
+    def heading(self) -> str:
+        return self.run_id + (BASELINE_LABEL if self.baseline else "")
 
     def caption(self, code: str = "") -> str:
         """`code` wraps identifiers: a backtick for Markdown, nothing for LaTeX."""
         return (
-            f"Run {code}{self.run_id}{code}: model {code}{self.model}{code} ({self.provider}), "
+            f"Run {code}{self.run_id}{code}{BASELINE_LABEL if self.baseline else ''}: model {code}{self.model}{code} ({self.provider}), "
             f"prompt sha256 {code}{self.prompt_sha256_12}{code}, top-k {self.top_k}, "
             f"{len(self.records)} questions."
         )
@@ -98,6 +113,7 @@ def load_run(path: Path) -> Run:
         top_k=first.get("top_k"),
         questions_sha256=first.get("questions_sha256"),
         records=records,
+        condition=first.get("condition"),
     )
 
 
@@ -125,6 +141,18 @@ def rows(run: Run) -> list[tuple[str, str, str]]:
     outcomes = s["outcomes"]
     recall = s["recall_at_k"]
     everyone, answerable = "all questions", "ANSWERABLE"
+
+    def retrieval(value: str) -> str:
+        # A baseline retrieves nothing: these rows do not apply to it, and a
+        # zero would read as "looked and found nothing".
+        return NOT_APPLICABLE if run.baseline else value
+
+    # Runs recorded before E2 did not check the page numbers the model wrote.
+    checked = any("page_claims" in record for record in run.records)
+
+    def claims(key: str) -> str:
+        return _count(s[key]) if checked else NOT_APPLICABLE
+
     return [
         ("Answered (`sufficient` or `partial`)", everyone, _count(outcomes["answered"])),
         ("Refused (`insufficient`)", everyone, _count(outcomes["refused"])),
@@ -133,12 +161,15 @@ def rows(run: Run) -> list[tuple[str, str, str]]:
         ("Answers passing every validation check", everyone, _count(s["validated_answers"])),
         ("Refusal correctness", "UNANSWERABLE + ADVERSARIAL", _count(s["refusal_correctness"])),
         ("False refusal (case B)", answerable, _count(s["false_refusal"])),
-        ("Retrieval recall@k", answerable, _count(recall)),
-        ("Retrieval not measured", answerable, f"{recall.not_measured}/{recall.N}"),
-        (f"Gold retrieved below rank {metrics.RERANKER_TRIGGER_RANK}", answerable, _count(s["gold_below_rank"])),
-        ("Citation hit", answerable, _count(s["citation_hit"])),
+        ("Retrieval recall@k", answerable, retrieval(_count(recall))),
+        ("Retrieval not measured", answerable, retrieval(f"{recall.not_measured}/{recall.N}")),
+        (f"Gold retrieved below rank {metrics.RERANKER_TRIGGER_RANK}", answerable, retrieval(_count(s["gold_below_rank"]))),
+        ("Citation hit", answerable, retrieval(_count(s["citation_hit"]))),
         ("Partial discipline", "PARTIAL", _count(s["partial_discipline"])),
         ("Any contract violation", everyone, _count(s["contract_violations"])),
+        ("Wrote a page number", everyone, claims("page_claims")),
+        ("Wrote a page number the thesis does not print (fabricated citation)", everyone,
+         claims("fabricated_page_citations")),
     ]
 
 
@@ -153,7 +184,7 @@ def _table(runs: list[Run]) -> list[tuple[str, str, list[str]]]:
 def markdown_table(runs: list[Run]) -> str:
     caption = " ".join(run.caption("`") for run in runs) + " " + CAPTION_NOTE
     out = [f"*{caption}*", ""]
-    out.append("| Metric | Population | " + " | ".join(run.run_id for run in runs) + " |")
+    out.append("| Metric | Population | " + " | ".join(run.heading for run in runs) + " |")
     out.append("|---|---|" + "---|" * len(runs))
     for metric, population, counts in _table(runs):
         out.append(f"| {metric} | {population} | " + " | ".join(counts) + " |")
@@ -184,7 +215,7 @@ def latex_table(runs: list[Run]) -> str:
     out = [f"% {caption}"]
     out.append(r"\begin{tabular}{ll" + "r" * len(runs) + "}")
     out.append(r"\toprule")
-    out.append("Metric & Population & " + " & ".join(latex_escape(run.run_id) for run in runs) + r" \\")
+    out.append("Metric & Population & " + " & ".join(latex_escape(run.heading) for run in runs) + r" \\")
     out.append(r"\midrule")
     for metric, population, counts in _table(runs):
         out.append(f"{_latex_cell(metric)} & {_latex_cell(population)} & " + " & ".join(counts) + r" \\")
