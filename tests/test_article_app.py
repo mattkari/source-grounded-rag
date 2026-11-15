@@ -269,3 +269,47 @@ def test_the_other_views_do_not_reach_the_article_writer_and_it_records_no_query
     assert "draft_from_evidence" not in source                          # only the article package calls it
     chat = source[source.index("def render_chat"):source.index("def main()")]
     assert "pipeline." not in chat and "article" not in chat
+
+
+# --- layout and accessibility (docs/decisions/0004-ui-accessibility.md) ---------------------
+
+
+def page_style(at: AppTest) -> str:
+    return next(m.value for m in at.markdown if "<style>" in m.value)
+
+
+def test_the_page_style_never_hides_the_button_that_opens_the_sidebar(view):
+    """On a phone the sidebar starts closed. Hiding Streamlit's whole toolbar hid
+    the only way to open it, so views and theses could not be changed."""
+    hidden = page_style(view).split("{visibility: hidden;}")[0]
+
+    assert '"stToolbar"]' not in hidden and "stExpandSidebarButton" not in hidden and "stHeader" not in hidden
+    assert "stToolbarActions" in hidden and "stMainMenu" in hidden          # the developer furniture still goes
+
+
+def test_captions_and_quoted_sentences_take_the_themes_text_colour(view):
+    style = page_style(view)
+    rule = style[style.index('[data-testid="stCaptionContainer"]'):style.index(":focus-visible")]
+
+    assert "blockquote" in rule and "color: inherit !important" in rule
+    assert not __import__("re").search(r"color:\s*#", rule)                # no fixed colour: dark themes must hold too
+
+
+def test_each_page_has_one_title_and_no_skipped_heading_level(view):
+    draft(view)
+    shown = "\n".join(m.value for m in view.markdown)
+
+    assert len(view.title) == 1 and len(view.header) == 1                  # h1, then the thesis as h2
+    assert all(s.value for s in view.subheader)                             # the steps are h3
+    assert "### FIXTURE harbour title" in shown and "\n# FIXTURE harbour title" not in shown
+    assert "#### FIXTURE first heading" in shown
+    assert "\n# FIXTURE harbour title" in article_file(view)               # the saved file keeps its own levels
+
+
+def test_a_cited_passage_is_shown_whole_and_reflowed(view):
+    draft(view)
+    workspace = pipeline.open_workspace()
+    notes = record(view)["notes"]
+
+    assert [t.value for t in view.text] == [" ".join(workspace.by_id[n["chunk_id"]]["text"].split()) for n in notes]
+    assert not any("\n" in t.value for t in view.text)

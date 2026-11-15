@@ -42,11 +42,42 @@ from documents import Document, default_document
 
 PAGE_TITLE = "Source-Grounded Research Assistant"
 
-# Streamlit's own chrome (Deploy button, hamburger menu) is developer furniture;
-# it has no meaning for a lecturer watching the demo.
-HIDE_CHROME = """
+# Page style. Three jobs, each found by auditing the page at phone and laptop
+# size (docs/decisions/0004-ui-accessibility.md):
+#
+#   1. Hide Streamlit's developer furniture (Deploy button, main menu) and
+#      nothing else. The button that opens the sidebar lives in the same
+#      toolbar; on a phone the sidebar starts closed, so hiding the whole
+#      toolbar left no way to change view or thesis.
+#   2. Contrast. Captions and quoted sentences were drawn in a grey below the
+#      4.5:1 minimum. They now take the theme's own text colour, which holds in
+#      light and dark themes alike; captions stay smaller, not fainter.
+#   3. Phones. Less empty space above the title, headings that fit the width,
+#      and controls tall enough for a finger.
+PAGE_STYLE = """
 <style>
-  [data-testid="stToolbar"], #MainMenu, footer {visibility: hidden;}
+  [data-testid="stToolbarActions"], [data-testid="stMainMenu"],
+  [data-testid="stAppDeployButton"], #MainMenu, footer {visibility: hidden;}
+
+  [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p,
+  [data-testid="stMarkdownContainer"] blockquote, [data-testid="stMarkdownContainer"] blockquote p,
+  [data-testid="stFileUploaderDropzoneInstructions"] span,
+  [data-testid="stFileUploaderDropzoneInstructions"] small {color: inherit !important; opacity: 1 !important;}
+
+  :focus-visible {outline: 3px solid #1a73e8 !important; outline-offset: 2px;}
+
+  @media (max-width: 640px) {
+    [data-testid="stMainBlockContainer"] {padding: 3.75rem 1rem 6rem 1rem;}
+    [data-testid="stMainBlockContainer"] h1 {font-size: 1.85rem; line-height: 1.2; padding-top: 0.5rem;}
+    [data-testid="stMainBlockContainer"] h2 {font-size: 1.35rem; line-height: 1.3;}
+    [data-testid="stMainBlockContainer"] h3 {font-size: 1.15rem; line-height: 1.3;}
+  }
+  @media (pointer: coarse) {
+    [data-testid="stRadio"] [role="radiogroup"] label, [data-testid="stCheckbox"] label {
+      min-height: 44px; display: flex; align-items: center; padding-right: 0.75rem;}
+    [data-testid="stButton"] button, [data-testid="stDownloadButton"] button,
+    [data-testid="stExpandSidebarButton"], [data-testid="stSidebarCollapseButton"] button {min-height: 44px; min-width: 44px;}
+  }
 </style>
 """
 
@@ -465,7 +496,7 @@ def render_record(record: dict) -> None:
     key, state = record["document_id"], record["state"]
     name = record["identity"]["title"] or record["source_filename"]
     with st.container(border=True):
-        st.markdown(f"#### {name}")
+        st.markdown(f"## {name}")
         st.caption(f"`{key}` · {record['pages_total']} pages · **{upload.STATE_LABELS[state]}**")
 
         if state == upload.RECEIVED:
@@ -652,7 +683,7 @@ def render_article_setup(workspace: pipeline.Workspace, document: Document) -> N
 
     st.subheader("1. Topic", divider="grey")
     st.caption("What the thesis covers, from the chapters and sections it prints. No model is involved.")
-    labels = [f"{t.chapter} — {t.passages} passages, {t.pages}" + ("  (thin)" if t.passages < 3 else "")
+    labels = [f"{t.chapter} — {article_topics.count(t.passages)}, {t.pages}" + ("  (thin)" if t.passages < 3 else "")
               for t in listed]
     choice = st.selectbox("Topic", [OWN_TOPIC] + labels, key="article_topic")
     topic = listed[labels.index(choice)] if choice != OWN_TOPIC else None
@@ -751,8 +782,9 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
             with right:
                 st.caption("The passage it cites" + (" (footnote text removed)"
                                                     if note["chunk_id"] in workspace.sources.removed else ""))
-                with st.container(height=280):       # a passage is long; the verdict stays in view
-                    st.text(chunk["text"])
+                # Reflowed: the index keeps the PDF's line breaks, which read as ragged
+                # short lines. No inner scroll box: a keyboard cannot scroll one.
+                st.text(" ".join(chunk["text"].split()))
             options = [NOT_JUDGED, *assemble.VERDICTS]
             verdict = st.radio("Does the passage support it?", options, horizontal=True,
                                index=options.index(recorded.get("verdict", NOT_JUDGED)),
@@ -805,7 +837,9 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
 
     st.subheader("The article", divider="grey")
     with st.container(border=True):
-        st.markdown(article.markdown)
+        # Shown two heading levels down so the page keeps one title and an unbroken
+        # outline for a screen reader. The saved file is not changed.
+        st.markdown(re.sub(r"^(#{1,2}) ", r"##\1 ", article.markdown, flags=re.MULTILINE))
     st.download_button("Download article.md", article.markdown, file_name="article.md", mime="text/markdown")
     st.caption(f"Saved in `output/articles/{draft.article_id}/` with its record.")
 
@@ -819,7 +853,7 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
 
 def render_article(document: Document) -> None:
     st.title(VIEW_ARTICLE)
-    st.subheader(document.short_title, divider="grey")
+    st.header(document.short_title, divider="grey")
     st.markdown(ARTICLE_EXPLAINER)
     try:
         workspace = load_workspace(document.document_id)
@@ -859,7 +893,7 @@ def render_chat(document: Document) -> None:
     vectors, chunks, manifest = collection_or_stop(document)
 
     st.title(PAGE_TITLE)
-    st.subheader(
+    st.header(
         f"{document.short_title} — {manifest['chunk_count']} indexed passages",
         divider="grey",
     )
@@ -935,7 +969,7 @@ def render_chat(document: Document) -> None:
 
 def main() -> None:
     st.set_page_config(page_title=PAGE_TITLE, page_icon="📚", layout="centered")
-    st.markdown(HIDE_CHROME, unsafe_allow_html=True)
+    st.markdown(PAGE_STYLE, unsafe_allow_html=True)
 
     # A button elsewhere asked to open a thesis: apply it before the widgets
     # that own these keys are drawn.
