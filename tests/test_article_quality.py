@@ -894,6 +894,10 @@ def test_the_passage_sentences_shown_are_the_ones_that_share_most_words():
     assert len(sentences.best_matches("FIXTURE the keeper, the ledger, the harbour, the winter [E1].", PASSAGE)) == 3
     assert len(sentences.best_matches("FIXTURE keeper ledger harbour winter orchards [E1].", PASSAGE, limit=2)) == 2
     assert sentences.best_matches("Glaciers retreat quickly [E1].", PASSAGE) == []          # nothing shared: nothing shown
+    late = "Nothing here concerns orchards. Harland is named. FIXTURE: the keeper logged lamp oil in a ledger."
+    assert sentences.best_matches("FIXTURE the keeper logged lamp oil; Harland agreed [E1].", late)[0].text.startswith("FIXTURE:")
+    four = "The keeper came. The ledger lay open. The harbour froze. The winter was long."
+    assert len(sentences.best_matches("FIXTURE keeper ledger harbour winter [E1].", four)) == 3      # never more than three
     assert len(sentences.split(PASSAGE)) == 4                           # "fig." does not end a sentence
 
 
@@ -902,3 +906,52 @@ def test_shared_words_are_made_bold_and_the_passage_can_never_be_read_as_formatt
     marked = sentences.highlight("The *keeper* logged [oil] in a ledger_book <b>.", {"keeper", "logged"})
 
     assert marked == "The \\***keeper**\\* **logged** \\[oil\\] in a ledger\\_book \\<b\\>."
+
+
+# =====================================================================================
+# ADR 0008, item 3: reported speech is raised
+# =====================================================================================
+
+# Errors 2 and 3 of the published draft, rebuilt with invented names: the passage gives
+# the claim to a named scholar; the drafted sentence states it as the thesis's own.
+AS_CLAIMS = "FIXTURE: the lamp, as Harland claims, was never lit before dusk."
+ARGUES = "FIXTURE: commenting on the ledger, Brandt argues that the keeper forged two entries."
+
+
+@pytest.mark.parametrize(("passage_sentence", "name"), [
+    (AS_CLAIMS, "Harland"),
+    (ARGUES, "Brandt"),
+    ("FIXTURE: according to al-Fixtūrī, the harbour was older than the town.", "al-Fixtūrī"),
+    ("FIXTURE: in Harland's view the ledger is exact.", "Harland"),
+    ("FIXTURE: Ada Brandt notes that the oil came late.", "Ada Brandt"),
+])
+def test_a_claim_the_passage_gives_to_a_named_person_is_raised_when_the_sentence_drops_the_name(passage_sentence, name):
+    (flag,) = checks.reported_speech_flags("FIXTURE the thesis holds that this was so [E1].", passage_sentence)
+
+    assert flag.startswith(f"the passage gives this to {name} (“") and flag.endswith(f"the sentence does not name {name}")
+
+
+@pytest.mark.parametrize(("sentence", "passage_sentence"), [
+    ("FIXTURE Harland claims the lamp was never lit before dusk [E1].", AS_CLAIMS),
+    ("FIXTURE the keeper forged two entries, in Brandt's reading [E1].", ARGUES),
+    ("FIXTURE the lamp was lit at dusk [E1].", "FIXTURE: the lamp was lit at dusk, and this gave the town its hours."),
+    ("FIXTURE the lamp was lit at dusk [E1].", "FIXTURE: The author argues it was so. He notes the hour. This suggests care."),
+])
+def test_nothing_is_raised_when_the_name_is_kept_or_nobody_is_named(sentence, passage_sentence):
+    assert checks.reported_speech_flags(sentence, passage_sentence) == []
+
+
+def test_the_flag_is_raised_on_the_pair_and_recorded_and_never_blocks(workspace, monkeypatch):
+    chunk = workspace.sources.chunks[0]
+    chunk["text"] = AS_CLAIMS + " FIXTURE passage: the lighthouse keeper logged lamp oil deliveries every winter."
+    draft = one_section(workspace, monkeypatch, "FIXTURE the lamp was never lit before dusk [E1]. FIXTURE the keeper logged lamp oil [E1].")
+    article = pipeline.render(workspace, draft)
+
+    assert article.blocked == [] and len(article.pairs) == 2            # it raises; it does not block
+    assert pipeline.pair_flags(workspace, article.pairs[0]) == [
+        "the passage gives this to Harland (“Harland claims”); the sentence does not name Harland"]
+    assert pipeline.pair_flags(workspace, article.pairs[1]) == []
+    raised = [row["raised"] for row in pipeline.build_record(workspace, draft, article)["pairs"]]
+    assert len(raised[0]) == 1 and raised[1] == []
+    for pair in article.pairs:                                          # and it accepts nothing either
+        assert pipeline.pair_verdict(draft, pair) is None

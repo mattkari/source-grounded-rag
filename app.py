@@ -1000,6 +1000,8 @@ def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict
             st.warning("No sentence of the cited passage shares a word of substance with this one. Read the whole passage.")
         for match in matches:
             st.markdown(f"- {article_sentences.highlight(match.text, match.shared)}")
+    for flag in pipeline.pair_flags(workspace, pair):
+        st.warning(f"Check the attribution: {flag}.")
     with st.expander("The whole passage"):
         # Reflowed: the index keeps the PDF's line breaks, which read as ragged short lines.
         st.text(" ".join(chunk["text"].split()))

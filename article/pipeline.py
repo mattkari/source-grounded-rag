@@ -390,7 +390,14 @@ def set_pair_verdict(draft: Draft, pair: dict, verdict: str, reason: str = "") -
         "verdict": verdict, "reason": reason.strip(), "judged_at": _now(), "judged_text": pair["raw"]}
 
 
-def pairs_record(draft: Draft, article: assemble.Article) -> list[dict]:
+def pair_flags(workspace: Workspace, pair: dict) -> list[str]:
+    """What is raised for the researcher on this pair. Today: reported speech in the
+    passage sentence that best matches the drafted one."""
+    matches = sentences.best_matches(pair["raw"], workspace.by_id[pair["chunk_id"]]["text"], limit=1)
+    return checks.reported_speech_flags(pair["raw"], matches[0].text) if matches else []
+
+
+def pairs_record(draft: Draft, article: assemble.Article, workspace: Workspace | None = None) -> list[dict]:
     """Every sentence-and-note pair the article has, with the researcher's verdict,
     and every pair it had: a sentence deleted after a verdict keeps that verdict here."""
     rows, current = [], set()
@@ -404,6 +411,7 @@ def pairs_record(draft: Draft, article: assemble.Article) -> list[dict]:
             "in_article": True,
             # the text the verdict was given on; None for a verdict carried over from a note
             "raw": None if given.get("carried_over") or not given else pair["raw"],
+            "raised": pair_flags(workspace, pair) if workspace is not None else [],
         })
     for key, given in draft.pair_verdicts.items():
         sid, chunk_id = key.split("|", 1)
@@ -539,7 +547,7 @@ def voice_columns(article: assemble.Article, reference_text: str = "") -> dict:
 def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, reference_text: str = "") -> dict:
     cut = workspace.sources.removed
     notes = notes_record(draft, article)
-    pairs = pairs_record(draft, article)
+    pairs = pairs_record(draft, article, workspace)
     commentary = {entry["section"]: entry for entry in article.commentary}
 
     def commentary_record(index: int) -> dict | None:
