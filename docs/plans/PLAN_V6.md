@@ -323,3 +323,43 @@ Further limits, added to §13:
 - **One reader-facing limit per section** means other limits the model stated are not printed.
 - **The step in flight when a restart happens may have been charged** and is sent again on resume.
 
+## 17. Amendments after the first published article (15 November 2026)
+
+Added, not rewritten. Where an entry differs from the sections above, including §16, the entry is
+what the code does. Reasons and sources:
+[`docs/decisions/0008-checkable-articles.md`](../decisions/0008-checkable-articles.md).
+
+| § above | Was | Now |
+|---|---|---|
+| §5 | A section with one cited sentence passes whole | Every sentence of section prose carries its own note. One without is held back until the researcher deletes it or keeps it as their own words. |
+| §9, the verdict | One per note | One per sentence and note it carries. A per-note verdict from an earlier record is carried over to each of its sentences and marked so. |
+| §9, the review | The sentence beside the passage | The sentence beside the one to three passage sentences that share most of its words, shared words in bold; the whole passage one tap away; a flag when the passage gives the claim to a named person the sentence does not name. |
+| §9, corrections | Removal of a note's sentences | A sentence is edited or deleted in the view. The record keeps the original, the edit and the time; an edited sentence needs a fresh verdict. |
+| §6, generated frame | Printed as labelled commentary | A suggestion from the article's own section text, shown for editing, printed without a label once the researcher uses it, and recorded as suggested by the model and accepted by the researcher. |
+| §8, output | The working draft is the output | The working draft keeps its DRAFT line. The export exists only for a reviewed article: AI disclosure first, source named, compact sources, no draft line. |
+| §4, outline | "What does the thesis say about …" | Also briefs by rhetorical move, from the thesis's own section titles, with no model. |
+| §4, before drafting | A count of calls | Also a retrieval preview: pages and scores per brief, from the embedding step alone. |
+
+Further limits, added to §13 and §16:
+
+- **Sentence and note pairs are still the author's to judge.** Nothing here decides support. The
+  matching chooses which passage sentences to show by shared words; a sentence that shares many
+  words with a passage can still misread it, and the first article's errors were of that kind.
+- **Sentences are split by pattern.** An unusual abbreviation can split one early, and the stray
+  half is then held back for want of a note. The researcher edits or keeps it.
+- **The reported-speech flag knows a fixed list of verbs and a capitalised name.** It misses
+  attributions in other forms ("in the words of", a pronoun) and flags a name that is not a person.
+- **An edit is checked for form, not for truth.** It may say anything that keeps its markers. That
+  is why it needs a fresh verdict, and why the record keeps both wordings.
+- **A frame suggestion is checked for what it may not add** (names, numbers, transliterated terms,
+  brackets). It can still overstate. It carries no note, so nothing is judged on it: using it is
+  the researcher's act, recorded as such.
+- **The export says whose work the source is only if `OWNER_NAME` is set**, and decides by surname.
+  Unset, it names the source and claims nothing either way.
+- **Medium's rules were not read in Medium's own words** (its pages refused automated access). The
+  disclosure placement follows 2024 reports of them.
+- **No retrieval-score threshold is shipped.** It depends on the embedding model and has to be read
+  off real questions; unset, the preview shows scores and warns of nothing.
+- **A term used for two things in two sections is not detected** (the fourth error of the first
+  article). A term table across sections is a proposed next step.
+

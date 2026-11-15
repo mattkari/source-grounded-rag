@@ -1299,7 +1299,7 @@ def a_topic():
         topics.Section("5.1 FIXTURE THE LAMP OIL LEDGER", 4, "1", "3"),
         topics.Section("5.2 FIXTURE grafting calendar", 1, "4", "4"),
         topics.Section("5.3 FIXTURE Tramway Timetable", 3, "5", "7"),
-        topics.Section("FIXTURE canal survey", 2, "8", "9"),
+        topics.Section("FIXTURE canal survey", 5, "8", "9"),          # the richest, and printed last
     ])
 
 
