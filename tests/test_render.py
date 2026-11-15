@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import ask
 
 QUESTION = "FIXTURE: what is the glacier melt rate?"
@@ -86,3 +88,25 @@ def test_retrieval_scores_are_only_ever_presented_as_diagnostics(items, answer):
     for line in rendered.splitlines():
         if "confidence" in line.lower():
             assert "not" in line.lower()
+
+
+# --- no raw handle reaches a reader (ADR 0006) -----------------------------------------------
+
+
+@pytest.mark.parametrize("bracket", ["[E1, E2]", "[E1,E2]", "[E1, 2]", "[E1; E2]", "[E1-E3]", "[E9]"])
+def test_an_answer_never_prints_a_raw_handle(items, answer, bracket):
+    """The last line of defence, behind validation: whatever the model wrote, a
+    bracket that looks like a handle and was not resolved is not shown."""
+    result = answer(answer=f"FIXTURE the keeper logged lamp oil [E1]. FIXTURE and more {bracket}.",
+                    limitations=[f"FIXTURE a limit {bracket}."], ai_interpretation=[f"FIXTURE a reading {bracket}."])
+
+    shown = ask.render("FIXTURE question?", result, items, verbose=False).split("RETRIEVAL DIAGNOSTICS")[0]
+
+    assert "[E" not in shown and bracket not in shown
+    assert shown.count(ask.UNRESOLVED_NOTE) == 3
+    assert "lamp oil ¹." in shown or "lamp oil¹." in shown or "¹" in shown        # the good note still resolves
+
+
+def test_scrubbing_leaves_resolved_notes_and_ordinary_brackets_alone():
+    assert ask.scrub_handles("FIXTURE one [1] and [sic] and ¹.") == "FIXTURE one [1] and [sic] and ¹."
+    assert ask.scrub_handles("FIXTURE [E1, E2] and [E3].") == f"FIXTURE {ask.UNRESOLVED_NOTE} and {ask.UNRESOLVED_NOTE}."

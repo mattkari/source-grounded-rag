@@ -156,3 +156,18 @@ def test_the_command_line_is_a_shell_with_no_drafting_of_its_own():
     for forbidden in ("run_query", "call_model", "draft_from_evidence", "draft_section(", "validate("):
         assert forbidden not in source, forbidden
     assert "pipeline.run(" in source
+
+
+def test_em_dashes_left_in_print_are_reported_on_the_command_line(cli):
+    run = cli.new(model=Scripted({**SCRIPT, "orchard": payload("FIXTURE the calendar—an old one—lists rootstock [E1].", cites=["E1"])}))
+
+    assert run.code == 0
+    assert "EM DASHES: “FIXTURE heading 2” prints 2 (target 0). They are left as written" in run.text
+
+
+def test_a_combined_handle_is_reported_as_a_blocked_section_on_the_command_line(cli):
+    run = cli.new(model=Scripted({**SCRIPT, "orchard": payload("FIXTURE the calendar lists rootstock [E1, E2].", cites=["E1", "E2"])}))
+    (article,) = cli.out.glob("*/article.md")
+
+    assert run.code == 1 and "section: FIXTURE heading 2: validation failed: malformed_handle" in run.text
+    assert "[E" not in article.read_text(encoding="utf-8")

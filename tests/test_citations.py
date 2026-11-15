@@ -154,7 +154,9 @@ def test_an_unknown_handle_gets_no_footnote_and_no_number(items, answer):
 
     assert ask.assign_order(result, items) == {"E1": 1}
     rendered = ask.render("FIXTURE: question?", result, items, verbose=False)
-    assert "an invented source [E9]." in rendered  # left visible, never given a citation number
+    # The gap stays visible and is never given a citation number; the opaque handle
+    # itself is not shown to a reader (ADR 0006).
+    assert f"an invented source {ask.UNRESOLVED_NOTE}." in rendered and "[E9]" not in rendered
     assert len(footnote_block(rendered).strip().splitlines()) == 1
 
 

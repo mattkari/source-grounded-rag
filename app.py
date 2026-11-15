@@ -886,6 +886,14 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
             f"article prints at most one per section, under “{assemble.NOT_COVERED_HEADING}”."
         )
 
+    dashes = pipeline.em_dashes(draft)
+    if dashes:
+        st.caption(
+            "Em dashes in print (your target is none): "
+            + "; ".join(f"“{heading}” has {count}" for heading, count in dashes.items())
+            + ". They are left as the model wrote them: replacing one changes how the sentence reads, so that is yours to do."
+        )
+
     if state == pipeline.REVIEWED:
         st.success("Reviewed: every note has your verdict.")
     else:

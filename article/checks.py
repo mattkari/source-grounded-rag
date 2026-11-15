@@ -16,8 +16,8 @@ import re
 from pathlib import Path
 
 PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
-SECTION_PROMPT = "article_section_v1.md"
-EDITORIAL_PROMPT = "article_editorial_v1.md"
+SECTION_PROMPT = "article_section_v2.md"
+EDITORIAL_PROMPT = "article_editorial_v2.md"
 
 _HANDLE = r"\[E\d+\]"
 _HANDLES = rf"{_HANDLE}(?:\s*(?:,|and|&)?\s*{_HANDLE})*"

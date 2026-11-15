@@ -122,6 +122,9 @@ def report(workspace: pipeline.Workspace, draft: pipeline.Draft, folder: Path, r
             print(f"\nCHECK who acts in the commentary of “{entry['heading']}”: it {flag}.", file=stream)
     if article.limits_held_back:
         print(f"\n{article.limits_held_back} limitation line(s) are kept in the record only.", file=stream)
+    for heading, count in pipeline.em_dashes(draft).items():
+        print(f"\nEM DASHES: “{heading}” prints {count} (target 0). They are left as written; "
+              "replace them by hand if you wish.", file=stream)
     columns = pipeline.voice_columns(article, reference_text)
     print("\nVOICE (plain counts; no score)", file=stream)
     print(voice.format_comparison(columns), file=stream)

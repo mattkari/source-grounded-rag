@@ -36,7 +36,7 @@ class Settings:
     pdf_path: Path = ROOT / "data" / "karimov-2017-quranic-justice.pdf"
     index_dir: Path = ROOT / "index"
     canonical_dir: Path = ROOT / "data" / "canonical"
-    prompt_path: Path = ROOT / "prompts" / "system_grounded_v2.md"
+    prompt_path: Path = ROOT / "prompts" / "system_grounded_v3.md"
 
     # Durable run records, one JSON object per line. Runs are evidence
     # (PLAN_V2 §26), so history outlives a browser session. Kept outside the

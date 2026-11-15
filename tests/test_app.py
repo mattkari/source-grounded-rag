@@ -271,3 +271,32 @@ def test_ticking_the_cost_box_does_not_re_extract_the_thesis(app, monkeypatch):
     assert next(c for c in app.checkbox if c.label == "I accept this cost").value is True
     assert button(app, "Embed and index").disabled is False
     assert len(calls) == counted <= 1                  # redraws reuse the estimate already shown
+
+
+def test_the_ask_view_never_shows_a_raw_handle_and_says_the_answer_is_not_grounded(app, monkeypatch):
+    """A combined handle from the model (ADR 0006): rejected by validation, and the
+    bracket itself is not put in front of the reader."""
+    from test_article_app import offline_embedding
+
+    monkeypatch.setattr(ask, "embed_texts", offline_embedding)
+    monkeypatch.setattr(ask, "call_model", lambda question, items: ({
+        "evidence_sufficiency": "sufficient",
+        "answer": "FIXTURE one thing [E1]. FIXTURE virtue arises from balance [E1, E2].",
+        "limitations": [], "ai_interpretation": ["FIXTURE a reading [E1; E2]."], "unsupported_by_evidence": [],
+        "citations_used": ["E1", "E2"]}, "fixturehash"))
+    app.chat_input[0].set_value("FIXTURE: what does the harbour ledger say?")
+    app.run()
+    # What a reader is shown. The evaluators' technical section is apart: it quotes the
+    # rejected bracket inside the validation failure, which is what it is for.
+    technical = ("malformed_handle", "Retrieval diagnostics", "<style>")
+    answer_text = "\n".join(str(e.value) for e in [*app.markdown, *app.info]
+                            if not any(mark in str(e.value) for mark in technical))
+    assert any("malformed_handle" in str(m.value) for m in app.markdown)       # the failure is on record, in plain sight
+    (record,) = [json.loads(line) for line in runs.settings.runs_path.read_text(encoding="utf-8").splitlines()]
+
+    assert not app.exception
+    assert "[E1, E2]" not in answer_text and "[E1; E2]" not in answer_text
+    assert f"FIXTURE virtue arises from balance {ask.UNRESOLVED_NOTE}." in answer_text
+    assert "FIXTURE one thing\u00a0¹." in answer_text.replace(" ¹", "\u00a0¹")   # the good note still resolves
+    assert "did not pass the automatic grounding checks" in all_text(app)
+    assert any(f.startswith("malformed_handle:") for f in record["validation_failures"])
