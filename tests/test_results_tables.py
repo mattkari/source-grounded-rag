@@ -78,6 +78,8 @@ EXPECTED_MARKDOWN = """\
 | Citation hit | ANSWERABLE | 1/3 |
 | Partial discipline | PARTIAL | 1/1 |
 | Any contract violation | all questions | 1/6 |
+| Wrote a page number | all questions | n/a |
+| Wrote a page number the thesis does not print (fabricated citation) | all questions | n/a |
 """
 
 EXPECTED_LATEX = r"""% Run eval_20260101T000000Z: model fixture-model (fixture-provider), prompt sha256 abcdef012345, top-k 5, 6 questions. Counts are n/N over the stated population.
@@ -98,6 +100,8 @@ Gold retrieved below rank 5 & ANSWERABLE & 0/3 \\
 Citation hit & ANSWERABLE & 1/3 \\
 Partial discipline & PARTIAL & 1/1 \\
 Any contract violation & all questions & 1/6 \\
+Wrote a page number & all questions & n/a \\
+Wrote a page number the thesis does not print (fabricated citation) & all questions & n/a \\
 \bottomrule
 \end{tabular}
 """
@@ -129,7 +133,7 @@ def test_every_figure_is_a_count_and_nothing_is_called_accuracy_or_scored(tmp_pa
     for word in ("accuracy", "score", "similarity", "%"):
         assert word not in both.lower().replace("% run", "")
     cells = [line.split("|")[3].strip() for line in EXPECTED_MARKDOWN.splitlines()[4:]]
-    assert all(cell.replace("/", "").isdigit() and "/" in cell for cell in cells)
+    assert all(cell == "n/a" or (cell.replace("/", "").isdigit() and "/" in cell) for cell in cells)
 
 
 def test_an_empty_population_is_shown_as_zero_of_zero_not_left_out(tmp_path):
@@ -240,7 +244,7 @@ def test_latex_special_characters_in_run_names_are_escaped(tmp_path):
     fragment = results_tables.latex_table([results_tables.load_run(path)])
 
     assert r"eval\_50\%\_r\&d\#1" in fragment
-    assert fragment.count(r"\\") == 14          # header row + 13 metric rows, none broken
+    assert fragment.count(r"\\") == 16          # header row + 15 metric rows, none broken
 
 
 # --- command line ------------------------------------------------------------------------
@@ -288,3 +292,68 @@ def test_main_never_writes_into_the_repository_docs_or_readme(tmp_path):
 
     written = sorted(p.name for p in tmp_path.iterdir())
     assert written == ["eval_a.jsonl", "results_eval_20260101T000000Z.md", "results_eval_20260101T000000Z.tex"]
+
+
+# --- conditions: an ordinary run beside its no-retrieval baseline (PLAN_V5) --------------
+
+
+def baseline_of(records):
+    """The same questions as a baseline run would record them: nothing retrieved, nothing cited."""
+    out = []
+    for r in records:
+        b = dict(r, condition="baseline_no_rag", run_id="eval_20260101T000000Z_baseline-no-rag",
+                 retrieved=None, cited_pages=None)
+        if b["outcome"] == "completed":
+            b["evidence_sufficiency"] = "insufficient"
+            b["validation_failures"] = []
+            b["page_claims"] = []
+        else:
+            b["page_claims"] = None
+        out.append(b)
+    out[0]["evidence_sufficiency"] = "sufficient"
+    out[0]["page_claims"] = [{"label": "12", "exists": True}, {"label": "300", "exists": False}]
+    return out
+
+
+def with_claims(records):
+    return [dict(r, condition="rag", page_claims=[] if r["outcome"] == "completed" else None) for r in records]
+
+
+def test_a_baseline_run_is_labelled_and_its_retrieval_rows_are_not_applicable(tmp_path):
+    rag, baseline = tmp_path / "eval_a.jsonl", tmp_path / "eval_b.jsonl"
+    write_run(rag, with_claims(run_a()))
+    write_run(baseline, baseline_of(run_a()))
+    runs = [results_tables.load_run(rag), results_tables.load_run(baseline)]
+    table = results_tables.markdown_table(runs)
+
+    assert "| Metric | Population | eval_20260101T000000Z | eval_20260101T000000Z_baseline-no-rag (baseline, no retrieval) |" in table
+    assert "Run `eval_20260101T000000Z_baseline-no-rag` (baseline, no retrieval): model" in table
+    assert "| Retrieval recall@k | ANSWERABLE | 1/3 | n/a |" in table
+    assert "| Retrieval not measured | ANSWERABLE | 1/3 | n/a |" in table
+    assert "| Gold retrieved below rank 5 | ANSWERABLE | 0/3 | n/a |" in table
+    assert "| Citation hit | ANSWERABLE | 1/3 | n/a |" in table
+    assert "| Refused (`insufficient`) | all questions | 2/6 | 4/6 |" in table
+    assert "| Wrote a page number | all questions | 0/6 | 1/6 |" in table
+    assert "| Wrote a page number the thesis does not print (fabricated citation) | all questions | 0/6 | 1/6 |" in table
+    latex = results_tables.latex_table(runs)
+    assert r"eval\_20260101T000000Z\_baseline-no-rag (baseline, no retrieval)" in latex
+    assert "Citation hit & ANSWERABLE & 1/3 & n/a" in latex
+
+
+def test_an_ordinary_run_is_never_labelled_a_baseline(tmp_path):
+    path = tmp_path / "eval_a.jsonl"
+    write_run(path, with_claims(run_a()))
+    table = results_tables.markdown_table([results_tables.load_run(path)])
+
+    assert "baseline" not in table
+    assert "| Wrote a page number | all questions | 0/6 |" in table
+
+
+def test_a_file_mixing_the_two_conditions_is_refused(tmp_path):
+    path = tmp_path / "eval_mixed.jsonl"
+    write_run(path, with_claims(run_a())[:3] + [dict(r, run_id="eval_20260101T000000Z") for r in baseline_of(run_a())[3:]])
+
+    with pytest.raises(TableError) as refused:
+        results_tables.load_run(path)
+
+    assert str(refused.value) == "eval_mixed.jsonl holds records from 2 different values of condition."
