@@ -38,3 +38,7 @@ requirements-dev.txt
 
 .DS_Store
 *.swp
+
+# Drafted articles stay on the machine that drafted them.
+output/
+article/

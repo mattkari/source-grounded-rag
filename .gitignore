@@ -11,3 +11,6 @@ runs/*
 library/
 __pycache__/
 *.pyc
+
+# Drafted articles (PLAN_V6): researcher-reviewed output, kept local.
+output/
