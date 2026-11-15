@@ -91,6 +91,7 @@ PAGE_STYLE = """
   [data-testid="stMain"], [data-testid="stAppScrollToBottomContainer"] {scroll-padding-top: 5rem;}
   .st-key-backtotop a {display: inline-block; min-height: 44px; padding: 0.6rem 0;}
   .sgrag-copy {display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;}
+  .sgrag-copy-button[disabled] {opacity: 0.45; cursor: not-allowed;}
   .sgrag-copy-button {min-height: 44px; padding: 0.4rem 0.9rem; border-radius: 0.5rem; cursor: pointer; font: inherit;
     color: inherit; background: transparent; border: 1px solid rgba(128, 128, 128, 0.6);}
 
@@ -245,27 +246,42 @@ def render_diagnostics(outcome: ask.QueryOutcome) -> None:
 
 COPY_SCRIPT = """
 <div class="sgrag-copy">
-  <button type="button" id="copy-__ID__" class="sgrag-copy-button">__LABEL__</button>
+  <button type="button" id="copy-__ID__" class="sgrag-copy-button" __DISABLED__>__LABEL__</button>
   <span id="copy-status-__ID__" class="sgrag-copy-status" role="status" aria-live="polite"></span>
 </div>
 <script>
 (() => {
   const text = __TEXT__;
+  const rich = __HTML__;
   const button = document.getElementById("copy-__ID__");
   const status = document.getElementById("copy-status-__ID__");
   const label = button.textContent;
   button.addEventListener("click", async () => {
     let copied = false;
     try {
-      if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); copied = true; }
+      if (navigator.clipboard && window.isSecureContext) {
+        if (rich && window.ClipboardItem) {
+          await navigator.clipboard.write([new ClipboardItem({
+            "text/html": new Blob([rich], {type: "text/html"}), "text/plain": new Blob([text], {type: "text/plain"})})]);
+        } else { await navigator.clipboard.writeText(text); }
+        copied = true;
+      }
     } catch (error) {}
     if (!copied) {
       // The page is served over plain http, where browsers withhold the clipboard API.
-      const area = document.createElement("textarea");
-      area.value = text; area.setAttribute("readonly", ""); area.style.position = "fixed"; area.style.opacity = "0";
-      document.body.appendChild(area); area.select();
+      // Formatted text is copied by selecting it as rendered; plain text from a text box.
+      const holder = document.createElement(rich ? "div" : "textarea");
+      if (rich) { holder.innerHTML = rich; holder.setAttribute("contenteditable", "true"); }
+      else { holder.value = text; holder.setAttribute("readonly", ""); }
+      holder.style.position = "fixed"; holder.style.left = "-9999px"; holder.style.opacity = "0";
+      document.body.appendChild(holder);
+      if (rich) {
+        const range = document.createRange(); range.selectNodeContents(holder);
+        const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      } else { holder.select(); }
       try { copied = document.execCommand("copy"); } catch (error) {}
-      area.remove();
+      if (rich) { window.getSelection().removeAllRanges(); }
+      holder.remove();
     }
     button.textContent = copied ? "Copied" : label;
     status.textContent = copied ? "Copied to the clipboard." : "Could not copy. Select the text and copy it by hand.";
@@ -305,15 +321,21 @@ def copy_text(outcome: ask.QueryOutcome) -> str:
     return "\n".join(lines)
 
 
-def copy_button(text: str, label: str, key: str) -> None:
+def copy_button(text: str, label: str, key: str, rich: str | None = None, disabled: bool = False) -> None:
     """One tap copies `text`. The label changes to "Copied" and the result is
     announced to a screen reader (WCAG 4.1.3). It falls back to the older copy
     command, because the app is served over plain http, where the clipboard API
-    is not available."""
+    is not available. With `rich`, formatted HTML is copied, so that an editor
+    keeps headings and lists on paste, with `text` as the plain form."""
     identity = re.sub(r"[^a-zA-Z0-9]", "-", key)
+
+    def literal(value: str | None) -> str:
+        return "null" if value is None else json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
+
     st.html(
         COPY_SCRIPT.replace("__ID__", identity).replace("__LABEL__", html.escape(label))
-        .replace("__TEXT__", json.dumps(text, ensure_ascii=False).replace("</", "<\\/")),
+        .replace("__DISABLED__", "disabled" if disabled else "")
+        .replace("__TEXT__", literal(text)).replace("__HTML__", literal(rich)),
         unsafe_allow_javascript=True,
     )
 
@@ -1183,8 +1205,21 @@ def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
         f"**Sentences to judge:** {counts['pairs']} — supports {counts['supports']}, partly {counts['partly']}, "
         f"does not {counts['does not']}, not judged {counts['not judged']}"
     )
-    copy_button(article.markdown, "Copy the article", key="article")
-    st.download_button("Download article.md", article.markdown, file_name="article.md", mime="text/markdown")
+    # What leaves the app is what the record shows as reviewed (ADR 0008): the export is
+    # locked until then, and the working draft on disk keeps its DRAFT line.
+    blockers = pipeline.export_blockers(draft, article)
+    exported = None if blockers else pipeline.export(workspace, draft)
+    if blockers:
+        st.warning("**Export is locked** until: " + "; ".join(blockers) + ".")
+    else:
+        st.caption(
+            "The export opens with the AI disclosure and names the source, drops the draft line, and "
+            "lists compact sources. It is exactly the article as you reviewed it."
+        )
+    copy_button(exported["markdown"] if exported else "", "Copy for Medium", key="medium",
+                rich=exported["html"] if exported else None, disabled=bool(blockers))
+    st.download_button("Download Markdown", exported["markdown"] if exported else "", file_name="article.md",
+                       mime="text/markdown", disabled=bool(blockers))
     st.caption(f"Saved in `output/articles/{draft.article_id}/` with its record.")
     with st.container(border=True):
         # Shown two heading levels down so the page keeps one title and an unbroken

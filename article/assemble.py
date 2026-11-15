@@ -90,6 +90,10 @@ class Article:
     # {sid, section, heading, chunk_id, n, sentence, raw, edited}
     pairs: list[dict] = field(default_factory=list)
     own_words: list[dict] = field(default_factory=list)  # {sid, section, text}: unnoted, kept by the researcher
+    # The article as parts, in order, for the export (ADR 0008): ("title" | "frame" |
+    # "heading" | "paragraph" | "commentary" | "limit", text). Notes are already [n].
+    blocks: list[tuple[str, str]] = field(default_factory=list)
+    sources: list[dict] = field(default_factory=list)    # {n, chunk, document}: what each note resolves to
 
 
 def block_reason(outcome: ask.QueryOutcome | None, error: str | None = None) -> str | None:
@@ -272,11 +276,13 @@ def assemble(
     if not reviewed:
         out += [f"*{DRAFT_LINE}*", ""]
     out += [f"# {title.strip()}", ""]
+    article.blocks.append(("title", title.strip()))
     out += [f"*Drawn from {document.author} ({document.year}), {document.title}.*", ""]
 
     intro = _frame_text(introduction, "introduction", notes, article)
     if intro:
         out += [intro, ""]
+        article.blocks.append(("frame", intro))
 
     # What will be printed for each section: its paragraphs, or the gap line.
     printed: list[tuple[SectionDraft, bool]] = []          # (section, is a real drafted section)
@@ -308,9 +314,12 @@ def assemble(
             text = _frame_text(bridge, f"transition before: {section.heading}", notes, article)
             if text:
                 out += [text, ""]
+                article.blocks.append(("frame", text))
         out += [f"## {section.heading}", ""]
+        article.blocks.append(("heading", section.heading))
         for paragraph in body:
             out += [paragraph, ""]
+            article.blocks.append(("paragraph", paragraph))
         if drafted:
             index = sections.index(section)
             entry = _commentary(index, section, notes, commentary and index not in (commentary_rejected or ()))
@@ -318,11 +327,13 @@ def assemble(
                 article.commentary.append(entry)
                 if entry["printed"]:
                     out += [f"{COMMENTARY_LABEL} {entry['text']}", ""]
+                    article.blocks.append(("commentary", f"{COMMENTARY_LABEL} {entry['text']}"))
         previous = section if drafted else None
 
     ending = _frame_text(conclusion, "conclusion", notes, article)
     if ending:
         out += [ending, ""]
+        article.blocks.append(("frame", ending))
 
     # Limits, gathered. A section whose every sentence was removed states none.
     for section in shown:
@@ -341,6 +352,7 @@ def assemble(
         out += [f"## {NOT_COVERED_HEADING}", ""]
         out += [f"- {line}" for line in article.limits_printed.values()]
         out.append("")
+        article.blocks += [("limit", line) for line in article.limits_printed.values()]
 
     if notes.items:
         out += ["## Sources", ""]
@@ -354,6 +366,9 @@ def assemble(
     article.markdown = ask.scrub_handles("\n".join(out))
     article.notes = [{"n": n, "chunk_id": notes.items[n].chunk["chunk_id"], "verdict": None} for n in sorted(notes.items)]
     article.carriers = notes.carriers
+    article.sources = [{"n": n, "chunk": notes.items[n].chunk, "document": notes.items[n].document}
+                       for n in sorted(notes.items)]
+    article.blocks = [(kind, ask.scrub_handles(text)) for kind, text in article.blocks]
     return article
 
 

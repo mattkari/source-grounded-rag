@@ -1022,3 +1022,104 @@ def test_a_verdict_carried_over_from_a_note_does_not_cover_an_edited_sentence(wo
     after = pipeline.render(workspace, draft)
 
     assert [bool(pipeline.pair_verdict(draft, pair)) for pair in after.pairs] == [False, True, True]
+
+
+# =====================================================================================
+# ADR 0008, item 5: export only when reviewed
+# =====================================================================================
+
+
+def reviewed(workspace, monkeypatch, answer=TWO, **options):
+    draft = one_section(workspace, monkeypatch, answer, **options)
+    for pair in pipeline.render(workspace, draft).pairs:
+        pipeline.set_pair_verdict(draft, pair, "supports")
+    return draft
+
+
+def with_owner(monkeypatch, name):
+    import dataclasses
+    monkeypatch.setattr(ask, "settings", dataclasses.replace(ask.settings, owner_name=name))
+
+
+def test_nothing_is_exported_until_every_sentence_is_judged_and_none_is_judged_against(workspace, monkeypatch):
+    draft = one_section(workspace, monkeypatch, UNNOTED)
+    article = pipeline.render(workspace, draft)
+    assert pipeline.export_blockers(draft, article) == [
+        "1 sentence(s) with no note are waiting to be deleted or kept as yours", "2 of 2 sentences are not judged yet"]
+    with pytest.raises(pipeline.ArticleError, match="cannot be exported yet: 1 sentence"):
+        pipeline.export(workspace, draft)
+
+    pipeline.delete_sentence(draft, "0.2")
+    pipeline.set_pair_verdict(draft, article.pairs[0], "supports")
+    pipeline.set_pair_verdict(draft, article.pairs[1], "does not")
+    assert pipeline.export_blockers(draft, pipeline.render(workspace, draft)) == [
+        "1 sentence(s) judged “does not” are still in the article"]
+    assert pipeline.build_record(workspace, draft, pipeline.render(workspace, draft))["export"]["ready"] is False
+
+    pipeline.set_pair_verdict(draft, article.pairs[1], "partly")
+    assert pipeline.export_blockers(draft, pipeline.render(workspace, draft)) == []
+    assert pipeline.build_record(workspace, draft, pipeline.render(workspace, draft))["export"] == {"ready": True, "blocked_by": []}
+    assert set(pipeline.export(workspace, draft)) == {"markdown", "html"}
+
+
+def test_the_export_opens_with_the_disclosure_drops_the_draft_line_and_lists_compact_sources(workspace, monkeypatch):
+    workspace.sources.chunks[0].update(section="5.2 FIXTURE THE STATE OF THE LAMP", chapter="FIXTURE a very long chapter title")
+    draft = reviewed(workspace, monkeypatch, limitations=["The thesis does not say who paid for the oil [E1]."], sufficiency="partial")
+    document = workspace.document
+    exported = pipeline.export(workspace, draft)
+    lines = exported["markdown"].splitlines()
+
+    assert lines[0] == "# FIXTURE title" and lines[2].startswith("This article was drafted with an AI system from ")
+    assert f"{document.author} ({document.year}), {document.title}" in lines[2]              # the source is named at the top
+    assert "DRAFT" not in exported["markdown"] and "Drawn from" not in exported["markdown"]
+    assert "—" not in exported["markdown"].replace(document.title, "")                       # no em dash of the export's own
+    sources = exported["markdown"].split("## Sources\n\n")[1].strip().split("\n\n")
+    assert sources[0] == f"[1] {document.author} ({document.year}), § 5.2, p. 3."            # pages from stored provenance
+    assert sources[1].startswith(f"[2] {document.author} ({document.year}), FIXTURE ") and sources[1].endswith(".")
+    assert "Ch. “" not in exported["markdown"] and "THE STATE OF THE LAMP" not in exported["markdown"]
+    assert "## What this article does not cover\n\n- The thesis does not say who paid for the oil [1]." in exported["markdown"]
+    assert "[E" not in exported["markdown"] + exported["html"]
+
+    page = exported["html"]
+    assert page.startswith("<h1>FIXTURE title</h1>\n<p>This article was drafted with an AI system")
+    assert "<h2>FIXTURE heading</h2>" in page and "<ul><li>The thesis does not say who paid for the oil [1].</li></ul>" in page
+    assert "<p>FIXTURE the keeper logged lamp oil [1]. FIXTURE the oil came by sea [1] [2].</p>" in page
+    assert "<h2>Sources</h2>" in page and "<script" not in page
+
+
+def test_the_export_says_whose_work_the_source_is(workspace, monkeypatch):
+    draft = reviewed(workspace, monkeypatch)
+    surname = workspace.document.author.split(",")[0]
+
+    with_owner(monkeypatch, None)
+    unknown = pipeline.export(workspace, draft)["markdown"].splitlines()[2]
+    with_owner(monkeypatch, f"FIXTURE Firstname {surname}")
+    mine = pipeline.export(workspace, draft)["markdown"].splitlines()[2]
+    with_owner(monkeypatch, "FIXTURE Someone Else")
+    theirs = pipeline.export(workspace, draft)["markdown"].splitlines()[2]
+
+    assert "my own work" in mine and "another author" not in mine
+    assert "It summarises the work of another author: " in theirs and "the ideas are that author's" in theirs
+    assert "my own" not in unknown and "another author" not in unknown           # no owner set: no claim either way
+    for line in (mine, theirs, unknown):
+        assert line.startswith("This article was drafted with an AI system") and workspace.document.title in line
+        assert "—" not in line.replace(workspace.document.title, "")     # whichever wording: no em dash of the export's own
+
+
+def test_an_edited_sentence_and_kept_own_words_are_what_is_exported(workspace, monkeypatch):
+    draft = one_section(workspace, monkeypatch, UNNOTED)
+    pipeline.keep_as_own_words(draft, "0.2")
+    pipeline.edit_sentence(draft, "0.1", "FIXTURE the oil arrived each winter [E2].")
+    for pair in pipeline.render(workspace, draft).pairs:
+        pipeline.set_pair_verdict(draft, pair, "supports")
+    text = pipeline.export(workspace, draft)["markdown"]
+
+    assert "FIXTURE the keeper logged lamp oil [1]. FIXTURE the oil arrived each winter [2]. FIXTURE this is why the harbour prospered." in text
+    assert "came in winter" not in text
+
+
+def test_exported_html_cannot_carry_markup_from_the_text(workspace, monkeypatch):
+    draft = reviewed(workspace, monkeypatch, answer="FIXTURE the keeper wrote <b>oil</b> & more [E1].")
+    page = pipeline.export(workspace, draft)["html"]
+
+    assert "<p>FIXTURE the keeper wrote &lt;b&gt;oil&lt;/b&gt; &amp; more [1].</p>" in page

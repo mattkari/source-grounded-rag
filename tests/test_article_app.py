@@ -520,12 +520,25 @@ def test_review_shows_one_note_at_a_time_and_saves_each_verdict_as_it_is_given(v
 def test_an_answer_and_an_article_each_have_a_button_that_copies_them(view, monkeypatch):
     draft(view)
     finish(view)
-    (block,) = [b for b in html_blocks(view) if "sgrag-copy-button" in b]
+    (locked,) = [b for b in html_blocks(view) if "sgrag-copy-button" in b]
+    assert 'class="sgrag-copy-button" disabled>Copy for Medium</button>' in locked      # nothing leaves before review
+    assert "**Export is locked** until: 4 of 4 sentences are not judged yet." in all_text(view)
+    assert next(d for d in view.get("download_button") if d.label == "Download Markdown").disabled
+    assert "FIXTURE the ledger" not in locked                             # and nothing is waiting in the page to be copied
 
-    assert ">Copy the article</button>" in block and 'role="status"' in block and 'aria-live="polite"' in block
-    assert json.dumps(article_file(view), ensure_ascii=False).replace("</", "<\\/") in block     # the article itself, whole
-    assert "document.execCommand(\"copy\")" in block                 # the fallback for a page served over plain http
-    assert "navigator.clipboard" in block
+    button(view, "Back to the review").click()
+    view.run()
+    judge(view, ["supports"] * 4)
+    finish(view)
+    (block,) = [b for b in html_blocks(view) if "sgrag-copy-button" in b]
+    exported = pipeline.export(pipeline.open_workspace(), pipeline.load(next(view.out.glob("*")), pipeline.open_workspace()))
+
+    assert 'class="sgrag-copy-button" >Copy for Medium</button>' in block and "Export is locked" not in all_text(view)
+    assert 'role="status"' in block and 'aria-live="polite"' in block
+    assert json.dumps(exported["markdown"], ensure_ascii=False).replace("</", "<\\/") in block      # the plain form
+    assert json.dumps(exported["html"], ensure_ascii=False).replace("</", "<\\/") in block          # and the formatted one
+    assert "document.execCommand(\"copy\")" in block and "navigator.clipboard" in block      # plain http, and https
+    assert not next(d for d in view.get("download_button") if d.label == "Download Markdown").disabled
 
     view.radio(key="view").set_value("Ask questions")
     view.run()

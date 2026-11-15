@@ -142,6 +142,9 @@ def main(argv: list[str] | None = None, stream=None) -> int:
     parser.add_argument("--topics", action="store_true", help="list what the thesis covers; no model call")
     parser.add_argument("--sources", action="store_true", help="show what the footnote filter leaves; no model call")
     parser.add_argument("--list", action="store_true", help="list saved articles and whether they are finished")
+    parser.add_argument("--export", metavar="ARTICLE_ID",
+                        help="write the reviewed article as medium.md and medium.html; no model call. Refused, with "
+                             "the reasons, until every sentence is judged")
     parser.add_argument("--resume", metavar="ARTICLE_ID", help="finish an interrupted draft; finished steps are not sent again")
     parser.add_argument("--title", help="the article's title, in your words")
     parser.add_argument("--outline", type=Path, metavar="FILE", help="one section per line: Heading | question")
@@ -177,6 +180,21 @@ def main(argv: list[str] | None = None, stream=None) -> int:
     if args.topics or args.sources:
         print(topics.format_topics(workspace.topics()) if args.topics
               else "\n".join(workspace.sources.report.lines()), file=stream)
+        return 0
+
+    if args.export:
+        folder = out_dir / args.export
+        if not (folder / "record.json").exists():
+            print(f"There is no saved article {args.export}. Run with --list to see them.", file=stream)
+            return 2
+        try:
+            exported = pipeline.export(workspace, pipeline.load(folder, workspace))
+        except pipeline.ArticleError as exc:
+            print(str(exc), file=stream)
+            return 1
+        (folder / "medium.md").write_text(exported["markdown"], encoding="utf-8")
+        (folder / "medium.html").write_text(exported["html"], encoding="utf-8")
+        print(f"Markdown: {folder / 'medium.md'}\nHTML    : {folder / 'medium.html'}", file=stream)
         return 0
 
     missing = [str(path) for path in [args.outline, args.from_record, args.introduction_file, args.conclusion_file,

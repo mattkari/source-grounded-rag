@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ask
-from article import assemble, checks, sentences, sources, topics, voice
+from article import assemble, checks, export as article_export, sentences, sources, topics, voice
 from article.assemble import GENERATED, RESEARCHER, VERDICTS, FrameElement, SectionDraft
 from documents import Document, default_document
 
@@ -362,6 +362,41 @@ def status(draft: Draft, article: assemble.Article) -> str:
     return REVIEWED if all(v in VERDICTS and v != "does not" for v in given) else DRAFT
 
 
+def export_blockers(draft: Draft, article: assemble.Article) -> list[str]:
+    """What still stands between this article and its export, in words. Empty when it
+    may be exported: every pair judged, no *does not* left, every sentence without a
+    note resolved, every printed commentary accepted."""
+    blockers = []
+    if not draft.complete:
+        blockers.append("the draft is not finished")
+    if article.held_back:
+        blockers.append(f"{len(article.held_back)} sentence(s) with no note are waiting to be deleted or kept as yours")
+    given = [(pair_verdict(draft, pair) or {}).get("verdict") for pair in article.pairs]
+    if not article.pairs:
+        blockers.append("the article has no sourced sentence")
+    if given.count(None):
+        blockers.append(f"{given.count(None)} of {len(given)} sentences are not judged yet")
+    if given.count("does not"):
+        blockers.append(f"{given.count('does not')} sentence(s) judged “does not” are still in the article")
+    waiting = sum(1 for entry in article.commentary if entry["printed"]
+                  and draft.commentary_verdicts.get(entry["section"], {}).get("verdict") != "accept")
+    if waiting:
+        blockers.append(f"{waiting} commentary paragraph(s) are not accepted")
+    return blockers
+
+
+def export(workspace: Workspace, draft: Draft) -> dict[str, str]:
+    """The article as it is published, as Markdown and as HTML. Refused while anything
+    blocks it: what is exported is what the record shows as reviewed."""
+    article = render(workspace, draft)
+    blockers = export_blockers(draft, article)
+    if blockers:
+        raise ArticleError("This article cannot be exported yet: " + "; ".join(blockers) + ".")
+    owner = ask.settings.owner_name
+    return {"markdown": article_export.markdown(article, workspace.document, owner),
+            "html": article_export.as_html(article, workspace.document, owner)}
+
+
 def pair_key(pair: dict) -> str:
     return f"{pair['sid']}|{pair['chunk_id']}"
 
@@ -650,6 +685,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "blocked": article.blocked,
         "frame_sentences_without_a_note": article.unnoted,
         "limitations_kept_in_record_only": article.limits_held_back,
+        "export": {"ready": not export_blockers(draft, article), "blocked_by": export_blockers(draft, article)},
         "sentences": {
             "held_back_without_a_note": article.held_back,
             "kept_as_own_words": [{**entry, "origin": RESEARCHER, **draft.own_words[entry["sid"]]}
