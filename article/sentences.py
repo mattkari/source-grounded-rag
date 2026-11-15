@@ -62,3 +62,60 @@ def units(section: int, text: str) -> list[Unit]:
         for sentence in split(line):
             found.append(Unit(f"{section}.{len(found)}", paragraph, sentence))
     return found
+
+
+# ---------------------------------------------------------------------------
+# Which sentences of the cited passage to show beside a drafted sentence
+# ---------------------------------------------------------------------------
+
+_WORD = re.compile(r"[^\W\d_][\w’'ʿʾ-]*")
+_STOP = set("""
+about above after again against also although among another because been before being below between both
+could does doing down during each either from further have having here however into itself just more most
+much must neither nor only other others ought over rather same shall should since some such than that their
+theirs them themselves then there these they this those through thus under until upon very were what when
+where whereas which while whom whose will with within without would your yours thesis according
+""".split())
+MATCHES_SHOWN = 3
+
+
+def content_words(text: str) -> set[str]:
+    """The words a sentence is about: lower-cased, four letters or more, no function words."""
+    plain = re.sub(r"\[E?\d+\]", " ", text)
+    return {word.lower() for word in _WORD.findall(plain) if len(word) >= 4 and word.lower() not in _STOP}
+
+
+@dataclass(frozen=True)
+class Match:
+    text: str               # one sentence of the passage, as stored
+    shared: frozenset       # the content words it shares with the drafted sentence
+    share: float            # shared words as a share of the drafted sentence's content words
+
+
+def best_matches(sentence: str, passage: str, limit: int = MATCHES_SHOWN) -> list[Match]:
+    """Up to `limit` sentences of the passage that share most words with `sentence`,
+    best first. This chooses what to put in front of the reader. It says nothing about
+    whether the passage supports the sentence: shared words are not shared meaning."""
+    wanted = content_words(sentence)
+    found = []
+    for position, candidate in enumerate(split(" ".join(passage.split()))):
+        shared = wanted & content_words(candidate)
+        if shared:
+            found.append((-len(shared), position, Match(candidate, frozenset(shared), len(shared) / len(wanted))))
+    return [match for _, _, match in sorted(found)[:limit]]
+
+
+_MARKDOWN = re.compile(r"([\\`*_{}\[\]()#+\-!|>~$<&])")
+
+
+def highlight(text: str, shared: frozenset | set) -> str:
+    """`text` as Markdown with the shared words in bold. Every character that
+    Markdown could read as formatting is escaped first: the passage is shown, never run."""
+    pieces, position = [], 0
+    for match in _WORD.finditer(text):
+        pieces.append(_MARKDOWN.sub(r"\\\1", text[position:match.start()]))
+        word = _MARKDOWN.sub(r"\\\1", match.group(0))
+        pieces.append(f"**{word}**" if match.group(0).lower() in shared else word)
+        position = match.end()
+    pieces.append(_MARKDOWN.sub(r"\\\1", text[position:]))
+    return "".join(pieces)

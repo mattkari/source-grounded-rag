@@ -369,5 +369,5 @@ def support_rate(notes: list[dict]) -> dict:
     not judged — never as supported."""
     counts = {verdict: sum(1 for note in notes if note.get("verdict") == verdict) for verdict in VERDICTS}
     counts["not judged"] = sum(1 for note in notes if note.get("verdict") not in VERDICTS)
-    counts["notes"] = len(notes)
+    counts["notes"] = counts["pairs"] = len(notes)       # "notes" is the name older records and readers use
     return counts

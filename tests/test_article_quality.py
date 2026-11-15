@@ -801,3 +801,104 @@ def test_what_was_decided_about_a_sentence_survives_saving_and_reopening(workspa
 def test_sentences_are_split_at_their_ends_and_not_at_abbreviations(text, expected):
     from article import sentences
     assert len(sentences.split(text)) == expected
+
+
+# =====================================================================================
+# ADR 0008, item 2: one verdict per sentence and note
+# =====================================================================================
+
+# One note on three sentences, as in the published draft, where one note covered six
+# sentences and three of them were wrong.
+ONE_NOTE_THREE_SENTENCES = ("FIXTURE the keeper logged lamp oil [E1]. FIXTURE the oil came by sea [E1]. "
+                            "FIXTURE the ledger was kept in winter [E1] [E2].")
+
+
+def test_a_note_on_several_sentences_is_judged_once_for_each_sentence(workspace, monkeypatch):
+    draft = one_section(workspace, monkeypatch, ONE_NOTE_THREE_SENTENCES)
+    article = pipeline.render(workspace, draft)
+
+    assert len(article.notes) == 2
+    assert [(pair["sid"], pair["n"]) for pair in article.pairs] == [("0.0", 1), ("0.1", 1), ("0.2", 1), ("0.2", 2)]
+    assert article.pairs[1]["sentence"] == "FIXTURE the oil came by sea [1]." and article.pairs[1]["raw"].endswith("[E1].")
+
+    pipeline.set_pair_verdict(draft, article.pairs[0], "supports")
+    pipeline.set_pair_verdict(draft, article.pairs[1], "does not", "FIXTURE reason: the passage says by road")
+    assert pipeline.status(draft, article) == "draft"                   # two pairs not judged, one judged against
+    pipeline.set_pair_verdict(draft, article.pairs[2], "partly")
+    pipeline.set_pair_verdict(draft, article.pairs[3], "supports")
+    assert pipeline.status(draft, article) == "draft"                   # every pair judged; one "does not" remains
+    rows = pipeline.build_record(workspace, draft, article)["pairs"]
+    assert [(row["sid"], row["verdict"], row["carried_over"], row["judged_by"]) for row in rows] == [
+        ("0.0", "supports", False, "researcher"), ("0.1", "does not", False, "researcher"),
+        ("0.2", "partly", False, "researcher"), ("0.2", "supports", False, "researcher")]
+
+    pipeline.delete_sentence(draft, "0.1")
+    after = pipeline.render(workspace, draft)
+    record = pipeline.build_record(workspace, draft, after)
+    assert pipeline.status(draft, after) == "reviewed" and "came by sea" not in after.markdown
+    assert record["support"] == {"supports": 2, "partly": 1, "does not": 1, "not judged": 0, "notes": 2, "pairs": 4}
+    gone = record["pairs"][-1]
+    assert (gone["in_article"], gone["sentence_deleted"], gone["verdict"]) == (False, True, "does not")
+    with pytest.raises(pipeline.ArticleError):
+        pipeline.set_pair_verdict(draft, after.pairs[0], "probably")
+
+
+def test_a_verdict_given_per_note_opens_as_the_verdict_of_each_of_its_sentences_marked_carried_over(workspace, monkeypatch, tmp_path):
+    draft = one_section(workspace, monkeypatch, ONE_NOTE_THREE_SENTENCES)
+    first = pipeline.render(workspace, draft)
+    pipeline.set_verdict(draft, first.notes[0]["chunk_id"], "supports", "FIXTURE given to the whole note")
+    folder = pipeline.save(workspace, draft, tmp_path / "out")
+    record = json.loads((folder / "record.json").read_text(encoding="utf-8"))
+    record["schema_version"] = 3                                        # as saved before ADR 0008
+    for key in ("pairs", "sentences"):
+        record.pop(key)
+    (folder / "record.json").write_text(json.dumps(record), encoding="utf-8")
+
+    reopened = pipeline.load(folder, workspace)
+    article = pipeline.render(workspace, reopened)
+    rows = pipeline.pairs_record(reopened, article)
+
+    assert [(row["verdict"], row["carried_over"]) for row in rows] == [
+        ("supports", True), ("supports", True), ("supports", True), (None, False)]
+    assert rows[0]["reason"] == "FIXTURE given to the whole note"
+    assert pipeline.status(reopened, article) == "draft"                # the second note was never judged
+
+    pipeline.set_pair_verdict(reopened, article.pairs[1], "partly")     # the author looks again at one sentence
+    rows = pipeline.pairs_record(reopened, pipeline.render(workspace, reopened))
+    assert [(row["verdict"], row["carried_over"]) for row in rows][:3] == [
+        ("supports", True), ("partly", False), ("supports", True)]
+
+
+def test_pair_verdicts_survive_saving_and_reopening(workspace, monkeypatch, tmp_path):
+    draft = one_section(workspace, monkeypatch, ONE_NOTE_THREE_SENTENCES)
+    article = pipeline.render(workspace, draft)
+    pipeline.set_pair_verdict(draft, article.pairs[2], "partly", "FIXTURE half of it")
+    reopened = pipeline.load(pipeline.save(workspace, draft, tmp_path / "out"), workspace)
+
+    given = pipeline.pair_verdict(reopened, pipeline.render(workspace, reopened).pairs[2])
+    assert (given["verdict"], given["reason"], given["carried_over"]) == ("partly", "FIXTURE half of it", False)
+    assert pipeline.pair_verdict(reopened, article.pairs[0]) is None
+
+
+PASSAGE = ("FIXTURE: the keeper logged every delivery of lamp oil in a ledger. Harland describes the ledger "
+           "as exact. The harbour (see fig. 2) froze in winter. Nothing here concerns orchards.")
+
+
+def test_the_passage_sentences_shown_are_the_ones_that_share_most_words():
+    from article import sentences
+    matches = sentences.best_matches("FIXTURE the keeper kept a ledger of lamp oil deliveries [E1].", PASSAGE)
+
+    assert [match.text for match in matches][:2] == [
+        "FIXTURE: the keeper logged every delivery of lamp oil in a ledger.", "Harland describes the ledger as exact."]
+    assert matches[0].shared == {"fixture", "keeper", "ledger", "lamp"} and matches[0].share == 4 / 6
+    assert len(sentences.best_matches("FIXTURE the keeper, the ledger, the harbour, the winter [E1].", PASSAGE)) == 3
+    assert len(sentences.best_matches("FIXTURE keeper ledger harbour winter orchards [E1].", PASSAGE, limit=2)) == 2
+    assert sentences.best_matches("Glaciers retreat quickly [E1].", PASSAGE) == []          # nothing shared: nothing shown
+    assert len(sentences.split(PASSAGE)) == 4                           # "fig." does not end a sentence
+
+
+def test_shared_words_are_made_bold_and_the_passage_can_never_be_read_as_formatting():
+    from article import sentences
+    marked = sentences.highlight("The *keeper* logged [oil] in a ledger_book <b>.", {"keeper", "logged"})
+
+    assert marked == "The \\***keeper**\\* **logged** \\[oil\\] in a ledger\\_book \\<b\\>."

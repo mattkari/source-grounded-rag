@@ -216,6 +216,9 @@ class Draft:
     # conclusion to "researcher", "generated" or "none".
     # Sentence by sentence (ADR 0008). An edit is {"text": str | None, "original": str,
     # "edited_at": iso}; text None means the researcher deleted the sentence.
+    # "<sid>|<chunk id>" -> {"verdict", "reason", "judged_at", "judged_text"}: the researcher's
+    # verdict on one sentence and one note it carries, and the text it was given on.
+    pair_verdicts: dict[str, dict] = field(default_factory=dict)
     sentence_edits: dict[str, dict] = field(default_factory=dict)
     own_words: dict[str, dict] = field(default_factory=dict)     # sid -> {"kept_at": iso}: unnoted, kept as theirs
     frame_plan: dict[str, str] = field(default_factory=dict)
@@ -313,6 +316,10 @@ def run(workspace: Workspace, draft: Draft, out_dir: Path | None = None, referen
     return draft
 
 
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
 def check_outline(title: str, outline: list[tuple[str, str]]) -> None:
     if not title.strip():
         raise ArticleError("Give the article a title. The title is yours to write.")
@@ -346,13 +353,72 @@ def status(draft: Draft, article: assemble.Article) -> str:
     While steps of the plan remain it is still being drafted."""
     if not draft.complete:
         return DRAFTING
-    if not article.notes or article.held_back:
+    if not article.pairs or article.held_back:
         return DRAFT                                      # a sentence with no note is still waiting for a decision
     for entry in article.commentary:
         if entry["printed"] and draft.commentary_verdicts.get(entry["section"], {}).get("verdict") != "accept":
             return DRAFT
-    given = [draft.verdicts.get(note["chunk_id"], {}).get("verdict") for note in article.notes]
+    given = [(pair_verdict(draft, pair) or {}).get("verdict") for pair in article.pairs]
     return REVIEWED if all(v in VERDICTS and v != "does not" for v in given) else DRAFT
+
+
+def pair_key(pair: dict) -> str:
+    return f"{pair['sid']}|{pair['chunk_id']}"
+
+
+def pair_verdict(draft: Draft, pair: dict) -> dict | None:
+    """The researcher's verdict on this sentence and this note, if it still stands.
+
+    A verdict stands for the text it was given on: an edited sentence needs a
+    fresh one. A verdict given per note, before sentences were judged one by one
+    (ADR 0008), is carried over to every sentence of that note that has not been
+    edited since, and is marked as carried over.
+    """
+    own = draft.pair_verdicts.get(pair_key(pair))
+    if own is not None:
+        return {**own, "carried_over": False} if own["judged_text"] == pair["raw"] else None
+    legacy = draft.verdicts.get(pair["chunk_id"])
+    if legacy and legacy.get("verdict") and not pair["edited"]:
+        return {**legacy, "carried_over": True}
+    return None
+
+
+def set_pair_verdict(draft: Draft, pair: dict, verdict: str, reason: str = "") -> None:
+    if verdict not in VERDICTS:
+        raise ArticleError(f"A verdict is one of: {', '.join(VERDICTS)}.")
+    draft.pair_verdicts[pair_key(pair)] = {
+        "verdict": verdict, "reason": reason.strip(), "judged_at": _now(), "judged_text": pair["raw"]}
+
+
+def pairs_record(draft: Draft, article: assemble.Article) -> list[dict]:
+    """Every sentence-and-note pair the article has, with the researcher's verdict,
+    and every pair it had: a sentence deleted after a verdict keeps that verdict here."""
+    rows, current = [], set()
+    for pair in article.pairs:
+        given = pair_verdict(draft, pair) or {}
+        current.add(pair_key(pair))
+        rows.append({
+            "sid": pair["sid"], "chunk_id": pair["chunk_id"], "n": pair["n"], "sentence": pair["sentence"],
+            "verdict": given.get("verdict"), "reason": given.get("reason", ""), "judged_at": given.get("judged_at"),
+            "judged_by": "researcher" if given else None, "carried_over": bool(given.get("carried_over")),
+            "in_article": True,
+            # the text the verdict was given on; None for a verdict carried over from a note
+            "raw": None if given.get("carried_over") or not given else pair["raw"],
+        })
+    for key, given in draft.pair_verdicts.items():
+        sid, chunk_id = key.split("|", 1)
+        if key not in current and draft.sentence_edits.get(sid, {}).get("text", "") is None:
+            rows.append({"sid": sid, "chunk_id": chunk_id, "n": None, "sentence": given["judged_text"],
+                         "verdict": given["verdict"], "reason": given["reason"], "judged_at": given["judged_at"],
+                         "judged_by": "researcher", "carried_over": False, "in_article": False,
+                         "sentence_deleted": True, "raw": given["judged_text"]})
+    for chunk_id in sorted(draft.removed):                # removed under a per-note verdict, before ADR 0008
+        given = draft.verdicts.get(chunk_id, {})
+        rows.append({"sid": None, "chunk_id": chunk_id, "n": None, "sentence": None, "verdict": given.get("verdict"),
+                     "reason": given.get("reason", ""), "judged_at": given.get("judged_at"),
+                     "judged_by": "researcher" if given else None, "carried_over": True, "in_article": False,
+                     "sentences_removed": True})
+    return rows
 
 
 def set_verdict(draft: Draft, chunk_id: str, verdict: str, reason: str = "") -> None:
@@ -363,10 +429,6 @@ def set_verdict(draft: Draft, chunk_id: str, verdict: str, reason: str = "") -> 
         "reason": reason.strip(),
         "judged_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _unit(draft: Draft, sid: str):
@@ -477,6 +539,7 @@ def voice_columns(article: assemble.Article, reference_text: str = "") -> dict:
 def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, reference_text: str = "") -> dict:
     cut = workspace.sources.removed
     notes = notes_record(draft, article)
+    pairs = pairs_record(draft, article)
     commentary = {entry["section"]: entry for entry in article.commentary}
 
     def commentary_record(index: int) -> dict | None:
@@ -547,7 +610,10 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         },
         "em_dashes_in_print": em_dashes(draft),
         "notes": notes,
-        "support": assemble.support_rate(notes),
+        # One row per sentence and note it carries: the unit the researcher judges (ADR 0008).
+        "pairs": pairs,
+        # Verdicts are counted per pair; "notes" is how many distinct notes those pairs carry.
+        "support": {**assemble.support_rate(pairs), "notes": len({row["chunk_id"] for row in pairs})},
         "support_excludes": "text written by the researcher, which carries no notes",
         "source_filter": workspace.sources.report.to_json(),
         "voice": voice_columns(article, reference_text),
@@ -643,6 +709,11 @@ def load(folder: Path, workspace: Workspace) -> Draft:
             for note in record["notes"] if note["verdict"]
         },
         removed={note["chunk_id"] for note in record["notes"] if note["sentences_removed"]},
+        pair_verdicts={
+            f"{row['sid']}|{row['chunk_id']}": {"verdict": row["verdict"], "reason": row["reason"],
+                                                "judged_at": row["judged_at"], "judged_text": row["raw"]}
+            for row in record.get("pairs", []) if row.get("verdict") and row.get("raw") is not None
+        },
         sentence_edits={sid: {key: edit[key] for key in ("text", "original", "edited_at")}
                         for sid, edit in record.get("sentences", {}).get("edits", {}).items()},
         own_words={entry["sid"]: {"kept_at": entry["kept_at"]}

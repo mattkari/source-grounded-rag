@@ -182,10 +182,10 @@ def test_a_transition_is_printed_only_between_two_kept_neighbours(three, items, 
 def test_a_note_not_yet_judged_is_never_counted_as_supported(three, document):
     notes = assemble.assemble(title="FIXTURE title", document=document, sections=three).notes
     assert {note["verdict"] for note in notes} == {None}
-    assert assemble.support_rate(notes) == {"supports": 0, "partly": 0, "does not": 0, "not judged": 4, "notes": 4}
+    assert assemble.support_rate(notes) == {"supports": 0, "partly": 0, "does not": 0, "not judged": 4, "notes": 4, "pairs": 4}
 
     notes[0]["verdict"], notes[1]["verdict"], notes[2]["verdict"] = "supports", "does not", "FIXTURE typo"
-    assert assemble.support_rate(notes) == {"supports": 1, "partly": 0, "does not": 1, "not judged": 2, "notes": 4}
+    assert assemble.support_rate(notes) == {"supports": 1, "partly": 0, "does not": 1, "not judged": 2, "notes": 4, "pairs": 4}
 
 
 # --- topics ----------------------------------------------------------------------------
@@ -374,7 +374,7 @@ def test_the_trial_writes_one_assembled_article_and_its_record(trial):
     assert t.record["title"] == {"origin": "researcher", "text": "FIXTURE harbour title"}
     assert [s["blocked"] for s in t.record["sections"]] == [None, None, None]
     assert t.record["frame"]["introduction"]["origin"] == "generated"
-    assert t.record["support"] == {"supports": 0, "partly": 0, "does not": 0, "not judged": 3, "notes": 3}
+    assert t.record["support"] == {"supports": 0, "partly": 0, "does not": 0, "not judged": 3, "notes": 3, "pairs": 3}
     assert t.record["source_filter"]["reference_list_excluded"] == 1
     assert t.record["source_filter"]["passages_available"] == 5
     assert "Notes to check: 3." in t.log.getvalue()
@@ -755,7 +755,7 @@ def test_a_does_not_verdict_keeps_the_article_in_draft_until_its_sentences_are_r
     assert "p. 3." not in after.markdown.split("## Sources")[1]        # its source line went with it
     record = pipeline.notes_record(draft, after)
     assert record[-1] == {**record[-1], "chunk_id": oil, "n": None, "verdict": "does not", "sentences_removed": True}
-    assert assemble.support_rate(record) == {"supports": 3, "partly": 0, "does not": 1, "not judged": 0, "notes": 4}
+    assert assemble.support_rate(record) == {"supports": 3, "partly": 0, "does not": 1, "not judged": 0, "notes": 4, "pairs": 4}
 
 
 def test_generated_frame_sentences_without_a_note_are_raised_for_the_researcher(workspace, draft):
@@ -779,7 +779,8 @@ def test_the_record_holds_what_the_plan_says_and_no_passage_text(workspace, draf
     assert section["evidence"][0].keys() == {"handle", "chunk_id", "score"}
     assert record["frame"]["introduction"]["origin"] == "generated"
     assert record["frame"]["conclusion"] == {"origin": "researcher", "text": "FIXTURE my own closing words."}
-    assert record["support"]["notes"] == 4 and record["support"]["not judged"] == 4
+    assert record["support"]["notes"] == 4                              # four notes, one of them on two sentences:
+    assert record["support"]["pairs"] == record["support"]["not judged"] == 5      # five things to judge
     assert record["support_excludes"] == "text written by the researcher, which carries no notes"
     assert record["source_filter"]["passages_available"] == 5
     assert (folder / "article.md").read_text(encoding="utf-8") == pipeline.render(workspace, draft).markdown

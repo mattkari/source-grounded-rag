@@ -201,8 +201,9 @@ def test_a_topic_becomes_a_saved_reviewed_article_with_no_file_edited_by_hand(vi
     finish(view)
 
     assert saved["status"] == "reviewed"
-    assert saved["support"] == {"supports": 3, "partly": 1, "does not": 0, "not judged": 0, "notes": 4}
-    assert all(note["judged_by"] == "researcher" and note["judged_at"] for note in saved["notes"])
+    assert saved["support"] == {"supports": 3, "partly": 1, "does not": 0, "not judged": 0, "notes": 4, "pairs": 4}
+    assert all(pair["judged_by"] == "researcher" and pair["judged_at"] for pair in saved["pairs"])
+    assert not any(pair["carried_over"] for pair in saved["pairs"])      # each given on its own sentence
     assert assemble.DRAFT_LINE not in article_file(view)
     assert article_file(view).rstrip().endswith(f"*{assemble.CLOSING_LINE_REVIEWED}*")
     assert "Reviewed: every note has your verdict." in all_text(view)
@@ -220,18 +221,19 @@ def test_a_note_judged_does_not_keeps_the_draft_until_its_sentences_are_removed(
     button(view, "Previous").click()
     view.run()                                                          # back on the note judged "does not"
     assert "**2 of 4**" in all_text(view) and current_verdict(view).value == "does not"
-    assert "The article stays a draft until these sentences are removed." in all_text(view)
+    assert "The article stays a draft until this sentence is deleted." in all_text(view)
 
-    button(view, "Remove the sentences that carry this note").click()
+    button(view, "Delete this sentence").click()
     view.run()
     saved = record(view)
 
     assert "FIXTURE and it says another" not in article_file(view)
     assert "FIXTURE the calendar lists rootstock [2]." in article_file(view)       # renumbered, no gap
     assert saved["status"] == "reviewed"
-    assert saved["support"] == {"supports": 3, "partly": 0, "does not": 1, "not judged": 0, "notes": 4}
-    removed = [note for note in saved["notes"] if note["sentences_removed"]]
-    assert [(note["n"], note["verdict"]) for note in removed] == [(None, "does not")]
+    assert saved["support"] == {"supports": 3, "partly": 0, "does not": 1, "not judged": 0, "notes": 4, "pairs": 4}
+    deleted = [pair for pair in saved["pairs"] if not pair["in_article"]]
+    assert [(pair["n"], pair["verdict"], pair["sentence_deleted"]) for pair in deleted] == [(None, "does not", True)]
+    assert saved["sentences"]["edits"]["0.1"]["original"] == "FIXTURE and it says another [E2]."     # what it said is kept
 
 
 def test_generated_frame_text_is_marked_as_commentary_and_costs_one_call_each(view):
@@ -506,12 +508,12 @@ def test_review_shows_one_note_at_a_time_and_saves_each_verdict_as_it_is_given(v
     assert "Step 4 of 5" in all_text(view) and button(view, "Previous").disabled
 
     judge(view, ["partly"])
-    assert [note["verdict"] for note in record(view)["notes"]] == ["partly", None, None, None]     # saved at once
+    assert [pair["verdict"] for pair in record(view)["pairs"]] == ["partly", None, None, None]     # saved at once
     assert "**2 of 4** · judged so far: 1 of 4" in all_text(view)
 
     button(view, "Save and next").click()                               # moving on without choosing judges nothing
     view.run()
-    assert [note["verdict"] for note in record(view)["notes"]] == ["partly", None, None, None]
+    assert [pair["verdict"] for pair in record(view)["pairs"]] == ["partly", None, None, None]
     assert "**3 of 4** · judged so far: 1 of 4" in all_text(view)
 
 
@@ -572,3 +574,17 @@ def test_a_sentence_with_no_note_is_put_to_the_researcher_before_anything_else(v
     assert "FIXTURE the timetable changed [4]. FIXTURE this shaped the town." in article_file(view)
     assert record(view)["sentences"]["kept_as_own_words"][0]["origin"] == "researcher"
     assert "**1 of 4**" in all_text(view)                               # only the notes are left to judge
+
+
+def test_review_puts_one_sentence_beside_its_passage_and_judges_the_pair(view):
+    draft(view)
+    shown = all_text(view)
+
+    assert "**Sentence with note [1]**, in “FIXTURE first heading”" in shown
+    assert "Closest sentences in the passage it cites, shared words in bold" in shown
+    assert any(e.label == "The whole passage" for e in view.expander) and len(view.text) == 1
+    assert "Does the passage support this sentence?" == current_verdict(view).label
+    judge(view, ["supports"])
+    pair = record(view)["pairs"][0]
+    assert (pair["sid"], pair["verdict"], pair["carried_over"], pair["raw"]) == (
+        "0.0", "supports", False, "FIXTURE the ledger says one thing [E1].")

@@ -38,7 +38,8 @@ import ask
 import audit
 import runs
 import upload
-from article import assemble, pipeline, sources as article_sources, topics as article_topics, voice
+from article import assemble, pipeline, sentences as article_sentences, sources as article_sources
+from article import topics as article_topics, voice
 from config import settings
 from documents import Document, default_document
 
@@ -968,49 +969,58 @@ def render_section_choices(workspace: pipeline.Workspace, draft: pipeline.Draft)
 def review_items(article: assemble.Article) -> list[tuple[str, dict]]:
     """Everything that needs the researcher's verdict, in reading order: the notes,
     then each commentary paragraph that is printed."""
-    return [("held", held) for held in article.held_back] + [("note", note) for note in article.notes] + [
+    return [("held", held) for held in article.held_back] + [("pair", pair) for pair in article.pairs] + [
         ("commentary", entry) for entry in article.commentary if entry["printed"]]
 
 
 def is_judged(draft: pipeline.Draft, kind: str, item: dict) -> bool:
     if kind == "held":
         return False                                    # it leaves the list once deleted or kept
-    if kind == "note":
-        return bool(draft.verdicts.get(item["chunk_id"], {}).get("verdict"))
+    if kind == "pair":
+        return pipeline.pair_verdict(draft, item) is not None
     return bool(draft.commentary_verdicts.get(item["section"], {}).get("verdict"))
 
 
-def render_note(workspace: pipeline.Workspace, draft: pipeline.Draft, article: assemble.Article, note: dict):
-    chunk = workspace.by_id[note["chunk_id"]]
-    recorded = draft.verdicts.get(note["chunk_id"], {})
-    st.markdown(f"**Note [{note['n']}]** — {ask.page_phrase(chunk)}")
+def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict):
+    """One sentence and one note it carries, beside the sentences of the cited passage
+    that share most of its words. The matching only chooses what to show: the verdict
+    is the researcher's, on reading."""
+    chunk = workspace.by_id[pair["chunk_id"]]
+    recorded = pipeline.pair_verdict(draft, pair) or {}
+    st.markdown(f"**Sentence with note [{pair['n']}]**, in “{pair['heading']}” — {ask.page_phrase(chunk)}")
     left, right = st.columns(2)
     with left:
-        st.caption("The article says")
-        for sentence in article.carriers.get(note["n"], []):
-            st.markdown(f"> {sentence}")
+        st.caption("The article says" + (" (edited by you)" if pair["edited"] else ""))
+        st.markdown(f"> {pair['sentence']}")
     with right:
-        st.caption("The passage it cites" + (" (footnote text removed)"
-                                            if note["chunk_id"] in workspace.sources.removed else ""))
-        # Reflowed: the index keeps the PDF's line breaks, which read as ragged
-        # short lines. No inner scroll box: a keyboard cannot scroll one.
+        matches = article_sentences.best_matches(pair["raw"], chunk["text"])
+        st.caption("Closest sentences in the passage it cites, shared words in bold"
+                   + (" (footnote text removed)" if pair["chunk_id"] in workspace.sources.removed else ""))
+        if not matches:
+            st.warning("No sentence of the cited passage shares a word of substance with this one. Read the whole passage.")
+        for match in matches:
+            st.markdown(f"- {article_sentences.highlight(match.text, match.shared)}")
+    with st.expander("The whole passage"):
+        # Reflowed: the index keeps the PDF's line breaks, which read as ragged short lines.
         st.text(" ".join(chunk["text"].split()))
+    if recorded.get("carried_over"):
+        st.caption("Carried over: this verdict was given to the whole note, before sentences were judged one by one.")
     options = [NOT_JUDGED, *assemble.VERDICTS]
-    verdict = st.radio("Does the passage support it?", options, horizontal=True,
-                       index=options.index(recorded.get("verdict", NOT_JUDGED)),
-                       key=f"article_verdict_{note['chunk_id']}")
-    reason = st.text_input("Reason (optional)", value=recorded.get("reason", ""),
-                           key=f"article_reason_{note['chunk_id']}")
+    key = pipeline.pair_key(pair).replace("|", "_")
+    verdict = st.radio("Does the passage support this sentence?", options, horizontal=True,
+                       index=options.index(recorded.get("verdict", NOT_JUDGED)), key=f"article_verdict_{key}")
+    reason = st.text_input("Reason (optional)", value=recorded.get("reason", ""), key=f"article_reason_{key}")
     if recorded.get("verdict") == "does not":
-        st.warning("Judged “does not”. The article stays a draft until these sentences are removed.")
-        if st.button("Remove the sentences that carry this note", key=f"article_remove_{note['chunk_id']}"):
-            pipeline.remove_sentences(draft, note["chunk_id"])
+        st.warning("Judged “does not”. The article stays a draft until this sentence is deleted.")
+        if st.button("Delete this sentence", key=f"article_delete_{key}"):
+            pipeline.delete_sentence(draft, pair["sid"])
             persist(workspace, draft)
             st.rerun()
 
     def save() -> None:
-        if verdict != NOT_JUDGED and (verdict, reason.strip()) != (recorded.get("verdict"), recorded.get("reason")):
-            pipeline.set_verdict(draft, note["chunk_id"], verdict, reason)
+        changed = (verdict, reason.strip()) != (recorded.get("verdict"), recorded.get("reason", ""))
+        if verdict != NOT_JUDGED and (changed or recorded.get("carried_over")):
+            pipeline.set_pair_verdict(draft, pair, verdict, reason)
     return save
 
 
@@ -1071,12 +1081,13 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
     kind, item = items[index]
     st.caption(
         "The checks so far show that each note points at a real passage. Only reading shows whether "
-        "the passage supports the sentence. The article stays a draft until every one is judged."
+        "the passage supports the sentence. Each sentence is judged with each note it carries; the "
+        "article stays a draft until every one is judged."
     )
     st.markdown(f"**{index + 1} of {len(items)}** · judged so far: {judged} of {len(items)}")
     with st.container(border=True):
         save = (render_held_back(workspace, draft, item) if kind == "held"
-                else render_note(workspace, draft, article, item) if kind == "note"
+                else render_pair(workspace, draft, item) if kind == "pair"
                 else render_commentary(draft, item))
     back, forward = st.columns(2)
     with back:
@@ -1143,7 +1154,7 @@ def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
     step_header(STEP_FINISH)
     article = pipeline.render(workspace, draft)
     state = pipeline.status(draft, article)
-    counts = assemble.support_rate(pipeline.notes_record(draft, article))
+    counts = assemble.support_rate(pipeline.pairs_record(draft, article))
 
     if state == pipeline.REVIEWED:
         st.success("Reviewed: every note has your verdict.")
@@ -1151,7 +1162,7 @@ def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
         st.info("Draft: not every note has been judged, a note judged “does not” is still in the article, "
                 "or a commentary paragraph is waiting for your verdict.")
     st.markdown(
-        f"**Notes:** {counts['notes']} — supports {counts['supports']}, partly {counts['partly']}, "
+        f"**Sentences to judge:** {counts['pairs']} — supports {counts['supports']}, partly {counts['partly']}, "
         f"does not {counts['does not']}, not judged {counts['not judged']}"
     )
     copy_button(article.markdown, "Copy the article", key="article")
