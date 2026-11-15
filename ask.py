@@ -317,11 +317,39 @@ def validate(result: dict, items: list[EvidenceItem]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def _pdf_pages(pages: list[int]) -> str:
+    """"PDF p. 67", "PDF pp. 66–67" for a run, "PDF pp. 28, 31" otherwise."""
+    if len(pages) == 1:
+        return f"PDF p. {pages[0]}"
+    if pages == list(range(pages[0], pages[-1] + 1)):
+        return f"PDF pp. {pages[0]}–{pages[-1]}"
+    return "PDF pp. " + ", ".join(str(page) for page in pages)
+
+
 def page_phrase(chunk: dict) -> str:
+    """The page reference a reader is shown. Everything in it is stored provenance.
+
+    A printed label appears only if it was stored for the first or last page of
+    the passage. A page with no printed number is never given one: it is named
+    by its PDF page, taken from the passage's own record of which of its pages
+    carry no number, and marked for verification (hard rules 2 and 6).
+    """
     start, end = chunk["page_start"], chunk["page_end"]
-    if start is None or end is None:
-        return f"page not printed on source page (PDF p. {chunk['pdf_page_start']}) [VERIFY]"
-    return f"p. {start}" if start == end else f"pp. {start}–{end}"
+    if start is not None and end is not None:
+        return f"p. {start}" if start == end else f"pp. {start}–{end}"
+
+    recorded = chunk.get("pages_unresolved")
+    span = list(range(chunk["pdf_page_start"], chunk["pdf_page_end"] + 1))
+    label = start if start is not None else end
+
+    if label is None:
+        # No printed number at either end. An older index did not record which
+        # pages lack one; the stored PDF range is then all that can be named.
+        return f"page not printed on source page ({_pdf_pages(recorded or span)}) [VERIFY]"
+    if recorded:
+        verb = "has" if len(recorded) == 1 else "have"
+        return f"p. {label} and {_pdf_pages(recorded)}, which {verb} no printed number [VERIFY]"
+    return f"p. {label} and {_pdf_pages(span)}, at least one of which has no printed number [VERIFY]"
 
 
 def footnote(index: int, item: EvidenceItem) -> str:
@@ -445,12 +473,21 @@ class QueryOutcome:
     items: list[EvidenceItem]
     failures: list[str]
     prompt_hash: str
+    # False only for the evaluation baseline (PLAN_V5): the same prompt and the
+    # same model, asked with an empty evidence block.
+    evidence_retrieved: bool = True
 
     @property
     def grounded(self) -> bool:
-        return not self.failures
+        # With nothing retrieved there is nothing to be grounded in.
+        return self.evidence_retrieved and not self.failures
 
     def rendered(self, verbose: bool = False) -> str:
+        if not self.evidence_retrieved:
+            raise RuntimeError(
+                "A no-retrieval baseline answer is an evaluation record. "
+                "It is never rendered as an answer."
+            )
         return render(self.question, self.result, self.items, verbose)
 
 
@@ -460,13 +497,25 @@ def run_query(
     chunks: list[dict],
     top_k: int | None = None,
     document: Document | None = None,
+    *,
+    retrieve_evidence: bool = True,
 ) -> QueryOutcome:
     """Retrieve -> ground -> validate. No printing, no process control.
 
     `document` is the thesis the index belongs to; None is the built-in one.
     It is attached to every evidence item, which is where citations read it.
+
+    `retrieve_evidence=False` is the evaluation baseline (PLAN_V2 §20, PLAN_V5):
+    retrieval is skipped and the same `call_model` and the same `validate` run
+    on an empty evidence list, so the two conditions differ in exactly one
+    variable. It is not a second pipeline, and no shell exposes it — only
+    evaluate.py passes it.
     """
-    items = retrieve(question, vectors, chunks, top_k or settings.top_k, document)
+    items = (
+        retrieve(question, vectors, chunks, top_k or settings.top_k, document)
+        if retrieve_evidence
+        else []
+    )
     result, prompt_hash = call_model(question, items)
     return QueryOutcome(
         question=question,
@@ -474,6 +523,7 @@ def run_query(
         items=items,
         failures=validate(result, items),
         prompt_hash=prompt_hash,
+        evidence_retrieved=retrieve_evidence,
     )
 
 

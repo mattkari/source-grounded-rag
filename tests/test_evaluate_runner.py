@@ -406,6 +406,7 @@ def test_the_rating_sheet_has_one_row_per_answered_question_with_blank_ratings(h
     assert rows == [
         {
             "run_id": result.records[0]["run_id"],
+            "condition": "rag",
             "question_id": "F001",
             "expected_type": "ANSWERABLE",
             "evidence_sufficiency": "sufficient",

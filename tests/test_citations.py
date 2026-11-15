@@ -41,6 +41,90 @@ def test_an_unresolved_page_is_flagged_for_verification_not_guessed(chunks):
     assert phrase == "page not printed on source page (PDF p. 28) [VERIFY]"
 
 
+def unnumbered(chunks, **overrides) -> dict:
+    """A fixture chunk with its page provenance replaced."""
+    chunk = dict(chunks[0])
+    chunk.update(overrides)
+    return chunk
+
+
+def test_a_passage_that_runs_onto_an_unnumbered_page_names_that_page_and_keeps_its_label(chunks):
+    """Printed 4 on PDF 27, then PDF 28 with no number: PDF 27 must not be called unprinted."""
+    chunk = unnumbered(chunks, page_start="4", page_end=None, pdf_page_start=27, pdf_page_end=28,
+                       pages_unresolved=[28])
+
+    assert ask.page_phrase(chunk) == "p. 4 and PDF p. 28, which has no printed number [VERIFY]"
+
+
+def test_a_passage_that_starts_on_an_unnumbered_page_names_that_page_and_keeps_its_label(chunks):
+    chunk = unnumbered(chunks, page_start=None, page_end="6", pdf_page_start=28, pdf_page_end=29,
+                       pages_unresolved=[28])
+
+    assert ask.page_phrase(chunk) == "p. 6 and PDF p. 28, which has no printed number [VERIFY]"
+
+
+def test_a_blank_page_inside_the_range_is_not_named_as_unnumbered(chunks):
+    """The real case: printed 42 on PDF 65, PDF 66 blank, PDF 67 with text and no number."""
+    chunk = unnumbered(chunks, page_start="42", page_end=None, pdf_page_start=65, pdf_page_end=67,
+                       pages_unresolved=[67])
+    phrase = ask.page_phrase(chunk)
+
+    assert phrase == "p. 42 and PDF p. 67, which has no printed number [VERIFY]"
+    assert "65" not in phrase and "66" not in phrase
+
+
+def test_a_range_of_unnumbered_pages_names_every_one_of_them(chunks):
+    chunk = unnumbered(chunks, page_start=None, page_end=None, pdf_page_start=66, pdf_page_end=67,
+                       pages_unresolved=[66, 67])
+
+    assert ask.page_phrase(chunk) == "page not printed on source page (PDF pp. 66–67) [VERIFY]"
+
+
+def test_unnumbered_pages_that_are_not_adjacent_are_listed_not_spanned(chunks):
+    chunk = unnumbered(chunks, page_start=None, page_end=None, pdf_page_start=28, pdf_page_end=31,
+                       pages_unresolved=[28, 31])
+
+    assert ask.page_phrase(chunk) == "page not printed on source page (PDF pp. 28, 31) [VERIFY]"
+
+
+def test_several_unnumbered_pages_beside_a_label_take_the_plural(chunks):
+    chunk = unnumbered(chunks, page_start="4", page_end=None, pdf_page_start=27, pdf_page_end=29,
+                       pages_unresolved=[28, 29])
+
+    assert ask.page_phrase(chunk) == "p. 4 and PDF pp. 28–29, which have no printed number [VERIFY]"
+
+
+def test_an_index_that_never_recorded_its_unnumbered_pages_says_only_what_it_knows(chunks):
+    """Older indexes carry no `pages_unresolved`. The stored PDF range is named,
+    without claiming which of its pages is the one with no number."""
+    whole = unnumbered(chunks, page_start=None, page_end=None, pdf_page_start=28, pdf_page_end=29)
+    part = unnumbered(chunks, page_start="4", page_end=None, pdf_page_start=27, pdf_page_end=28)
+    del whole["pages_unresolved"], part["pages_unresolved"]
+
+    assert ask.page_phrase(whole) == "page not printed on source page (PDF pp. 28–29) [VERIFY]"
+    assert ask.page_phrase(part) == (
+        "p. 4 and PDF pp. 27–28, at least one of which has no printed number [VERIFY]"
+    )
+
+
+def test_no_page_label_is_ever_made_up_for_an_unnumbered_page(chunks):
+    """Hard rule 2: the only printed label in the phrase is the one that was stored."""
+    chunk = unnumbered(chunks, page_start="42", page_end=None, pdf_page_start=65, pdf_page_end=67,
+                       pages_unresolved=[67])
+    phrase = ask.page_phrase(chunk)
+    printed = [label for match in PRINTED_CITATION.findall(phrase) for label in match if label]
+
+    assert printed == ["42"]
+    assert "None" not in phrase
+    assert "43" not in phrase and "44" not in phrase
+
+
+def test_fully_numbered_passages_are_cited_exactly_as_before(chunks):
+    assert ask.page_phrase(chunks[0]) == "p. 3"
+    assert ask.page_phrase(chunks[1]) == "pp. 7–8"
+    assert ask.page_phrase(chunks[5]) == "pp. 9–11"
+
+
 def test_footnote_is_built_from_configured_identity_and_stored_provenance(items):
     line = ask.footnote(1, items[0])
     assert line == (
@@ -113,20 +197,27 @@ def test_chunk_pages_gives_no_label_for_a_page_whose_number_did_not_print(chunks
     assert evaluate.chunk_pages(chunks[3], pdf_to_label) == []
 
 
-def test_a_partly_resolved_passage_is_retrievable_by_its_label_but_cites_no_page(items, answer, pages_path):
-    """A passage that runs from printed page 4 onto a page with no printed number."""
+def test_a_partly_numbered_passage_is_cited_under_the_one_label_the_reader_is_shown(items, answer, pages_path):
+    """A passage that runs from printed page 4 onto a page with no printed number.
+    The citation shows "p. 4", so the evaluation record carries label 4 and no other."""
     pdf_to_label = check_gold.load_page_map(pages_path).pdf_to_label
-    items[0].chunk.update(page_start="4", page_end=None, pdf_page_start=27, pdf_page_end=28)
+    items[0].chunk.update(page_start="4", page_end=None, pdf_page_start=27, pdf_page_end=28,
+                          pages_unresolved=[28])
 
-    # Retrieval: the passage does cover printed page 4.
     assert evaluate.chunk_pages(items[0].chunk, pdf_to_label) == ["4"]
-
-    # Citation: the renderer prints no page number for it, so no label is claimed.
-    assert "[VERIFY]" in ask.footnote(1, items[0])
-    assert evaluate.cited_chunk_pages(items[0].chunk, pdf_to_label) == []
+    assert ask.footnote(1, items[0]).endswith("p. 4 and PDF p. 28, which has no printed number [VERIFY].")
+    assert evaluate.cited_chunk_pages(items[0].chunk, pdf_to_label) == ["4"]
     citations, cited_pages = evaluate._cited(answer(), items, pdf_to_label)
-    assert citations == [{"handle": "E1", "chunk_id": items[0].chunk["chunk_id"], "pages": []}]
-    assert cited_pages == []
+    assert citations == [{"handle": "E1", "chunk_id": items[0].chunk["chunk_id"], "pages": ["4"]}]
+    assert cited_pages == ["4"]
+
+
+def test_a_passage_with_no_printed_label_at_either_end_is_cited_under_none(chunks, pages_path):
+    pdf_to_label = check_gold.load_page_map(pages_path).pdf_to_label
+    chunk = unnumbered(chunks, page_start=None, page_end=None, pdf_page_start=28, pdf_page_end=28,
+                       pages_unresolved=[28])
+
+    assert evaluate.cited_chunk_pages(chunk, pdf_to_label) == []
 
 
 def test_a_resolved_citation_carries_every_label_in_its_range(chunks, pages_path):
@@ -139,7 +230,7 @@ def test_a_resolved_citation_carries_every_label_in_its_range(chunks, pages_path
 # ---------------------------------------------------------------------------
 
 PRINTED_CITATION = re.compile(r"(?<!PDF )\bpp?\. ([0-9ivxlcdm]+)(?:–([0-9ivxlcdm]+))?")
-PDF_CITATION = re.compile(r"PDF p\. (\d+)")
+PDF_CITATION = re.compile(r"PDF pp?\. (\d+)(?:–(\d+))?")
 
 
 def test_citing_a_passage_on_the_real_unnumbered_pages_shows_no_page_that_does_not_exist(answer):
@@ -169,18 +260,23 @@ def test_citing_a_passage_on_the_real_unnumbered_pages_shows_no_page_that_does_n
         footnotes = footnote_block(rendered)
         diagnostics = rendered.split("RETRIEVAL DIAGNOSTICS", 1)[1]
 
-        # What the reader is shown: no printed page, a real PDF page, a request to verify.
-        shown = f"page not printed on source page (PDF p. {chunk['pdf_page_start']}) [VERIFY]"
+        # What the reader is shown: the one label the passage has, and the PDF
+        # page that really has no printed number — 67, not the passage's first page.
+        shown = "p. 42 and PDF p. 67, which has no printed number [VERIFY]"
         assert shown in footnotes and shown in diagnostics
+        stored = [label for label in (chunk["page_start"], chunk["page_end"]) if label is not None]
 
         for text in (footnotes, diagnostics):
             assert "None" not in text
-            assert PRINTED_CITATION.findall(text) == []          # no printed page is claimed at all
-            for pdf_page in PDF_CITATION.findall(text):
-                assert int(pdf_page) in page_map.pdf_to_label    # the PDF page named exists
+            printed = [label for match in PRINTED_CITATION.findall(text) for label in match if label]
+            assert printed == stored                              # only the stored label is printed
+            assert all(label in page_map.label_to_pdf for label in printed)
+            named = [int(n) for pair in PDF_CITATION.findall(text) for n in pair if n]
+            assert named == chunk["pages_unresolved"]            # exactly the unnumbered pages
+            assert all(page_map.pdf_to_label[n] is None for n in named)
 
-        # The evaluation record follows suit: findable by the label it has, citing none.
-        assert evaluate.cited_chunk_pages(chunk, page_map.pdf_to_label) == []
+        # The evaluation record follows the renderer: cited under the label shown.
+        assert evaluate.cited_chunk_pages(chunk, page_map.pdf_to_label) == stored
         for label in evaluate.chunk_pages(chunk, page_map.pdf_to_label):
             assert label in page_map.label_to_pdf
 
@@ -198,6 +294,6 @@ def test_every_indexed_passage_cites_only_page_labels_that_exist():
         cited = [label for match in PRINTED_CITATION.findall(phrase) for label in match if label]
         for label in cited:
             assert label in page_map.label_to_pdf
-        if not cited:
-            assert phrase.endswith("[VERIFY]")
-            assert int(PDF_CITATION.search(phrase).group(1)) in page_map.pdf_to_label
+        if "[VERIFY]" in phrase:
+            named = [int(n) for pair in PDF_CITATION.findall(phrase) for n in pair if n]
+            assert named and all(page_map.pdf_to_label[n] is None for n in named)
