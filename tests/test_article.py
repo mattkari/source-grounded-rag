@@ -62,7 +62,7 @@ def three(items):
                                                           interpretation=["FIXTURE a reading of it [E1]."]), reordered)),
         SectionDraft("FIXTURE three", "b3", outcome(payload("FIXTURE the timetable changed [E3].", cites=["E3"],
                                                             sufficiency="partial",
-                                                            limitations=["FIXTURE the passages give no date [E3]."]), items)),
+                                                            limitations=["The thesis does not give a date for the change [E3]."]), items)),
     ]
 
 
@@ -110,7 +110,7 @@ def test_the_models_own_reading_is_marked_as_commentary_in_words(three, document
 
     assert f"{assemble.COMMENTARY_LABEL} FIXTURE a reading of it [3]." in text
     assert text.count(assemble.COMMENTARY_LABEL) == 1
-    assert "FIXTURE the passages give no date [4]." in text      # a stated limit is kept in the section
+    assert "- The thesis does not give a date for the change [4]." in text   # a stated limit is kept, at the close
 
 
 @pytest.mark.parametrize(

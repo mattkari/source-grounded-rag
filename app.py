@@ -826,6 +826,12 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
             "Check that they add no fact of their own."
         )
 
+    if article.limits_held_back:
+        st.caption(
+            f"{article.limits_held_back} limitation line(s) from the model are kept in the record only. The "
+            f"article prints at most one per section, under “{assemble.NOT_COVERED_HEADING}”."
+        )
+
     if state == pipeline.REVIEWED:
         st.success("Reviewed: every note has your verdict.")
     else:

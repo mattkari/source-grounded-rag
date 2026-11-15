@@ -263,7 +263,7 @@ def voice_columns(article: assemble.Article, reference_text: str = "") -> dict:
     body = article.markdown.split("## Sources")[0].splitlines()
     label = assemble.COMMENTARY_LABEL
     commentary = "\n".join(line[len(label):] for line in body if line.startswith(label))
-    sourced = "\n".join(line for line in body if line and not line.startswith(("#", "*", label)))
+    sourced = "\n".join(line for line in body if line and not line.startswith(("#", "*", "- ", label)))
     columns = {"your writing": voice.measure(reference_text)} if reference_text.strip() else {}
     columns["draft, whole"] = voice.measure(sourced + "\n" + commentary)
     columns["draft, sourced"] = voice.measure(sourced)
@@ -284,6 +284,9 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             "kept_by_researcher": section.kept,
             "gap_stated": section.state_gap,
             "blocked": assemble.block_reason(section.outcome, section.error),
+            # The one limit printed for this section, as printed; every limitation
+            # and gap the model gave is in `result` below.
+            "limitation_printed": article.limits_printed.get(section.heading),
             "footnote_text_cut_from": [chunk_id for chunk_id in retrieved if chunk_id in cut],
             "voice": voice.measure(answer) if answer else None,
             **_outcome_record(section.outcome, section.error),
@@ -312,6 +315,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         },
         "blocked": article.blocked,
         "frame_sentences_without_a_note": article.unnoted,
+        "limitations_kept_in_record_only": article.limits_held_back,
         "notes": notes,
         "support": assemble.support_rate(notes),
         "support_excludes": "text written by the researcher, which carries no notes",

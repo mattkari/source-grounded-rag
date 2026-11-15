@@ -131,3 +131,63 @@ def test_questions_and_the_evaluation_never_pass_instructions(fixture_index, mon
         assert "instructions=" not in (ROOT / shell).read_text(encoding="utf-8"), shell
     app = (ROOT / "app.py").read_text(encoding="utf-8")
     assert "instructions=" not in app[app.index("def render_chat"):app.index("def main()")]
+
+
+# =====================================================================================
+# 2. Limitations as reader-facing text
+# =====================================================================================
+
+REPORT_LINES = ["The evidence does not explain how the ledger was kept [E1].",
+                "The evidence addresses only the winter deliveries."]
+
+
+def limited(answer, cites, limitations):
+    return payload(answer, cites=cites, sufficiency="partial", limitations=limitations)
+
+
+def test_limits_are_gathered_into_one_closing_list_with_one_line_per_section(workspace, monkeypatch):
+    scripted(
+        monkeypatch,
+        lighthouse=limited("FIXTURE the keeper logged lamp oil [E1].", ["E1"],
+                           [*REPORT_LINES, "The thesis does not say who paid for the oil [E1].",
+                            "The thesis does not discuss the summer months."]),
+        orchard=limited("FIXTURE the calendar lists rootstock [E1].", ["E1"],
+                        ["The thesis does not name the varieties grafted."]),
+        tramway=limited("FIXTURE the timetable changed [E1].", ["E1"], REPORT_LINES),
+    )
+    sections = [pipeline.draft_section(workspace, f"FIXTURE heading {n + 1}", brief) for n, brief in enumerate(BRIEFS)]
+    draft = pipeline.Draft("FIXTURE title", sections, conclusion=pipeline.written("FIXTURE my closing words."))
+    article = pipeline.render(workspace, draft)
+    text = article.markdown
+    closing = text.split(f"## {assemble.NOT_COVERED_HEADING}\n\n")[1].split("\n\n")[0].splitlines()
+
+    assert closing == ["- The thesis does not say who paid for the oil [1].",
+                       "- The thesis does not name the varieties grafted."]
+    for section in text.split("## ")[1:4]:
+        assert "does not" not in section                               # nothing of it in a section's body
+    assert "The evidence" not in text and "summer months" not in text
+    assert text.index("FIXTURE my closing words.") < text.index(assemble.NOT_COVERED_HEADING) < text.index("## Sources")
+    assert article.limits_held_back == 3 + 0 + 2
+
+    record = pipeline.build_record(workspace, draft, article)
+    assert [s["limitation_printed"] for s in record["sections"]] == [closing[0][2:], closing[1][2:], None]
+    assert record["sections"][0]["result"]["limitations"][:2] == REPORT_LINES       # all of it stays in the record
+    assert record["limitations_kept_in_record_only"] == 5
+
+
+def test_gaps_are_recorded_and_never_printed_and_no_list_is_made_from_nothing(workspace, monkeypatch):
+    answer = payload("FIXTURE the keeper logged lamp oil [E1].", cites=["E1"])
+    answer["unsupported_by_evidence"] = ["FIXTURE: who built the lighthouse"]
+    scripted(monkeypatch, lighthouse=answer)
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+    article = pipeline.render(workspace, draft)
+
+    assert assemble.NOT_COVERED_HEADING not in article.markdown and "who built" not in article.markdown
+    assert pipeline.build_record(workspace, draft, article)["sections"][0]["result"]["unsupported_by_evidence"] == [
+        "FIXTURE: who built the lighthouse"]
+
+
+def test_a_long_or_report_style_limitation_is_not_a_reader_line():
+    long_line = "The thesis does not " + "say " * assemble.LIMIT_MAX_WORDS + "[E1]."
+    assert assemble.reader_limit({"limitations": [long_line, REPORT_LINES[0]]}) is None
+    assert assemble.reader_limit({"limitations": [REPORT_LINES[0], "the thesis does not date it [E2]. "]}) == "the thesis does not date it [E2]."

@@ -32,6 +32,10 @@ CLOSING_LINE_REVIEWED = (
 # could not support. A statement about the collection, not the world (hard rule 11).
 NOT_COVERED_LINE = "The thesis does not hold enough evidence to say."
 INSUFFICIENT = "the thesis does not hold enough evidence for this"
+# Limits are gathered under one closing heading, one line per section at most (ADR 0005).
+NOT_COVERED_HEADING = "What this article does not cover"
+LIMIT_OPENING = "the thesis does not"      # a line a reader can follow opens like this
+LIMIT_MAX_WORDS = 30
 RESEARCHER, GENERATED = "researcher", "generated"
 # A sentence, with any closing quotation marks and note markers that trail its full stop.
 _SENTENCE = re.compile(r".+?(?:[.!?][\"'’”)]*(?:\s?\[E\d+\])*(?=\s|$)|$)", re.DOTALL)
@@ -67,6 +71,9 @@ class Article:
     carriers: dict[int, list[str]] = field(default_factory=dict)
     # generated frame text holding sentences with no note: raised for the researcher (§6)
     unnoted: list[dict] = field(default_factory=list)    # {what, sentences}
+    # section heading -> the one limitation line printed for it, as printed
+    limits_printed: dict[str, str] = field(default_factory=dict)
+    limits_held_back: int = 0                            # limitation lines kept in the record only
 
 
 def block_reason(outcome: ask.QueryOutcome | None, error: str | None = None) -> str | None:
@@ -134,13 +141,22 @@ class _Notes:
 def _section_body(outcome: ask.QueryOutcome, notes: _Notes) -> list[str]:
     result = outcome.result
     paragraphs = [notes.renumber(result["answer"], outcome.items)]
-    paragraphs += [notes.renumber(line, outcome.items) for line in result.get("limitations", [])]
     paragraphs += [
         f"{COMMENTARY_LABEL} {text}"
         for text in (notes.renumber(line, outcome.items) for line in result.get("ai_interpretation", []))
         if text
     ]
     return [paragraph for paragraph in paragraphs if paragraph]
+
+
+def reader_limit(result: dict) -> str | None:
+    """The one limitation line that may be printed for a section: the first that is
+    written for a reader. The rest stay in the record."""
+    for line in result.get("limitations", []):
+        plain = ask.MARKER_RE.sub("", line).strip()
+        if plain.lower().startswith(LIMIT_OPENING) and len(plain.split()) <= LIMIT_MAX_WORDS:
+            return line.strip()
+    return None
 
 
 def _frame_text(element: FrameElement | None, what: str, notes: _Notes, article: "Article") -> str | None:
@@ -201,10 +217,13 @@ def assemble(
 
     transitions = transitions or []
     previous: SectionDraft | None = None
+    shown: list[SectionDraft] = []                           # drafted sections that reached the page
     for section, drafted in printed:
         body = _section_body(section.outcome, notes) if drafted else [NOT_COVERED_LINE]
         if not body:
             continue                                         # every sentence of it was removed
+        if drafted:
+            shown.append(section)
         position = sections.index(section) - 1
         # A transition joins two drafted sections that stood next to each other in the outline.
         if drafted and previous is not None and position >= 0 and sections[position] is previous:
@@ -220,6 +239,18 @@ def assemble(
     ending = _frame_text(conclusion, "conclusion", notes, article)
     if ending:
         out += [ending, ""]
+
+    # Limits, gathered. A section whose every sentence was removed states none.
+    for section in shown:
+        chosen = reader_limit(section.outcome.result)
+        line = notes.renumber(chosen, section.outcome.items) if chosen else ""
+        if line:
+            article.limits_printed[section.heading] = line
+        article.limits_held_back += len(section.outcome.result.get("limitations", [])) - bool(line)
+    if article.limits_printed:
+        out += [f"## {NOT_COVERED_HEADING}", ""]
+        out += [f"- {line}" for line in article.limits_printed.values()]
+        out.append("")
 
     if notes.items:
         out += ["## Sources", ""]
