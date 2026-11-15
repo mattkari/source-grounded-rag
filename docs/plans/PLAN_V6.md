@@ -1,181 +1,291 @@
 # PLAN_V6 — Article writer (Sprints W0–W2)
 
-Status: **proposed — awaiting approval.** Nothing in this plan is implemented.
+Status: **proposed — awaiting approval.** Nothing in this plan is implemented. Direction approved by
+the researcher on 15 November 2026; this is the revision they asked for before approving the plan.
 Builds on the query pipeline (`PLAN_V2.md` §11–§17) and on the document record of `PLAN_V4.md`.
 Does not change `PLAN_V3.md` or `PLAN_V5.md`.
 
-**Build gate: no code for this plan is written until the researcher's 30 evaluation questions are
-written.** The workshop paper (due 15 December 2026) stays first, and nothing here touches the
-evaluation path or the frozen index.
+**Build gate: no code for this plan is written until the workshop paper is submitted
+(15 December 2026).** The W0 trial needs the researcher's reading time, and that time belongs to the
+paper until then. Nothing here touches the evaluation path or the frozen index.
 
 ## 1. Why
 
 The system can answer a question from a thesis with every claim traced to a printed page. The same
 discipline can serve a second purpose: turning what a thesis says into a readable article for a
 general audience, without losing the trail back to the source. The goal is a draft the researcher
-can publish on Medium after reading it — an article in which a reader can check any claim.
+can publish on Medium after checking it — an article in which a reader can verify any claim.
 
 This is a writing aid, not a publishing agent. It drafts; the researcher decides and publishes.
 
-## 2. Decisions already taken (researcher interview, 15 November 2026)
+## 2. Decisions already taken (researcher, 15 November 2026)
 
 | Topic | Decision |
 |---|---|
-| Where facts come from | Only the embedded collection. A topic the collection cannot support is refused. No web research. |
+| Where facts come from | Only the embedded collection. A topic it cannot support is refused. No web research. |
 | Who picks the topic | The agent proposes several, each with its supporting chapters and pages; the researcher picks one or types their own. |
-| Citations | Numbered notes in the prose and a Sources list with author, year, chapter and printed page. |
-| The agent's own voice | Framing and takeaways only in clearly marked commentary. Nothing is presented as the author's view unless a page says it. |
+| Citations | Plain `[1]` markers in the prose and a Sources list at the end (§8). |
+| The agent's own voice | Only in clearly labelled commentary. Nothing is presented as the author's view unless a page says it. |
 | Documents per article | One: the thesis active in the app. |
 | Checking | An uncited factual paragraph, a citation to a passage that was not supplied, or a page number written by the model blocks that section. Recorded, never silently retried. |
 | Where it lives | A "Write an article" view in the web UI. Saved as Markdown in an output folder. Nothing is posted anywhere. |
-| When | Plan now; build after the 30 questions are written. |
+| When | After the paper is submitted. |
 
-Assumed without asking, open to objection: sections are drafted through the existing pipeline, not a
-second one; every article opens by naming the thesis it draws on and keeps quotation short; articles
-are never part of an evaluation run.
+Assumed without asking, open to objection: every article opens by naming the thesis it draws on and
+keeps quotation short; articles are never part of an evaluation run.
 
 ## 3. Scope
 
 In scope:
 
 1. **Topic proposals** for the active thesis, with the evidence behind each.
-2. **An outline** the researcher can edit before anything is drafted.
-3. **Section-by-section drafting** through `ask.run_query`, with the same validation.
-4. **Assembly** into one Markdown article with numbered notes and a Sources list.
-5. **An article record** beside each article: what was asked, what was retrieved, what failed.
-6. **A web UI view** for the four steps above.
+2. **An outline** the researcher edits before anything is drafted.
+3. **Section drafting** through the existing pipeline, with the same validation.
+4. **The frame** of the article — title, introduction, transitions, conclusion (§6).
+5. **A source filter** so that a footnote or reference entry is never presented as the thesis
+   author's own view (§7).
+6. **Assembly** into Markdown that Medium can import (§8).
+7. **A review view** in which the researcher judges every note, and an **article record** that
+   stores those verdicts (§9).
+8. **A voice measurement** against the researcher's own writing (§10).
 
 Out of scope (recorded so they are not silently skipped): web research or any source outside the
 collection; articles drawing on several documents; posting to Medium or any other service; images,
-SEO, titles optimised for clicks; rewriting or "improving" a section after validation; any use of
-articles in the paper's evaluation.
+SEO, click-optimised titles; rebuilding the built-in thesis's index; any use of articles in the
+paper's evaluation.
 
 ## 4. How an article is made
 
 Each step ends with something the researcher sees and can change. Nothing is drafted before the
-outline is approved, and no credit is spent before then beyond the topic step, if that uses a model.
+outline is approved.
 
 | # | Step | What happens | Who decides |
 |---|---|---|---|
-| 1 | Propose topics | Candidate topics for the active thesis, each with its chapters, page span and number of passages (§5) | Researcher picks one, or types a topic |
-| 2 | Outline | Four to six section briefs for that topic, each a plain question the section must answer | Researcher edits, reorders, deletes, approves |
-| 3 | Draft | Each brief goes through `ask.run_query` on the active thesis; the result is validated as any answer is | A section that fails is shown with its reason |
-| 4 | Assemble | Passing sections are joined; evidence handles become one run of note numbers; the Sources list is built from stored provenance | — |
-| 5 | Save | `output/articles/<id>/article.md` and `record.json` | Researcher reads, edits, publishes by hand |
+| 1 | Propose topics | Candidate topics for the active thesis, each with its chapters, page span and passage count | Researcher picks one, or types a topic |
+| 2 | Outline | Three to six section briefs, each a plain question the section must answer | Researcher edits, reorders, deletes, approves |
+| 3 | Draft sections | Each brief goes through the pipeline on filtered evidence (§5, §7); the result is validated | A section that fails is shown with its reason |
+| 4 | Frame | Title, introduction, transitions and conclusion (§6) | Researcher writes them, or accepts labelled commentary |
+| 5 | Review | Every note beside the passage it cites; one verdict per note (§9) | Researcher |
+| 6 | Save | `output/articles/<id>/article.md` and `record.json` | Researcher edits and publishes by hand |
 
-## 5. Topic proposals without inventing structure
+**Topic proposals come in two layers, kept apart.** *What the thesis covers* is built without a
+model, from the chapters and sections the document itself prints, with their page spans and passage
+counts. *A suggested angle* is the model's one-line wording; it is labelled as a suggestion and is
+never cited, because hard rule 5 forbids citing a derived field. Reference apparatus is never
+proposed as a topic, and a thin topic is shown as thin, with its count.
 
-A proposal must not be the system's opinion of what is interesting in someone's thesis presented as
-fact. Two layers, kept apart:
+## 5. Sections stay on the one pipeline
 
-- **What the thesis covers** — built without a model, from the index: the chapters and sections the
-  document itself prints, with their printed page spans and passage counts. This is stored
-  provenance and can be shown as it is.
-- **A suggested angle** — a one-line phrasing of a topic, which is the model's wording. It is shown
-  as a suggestion, labelled as such, and is never cited: hard rule 5 forbids citing a derived
-  field. The researcher may ignore every suggestion and type their own topic.
-
-Reference apparatus (the bibliography) is never proposed as a topic. A topic with too little
-evidence behind it is shown as thin, with its passage count, not hidden.
-
-## 6. Drafting stays on the one pipeline
-
-A section brief is a question. It is sent to `ask.run_query` for the active `Document`, and comes
-back as the same validated payload an answer does. The mapping is direct:
+A section brief is a question. It is sent to `ask.run_query` for the active `Document` and comes
+back as the same validated payload an answer does.
 
 | Answer field | In the article |
 |---|---|
-| `answer`, with `[En]` handles | The section's prose, with note numbers |
-| `evidence_sufficiency: insufficient` | The section is not written. The article says the thesis does not cover it, or the section is dropped — the researcher chooses. |
+| `answer`, with `[En]` handles | The section's prose, with note markers |
+| `evidence_sufficiency: insufficient` | The section is not written. The researcher chooses: drop it, or say the thesis does not cover it. |
 | `evidence_sufficiency: partial`, `limitations` | The section is written and its limits are stated in it |
-| `ai_interpretation` | **Commentary**, set apart and labelled as the article's own inference, not the author's position |
+| `ai_interpretation` | **Commentary**, set apart and labelled as the article's own inference |
 | `unsupported_by_evidence` | Listed for the researcher in the record; not printed |
 
-Consequences that hold by construction, because the existing code already enforces them:
+What holds by construction, because the existing code enforces it: a page number can reach the
+article only from stored provenance (`ask.page_phrase`), never from the model (hard rule 2); and a
+handle that was never supplied, a sufficiency claim with nothing cited, or a page number the model
+wrote is a validation failure (`ask.validate`). In an article each of these **blocks the section**.
+A blocked section is never regenerated automatically (hard rule 9).
 
-- A page number can reach the article only from stored provenance (`ask.page_phrase`), never from
-  the model (hard rule 2). A passage on an unnumbered page is cited as it is today, with `[VERIFY]`.
-- A handle that was never supplied, a sufficiency claim with nothing cited, and a page number the
-  model wrote are validation failures (`ask.validate`). In an article they **block the section**.
-- No second generation path is added. Whether the existing prompt serves section briefs well, or a
-  dedicated article prompt is needed, is the first thing Sprint W0 finds out (§10, decision 1). A
-  new prompt would be a new versioned file, hashed into the article record like any other.
+## 6. The frame: an article is not a set of answers
 
-## 7. What the article says about itself
+A title, an introduction, the sentences that carry a reader from one section to the next, and a
+conclusion are what make sections into an article. **None of them is on a page of the thesis, so
+none of them can be cited.** The plan therefore allows exactly two origins for each, and records
+which was used:
 
-- **Opening attribution.** The first lines name the thesis, its author and year, and say the article
-  is drawn from it. The identity is the confirmed one from the document record.
-- **Notes.** One continuous numbering across sections. Each note gives author, year, chapter,
-  section and printed page, as `ask.footnote` does. A reference-list passage is marked as such.
-- **Commentary.** Visibly separate from sourced prose, with a fixed label.
-- **A closing note** saying the article was drafted with an AI system from the named source and
-  checked by the researcher. The researcher may edit or remove it; it is there by default.
-- **Quotation.** Passages are paraphrased with citation; direct quotation is short. An uploaded
-  thesis is another person's work, and whether an article about it may be published is the
-  researcher's judgement, not the system's.
+| Element | Origin A: the researcher writes it | Origin B: generated |
+|---|---|---|
+| Title | Typed by the researcher. **This is the default.** | Up to three suggestions, labelled as suggestions; the researcher picks or rewrites one |
+| Introduction | Typed by the researcher | Generated as **labelled commentary** |
+| Transitions | Typed by the researcher | Generated as **labelled commentary**, one or two sentences each |
+| Conclusion | Typed by the researcher | Generated as **labelled commentary** |
 
-## 8. The article record
+Rules for a generated frame element:
 
-`output/articles/<id>/record.json` holds, for every section: the brief, the model and prompt hash,
-the retrieved passages by chunk id, the validated payload, every validation failure, and whether
-the researcher kept the section. It is what makes an article auditable after the fact and is
-written whether or not the article is completed. `output/` is ignored by git and excluded from the
-Docker build context: an article may paraphrase another person's thesis.
+- It is commentary and is labelled as such in the article. It is the article's voice, not the
+  thesis author's, and the label says so.
+- It may **restate** a claim a section has already made, and then it carries that claim's existing
+  note. It may **not** introduce a fact, a passage or a note that no section contains. A frame
+  sentence with a new factual claim and no existing note fails validation.
+- It is drafted from the validated sections only: no new retrieval. This needs one small, explicit
+  addition to the pipeline — calling the same `call_model` and the same `validate` on a given list
+  of already-cited passages — in the manner of the E2 switch (`PLAN_V5.md` §2). It is not a second
+  generation path, and no other interface may use it.
+- Text the researcher types is theirs. It is not validated or labelled, and the record marks it as
+  researcher-written so the support rate (§9) is never claimed for it.
 
-A failed section is never regenerated automatically (hard rule 9). Drafting it again is the
-researcher's own, deliberate act, and both attempts stay in the record.
+## 7. Requirement: a footnote or reference entry is never the thesis author's view
 
-## 9. Tests (offline, a failing test first)
+ADR 0003 found that the built-in thesis's index holds 213 footnotes as body text, because they are
+set in the same type size as its block quotations. A footnote there typically cites another
+writer's work. Drafted from as-is, an article would say "the author argues…" about something the
+author merely cites. For general readers this is the attribution error most likely to be noticed,
+and the most damaging. It is therefore a **W1 requirement, not a limit**:
+
+> A passage, or part of a passage, that is a footnote or a reference-list entry is either excluded
+> from drafting or attributed to the writer it cites. It is never presented as the thesis author's
+> own view.
+
+How, without touching the frozen index:
+
+- **Reference-list passages** are already tagged `kind: "apparatus"` in the index. They are
+  excluded from article drafting outright.
+- **Footnote text inside a body passage** is not tagged; the index cannot tell it apart. W1 builds
+  a **footnote map** for the document: for each page, the blocks that have a footnote's shape (they
+  open with a small numeral and sit at the foot of the column — the test `layout.py` already
+  applies when it counts them). The map is a derived side file. It is never written into the
+  canonical extraction or the index (hard rule 7), and the evaluation never reads it.
+- At drafting time the mapped footnote text is **removed from the evidence the model sees**. This is
+  the default: exclusion is certain, while attributing a footnote to "the writer it cites" needs
+  that writer to be identified reliably. Attribution is offered only where the footnote names its
+  source unambiguously, and is an open decision (§13).
+- A passage that is mostly footnote text after filtering is not used.
+- **Every exclusion is counted and shown**: the article record lists how many passages were filtered
+  and how many dropped, so the researcher can see what the article could not draw on.
+
+The filter is tested against the built-in thesis: every one of the 213 footnotes ADR 0003 counted
+must be found by the map, and no footnote text may appear in the evidence of a drafted section.
+
+## 8. Output format: what Medium can actually show
+
+Medium has no footnotes and no tables. The article file is plain Markdown that survives import:
+
+- **Notes are plain `[1]` markers** in the prose, numbered once across the whole article.
+- **A "Sources" list at the end**, one numbered line per note: author, year, chapter, section and
+  printed page, from `ask.footnote`. A passage on an unnumbered page is listed as it is cited today,
+  with `[VERIFY]`.
+- **No tables anywhere in the article body.** Nothing in an article is laid out as a table.
+- **Commentary is marked with words, not layout**: a short fixed label in plain text that survives
+  import, opening every commentary passage.
+- **Headings, paragraphs, short block quotations, bold and italic only.**
+- **Opening attribution**: the first lines name the thesis, its author and year, using the confirmed
+  identity from the document record, and say the article is drawn from it.
+- **A closing line** saying the article was drafted with an AI system from the named source and
+  checked by the researcher. Removable by the researcher; present by default.
+
+(This plan uses tables; articles never do.)
+
+## 9. Review: making "the researcher checked it" a measurement
+
+Validation shows that every claim points at a real passage. It does not show that the passage
+supports the claim. Only reading can, so the view is built to make that reading quick and to record
+its result.
+
+- **Side by side.** For each note, the review view shows the sentence that carries it and, beside
+  it, the cited passage with its page reference. The passage is displayed from the index; the
+  record stores its chunk id, not its text.
+- **One verdict per note**: *supports*, *partly*, or *does not*. The researcher may add a short
+  reason.
+- **Stored in `record.json`** with the note number, the chunk id, the verdict, the time, and that
+  the researcher gave it.
+- **A measured support rate for every article**, as counts: notes judged *supports*, *partly* and
+  *does not*, out of all notes. Notes not yet judged are counted as not judged, never as supported.
+- **Status follows the verdicts.** An article is "draft" until every note has a verdict. A note
+  judged *does not* keeps the article in draft until its sentence is removed or rewritten; the
+  original verdict stays in the record. The saved file carries its status in its first line while
+  it is a draft.
+- Researcher-written frame text has no notes and is outside the rate, and the record says so.
+
+The record also holds, per section: the brief, the model and prompt hash, the retrieved passages by
+chunk id, the validated payload, every validation failure, what the source filter removed, and
+whether the researcher kept the section. `output/` is ignored by git and excluded from the Docker
+build context: an article may paraphrase another person's thesis.
+
+## 10. Voice: a number behind "reads well"
+
+The answer prompt writes in a report register ("The collection states…"). That is right for an
+answer and wrong for an article. Whether drafted sections sound like the researcher is measured in
+W0, not only judged by reading.
+
+- **Reference sample.** The researcher supplies several pieces of their own published writing for
+  general readers. They are the researcher's own text, kept outside git by default.
+- **Measures**, computed the same way on the reference and on every draft, by plain counting with
+  no model:
+  - sentence length: median and spread, in words;
+  - first-person rate: sentences containing a first-person pronoun, per hundred sentences;
+  - connective rate: sentences opening with a connective from a fixed, published list, per hundred;
+  - report-register phrases: occurrences of a fixed list ("the collection states", "the thesis
+    states", "the evidence indicates"), per thousand words.
+- **Reported as numbers side by side**, draft against reference, for each section and for the
+  assembled article. No single "voice score" is computed.
+- **What counts as close enough is set by the researcher in W0**, from the first real comparison,
+  and recorded in an ADR. This plan does not invent a threshold.
+- The measure decides open decision 1: if the existing prompt cannot be brought near the reference,
+  a dedicated article prompt is written — a new versioned file, hashed into every article record.
+- Commentary and sourced prose are measured separately, since only commentary may use the first
+  person on the researcher's behalf.
+
+These measures describe surface style. They do not measure whether the article is good, accurate
+or fair, and the plan does not claim they do.
+
+## 11. Tests (offline, a failing test first)
 
 The model is replaced at `ask.call_model` only; the embedding provider by the offline fake.
 
 - Topic listing comes from the index alone and never includes reference apparatus.
-- A suggested angle is never citable and never enters the article unless the researcher picks it.
-- A section with an unknown handle, no citation, or a model-written page number is blocked.
-- An `insufficient` section is never written as prose.
-- Note numbering is continuous and every note resolves to stored provenance; no "None", no page
-  absent from the canonical extraction.
-- Commentary is always labelled and never merged into sourced prose.
-- An article about an uploaded thesis is attributed to that thesis, never to the built-in one.
-- Nothing is drafted before the outline is approved; a failed section is not retried.
-- The evaluation runner and the frozen index are untouched.
+- A suggested angle or title is never citable and enters the article only if the researcher picks it.
+- A section with an unknown handle, no citation, or a model-written page number is blocked; an
+  `insufficient` section is never written as prose; a failed section is not retried.
+- A generated frame element is always labelled; one that introduces a fact or note absent from the
+  sections fails; researcher-written text is recorded as such.
+- Footnote-shaped text never reaches the evidence shown to the model; reference-list passages are
+  never used; the built-in thesis's 213 footnotes are all found; the index and canonical extraction
+  are byte-for-byte unchanged afterwards.
+- The article file contains `[n]` markers and a Sources list, and no table syntax anywhere.
+- Every note resolves to stored provenance: no "None", no page absent from the canonical extraction.
+- A verdict is stored per note; the support rate counts unjudged notes as unjudged; a *does not*
+  verdict keeps the article in draft.
+- Voice measures give known values on hand-written fixture text.
+- The evaluation runner is untouched.
 
-## 10. Sprints and acceptance
+## 12. Sprints and acceptance
 
 | Sprint | Delivers | Accepted when |
 |---|---|---|
-| **W0 — Trial** (command line, no UI) | Topic listing, one outline, one drafted section on the built-in thesis | The researcher has read three drafted sections and decided: go or no-go, and existing prompt or a new one |
-| **W1 — Article pipeline** | Outline, drafting, assembly, record, all tested | A full article is produced offline from scripted model output, with every rule of §9 held |
-| **W2 — Web UI** | The "Write an article" view | An article goes from topic to saved Markdown with no file edited by hand |
+| **W0 — Trial** (command line, no UI) | Topic listing; one outline; **one assembled three-section draft with its frame**; the voice measures on that draft against the reference sample; a count of how many retrieved passages the footnote filter would touch | The researcher has read the draft **as a whole article, not section by section**, has the voice numbers beside it, and decides: go or no-go; existing prompt or a new one; who writes the frame by default |
+| **W1 — Article pipeline** | Outline, sections, frame, the footnote and reference filter (§7), assembly in Medium format (§8), the record | A full article is produced offline from scripted model output with every rule of §11 held |
+| **W2 — Web UI** | The "Write an article" view, including the side-by-side review (§9) | An article goes from topic to a saved, fully reviewed Markdown file with no file edited by hand, and its record shows a support rate |
 
-Each sprint is approved separately. W0 is a trial on purpose: if drafted sections read badly or
-drift from the source, the plan stops there at the cost of one small sprint.
+Each sprint is approved separately. W0 is a trial on purpose: if the assembled draft does not read
+as an article, or cannot be brought near the researcher's voice, the plan stops there.
 
-## 11. Honest limits
+## 13. Honest limits
 
-- **Checked is not the same as right.** Validation shows every claim points at a real passage. It
-  does not show the passage supports the claim, or that the simplification is fair. That is the
-  researcher's reading, every time.
+- **A support rate is one reader's judgement.** It records what the researcher found, note by note.
+  The rater is also the system's builder: a disclosed bias, as in `PLAN_V3.md` §9.
 - **A popular register loses nuance.** The source's hedges survive only where the model keeps them
-  and the researcher checks. Faithful qualification is not measured for articles.
-- **Articles are not evaluated.** The E1 and E2 measurements describe question answering on one
-  thesis. They say nothing about article quality.
-- **The built-in thesis's index holds footnotes as body text** (ADR 0003). A footnote reference could
-  be cited in an article as if it were the author's prose until that is addressed.
+  and the researcher's verdicts catch it when it does not.
+- **The footnote filter is a heuristic about shape** (hard rule 12). It is tested on one thesis. On
+  an uploaded thesis with a different layout it may miss footnotes or remove body text; the record's
+  counts are how the researcher finds out.
+- **Excluding footnotes loses what the author put in them.** That is the price of never
+  misattributing them.
+- **Articles are not evaluated.** The E1 and E2 measurements describe question answering.
+- **Voice measures are surface counts.** Matching them does not make a draft sound like the
+  researcher; missing them shows that it does not.
 - **One document per article** means no comparison across theses.
-- **Cost.** An article is several model calls and several embedding calls. The view shows how many
-  before drafting starts.
 
-## 12. Open decisions
+## 14. Open decisions
 
-1. **Existing prompt or a dedicated article prompt.** Decided in W0 from real drafts.
-2. **Whether the suggested angles use a model at all**, or the topic step is only the printed
-   structure plus the researcher's own wording. Also decided in W0.
-3. **What an `insufficient` section becomes**: dropped silently from the article, or stated
-   ("the thesis does not address…"). The plan lets the researcher choose per section.
-4. **Whether the closing AI-drafting note is fixed or removable.** The plan makes it removable.
+1. **Existing prompt or a dedicated article prompt.** Decided in W0 from the voice measures and the
+   whole-article reading.
+2. **Who writes the frame by default** — the researcher, or generated commentary. Decided in W0.
+   The title defaults to the researcher either way.
+3. **Whether topic angles use a model at all**, or the topic step is only the printed structure
+   plus the researcher's own wording. Decided in W0.
+4. **Footnotes: exclusion only, or attribution where the cited writer is unambiguous.** The plan
+   builds exclusion; attribution is added only if the researcher asks for it after W1.
+5. **The wording of the commentary label and of the closing line.**
 
-## 13. Estimate
+## 15. Estimate
 
-Roughly four focused days, stated as an estimate and not a commitment: W0 one day, W1 two days, W2
-one day. The researcher's time is the trial reading in W0 and one approval per sprint.
+Roughly six focused days, stated as an estimate and not a commitment: W0 one and a half days, W1
+three days (the footnote filter and the frame carry the risk), W2 one and a half days. The
+researcher's time is the W0 reading, supplying the reference sample, and one approval per sprint.
