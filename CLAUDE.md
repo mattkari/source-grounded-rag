@@ -53,8 +53,23 @@ author's published position.
 
 ### Commands
 
-None yet — no code exists. Commands will be added here as sprints are approved and implemented.
-The planned CLI surface is `ingest`, `index`, `query`, `evaluate`, `baseline`.
+The Typer CLI planned in `PLAN_V2.md` (`ingest`, `index`, `query`, `evaluate`, `baseline`) does not
+exist. Today's entry points are plain scripts at the repository root:
+
+```bash
+python ingest.py                 # build index/ from the configured PDF (needs pymupdf, tiktoken)
+python ask.py "<question>"       # single question; --json, --verbose-provenance, -k N
+python main.py                   # interactive question loop
+streamlit run app.py             # web chat UI
+
+pip install -r requirements.txt -r requirements-dev.txt
+python scripts/check_gold.py     # validate evaluation/questions_v1.yaml; no API call
+pytest                           # offline suite; no API key, no network
+python evaluate.py               # live evaluation run; spends API credit on both providers
+```
+
+`ask.py`, `main.py`, `app.py` and `evaluate.py` all go through `ask.run_query()`. Never add a second
+pipeline. Tests replace the generation model at `ask.call_model` only, and never make a live call.
 
 ### Environment variables
 

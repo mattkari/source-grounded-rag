@@ -248,6 +248,49 @@ def contract_violations(records: list[dict]) -> tuple[Ratio, dict[str, Ratio]]:
 
 
 # ---------------------------------------------------------------------------
+# Page numbers the model wrote (PLAN_V5 §3)
+# ---------------------------------------------------------------------------
+
+
+def page_claims(records: list[dict]) -> Ratio:
+    """Questions whose answer contains at least one page number written by the model.
+
+    `page_claims` on a record is a list of {label, exists}, or None when the
+    question did not complete and there is no answer to read.
+    """
+    return Ratio(
+        sum(1 for r in records if r.get("page_claims")),
+        len(records),
+        not_measured=sum(1 for r in records if r.get("page_claims") is None),
+    )
+
+
+def fabricated_page_citations(records: list[dict]) -> Ratio:
+    """Questions whose answer names a page the thesis does not print.
+
+    Counted per question, not per page number. A page number that does exist is
+    not thereby correct — that is for the human rater — so this is a floor on
+    fabrication, not a measure of citation quality.
+    """
+    return Ratio(
+        sum(1 for r in records if any(not claim["exists"] for claim in r.get("page_claims") or [])),
+        len(records),
+        not_measured=sum(1 for r in records if r.get("page_claims") is None),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Across repeated runs (PLAN_V5 §4)
+# ---------------------------------------------------------------------------
+
+
+def spread(ratios: list[Ratio]) -> tuple[Ratio, Ratio]:
+    """(smallest, largest) count across runs. There is deliberately no mean:
+    with a handful of runs an average without its spread would mislead."""
+    return min(ratios, key=lambda r: r.n), max(ratios, key=lambda r: r.n)
+
+
+# ---------------------------------------------------------------------------
 # Everything, for the summary
 # ---------------------------------------------------------------------------
 
@@ -267,4 +310,6 @@ def summarise(records: list[dict]) -> dict:
         "contract_violations": any_violation,
         "contract_violations_by_type": violations_by_type,
         "partial_discipline": partial_discipline(records),
+        "page_claims": page_claims(records),
+        "fabricated_page_citations": fabricated_page_citations(records),
     }
