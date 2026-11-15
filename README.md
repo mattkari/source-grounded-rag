@@ -284,6 +284,27 @@ a deterministic stand-in; retrieval ranking, validation, citation resolution and
 real code. The CI workflow from PLAN_V3 §7 runs the same suite on every push once it is added
 under `.github/workflows/`; until then the suite is run locally. The live run is never in CI.
 
+### Repeated runs and the no-retrieval baseline (Sprint E2)
+
+`docs/plans/PLAN_V5.md` adds the two things a single grounded run cannot give: a comparison, and a
+sense of how much one run varies from the next. **No results yet**: both need the question set.
+
+```bash
+python evaluate.py --repeat 3            # three runs under one run group; each metric per run, with min and max
+python evaluate.py --baseline no-rag     # the same questions with retrieval switched off
+```
+
+- **The baseline changes one thing.** It is the same model and the same prompt file, byte for
+  byte, with an empty evidence block, sent through the same `ask.run_query`. Because that prompt
+  tells the model to answer only from evidence, most baseline answers are expected to be refusals;
+  that is what this design measures, and it is not what the model would say if simply asked.
+- **Page numbers the model writes are checked** against the thesis's printed page labels. A number
+  the thesis does not print is counted as a fabricated citation. A number it does print is not
+  thereby correct; that remains a human rating.
+- **A baseline answer is an evaluation record only.** Every record, summary and rating sheet is
+  labelled `baseline_no_rag`, it is never rendered as a cited answer, and no interface can ask for it.
+- **Repeats report the spread, not an average.** With a handful of runs a mean would mislead.
+
 ### Limits
 
 - **One document.** Results will describe this thesis and this index, not RAG in general.
