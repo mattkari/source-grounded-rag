@@ -283,6 +283,16 @@ What to know before relying on it:
 draft for general readers in which every claim carries a note back to a printed page. It drafts; you
 decide and publish. Nothing is posted anywhere.
 
+**In the web app**, choose **Write an article** in the sidebar. The view walks through it: pick a
+topic from the chapters the thesis prints (or your own), write the title and an outline of three to
+six sections, choose for the introduction, transitions and conclusion whether you write them or they
+are generated as labelled commentary, and draft. Then judge every note with the sentence and the
+cited passage side by side. The article and its record are saved after every step, a saved article
+can be reopened, and `article.md` can be downloaded. With Docker, `compose.yaml` mounts `./output`
+so drafts outlive the container.
+
+**From the command line**, for a quick draft without the review step:
+
 ```bash
 python scripts/article_trial.py --topics          # what the thesis covers; no model call
 python scripts/article_trial.py --sources         # what the footnote filter leaves to draft from; no model call

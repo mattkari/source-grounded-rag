@@ -37,7 +37,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base')"
 
 COPY . .
-RUN mkdir -p /app/runs /app/library \
+RUN mkdir -p /app/runs /app/library /app/output \
     && chown -R app:app /app /home/app /opt/tiktoken
 
 USER app

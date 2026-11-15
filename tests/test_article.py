@@ -84,7 +84,8 @@ def test_one_passage_keeps_one_note_number_across_the_whole_article(three, docum
 
 def test_sources_are_resolved_from_stored_provenance_never_from_the_model(three, items, document):
     text = assemble.assemble(title="FIXTURE title", document=document, sections=three).markdown
-    sources = text.split("## Sources\n\n")[1].split("\n\n")[0].splitlines()
+    listed = text.split("## Sources\n\n")[1].split("\n\n*")[0]
+    sources = listed.split("\n\n")                    # one paragraph each, or they run together when rendered
 
     expected = [ask.footnote(n, item).split(". ", 1)[1] for n, item in ((1, items[0]), (2, items[5]), (3, items[1]), (4, items[2]))]
     assert sources == [f"[{n}] {line}" for n, line in enumerate(expected, start=1)]

@@ -221,8 +221,8 @@ def assemble(
         out += ["## Sources", ""]
         for n in sorted(notes.items):
             # ask.footnote writes "n. Author (year), …"; the article uses "[n] …".
-            out.append(f"[{n}] " + ask.footnote(n, notes.items[n]).split(". ", 1)[1])
-        out.append("")
+            # One paragraph each: consecutive lines would run together when rendered.
+            out += [f"[{n}] " + ask.footnote(n, notes.items[n]).split(". ", 1)[1], ""]
     out += [f"*{CLOSING_LINE_REVIEWED if reviewed else CLOSING_LINE}*", ""]
 
     article.markdown = "\n".join(out)

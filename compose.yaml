@@ -33,6 +33,8 @@ services:
       # start (see docs/deployment/raspberry-pi.md) so they belong to your
       # user and the container can write to them.
       - ./library:/app/library
+      # Drafted articles and their records (PLAN_V6).
+      - ./output:/app/output
 
     # An SD card is a small, slow disk — cap the logs so they cannot fill it.
     logging:
