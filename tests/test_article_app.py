@@ -657,3 +657,19 @@ def test_a_sentence_is_edited_in_the_view_and_a_bad_edit_is_refused_there(view):
     assert saved["sentences"]["edits"]["0.0"]["original"] == "FIXTURE the ledger says one thing [E1]."
     assert "The article says (edited by you)" in all_text(view)
     assert saved["pairs"][0]["verdict"] is None and len(view.model.calls) == 3     # no model call to edit
+
+
+def test_an_outline_can_ask_for_an_argument_and_no_model_is_called(view):
+    from article import topics
+    view.selectbox(key="article_topic").set_value(view.selectbox(key="article_topic").options[8])
+    view.run()
+    assert view.selectbox(key="article_outline_kind").options == list(topics.OUTLINE_KINDS)
+    view.selectbox(key="article_outline_kind").set_value(topics.ARGUMENT)
+    view.run()
+    button(view, "Fill the outline from this chapter's sections").click()
+    view.run()
+    briefs = [line.split(" | ")[1] for line in view.text_area(key="article_outline").value.splitlines()]
+
+    assert [brief.split(" ")[0] for brief in briefs] == ["How", "How,", "What,"]      # define, explain how, consequences
+    assert briefs[0].startswith("How does the thesis define ") and "What does the thesis say about" not in "".join(briefs)
+    assert view.model.calls == []

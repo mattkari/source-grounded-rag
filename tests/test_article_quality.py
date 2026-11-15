@@ -1286,3 +1286,52 @@ def test_the_preview_refuses_nothing(workspace, monkeypatch):
     section = pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])
 
     assert pipeline.usable(section)                                     # a score never blocks a draft (hard rule 4)
+
+
+# =====================================================================================
+# ADR 0008, item 8: an outline helper with no model call
+# =====================================================================================
+
+
+def a_topic():
+    from article import topics
+    return topics.Topic("FIXTURE chapter", 9, "1", "9", [
+        topics.Section("5.1 FIXTURE THE LAMP OIL LEDGER", 4, "1", "3"),
+        topics.Section("5.2 FIXTURE grafting calendar", 1, "4", "4"),
+        topics.Section("5.3 FIXTURE Tramway Timetable", 3, "5", "7"),
+        topics.Section("FIXTURE canal survey", 2, "8", "9"),
+    ])
+
+
+def test_briefs_are_offered_by_rhetorical_move_from_the_thesiss_own_section_titles():
+    from article import topics
+    topic = a_topic()
+
+    assert topics.outline(topic, "define") == [
+        ("Fixture the lamp oil ledger", "How does the thesis define fixture the lamp oil ledger?"),
+        ("FIXTURE Tramway Timetable", "How does the thesis define FIXTURE Tramway Timetable?"),
+        ("FIXTURE canal survey", "How does the thesis define FIXTURE canal survey?")]
+    assert [brief for _, brief in topics.outline(topic, topics.ARGUMENT)] == [
+        "How does the thesis define fixture the lamp oil ledger?",
+        "How, according to the thesis, does FIXTURE Tramway Timetable work?",
+        "What, according to the thesis, follows from FIXTURE canal survey?"]
+    assert topics.outline(topic, "compare")[0][1] == (
+        "How does the thesis compare fixture the lamp oil ledger with FIXTURE Tramway Timetable?")
+    assert topics.outline(topic, "what is not covered")[2][1] == "What does the thesis leave open about FIXTURE canal survey?"
+    assert topics.outline(topic, "consequences")[1][1] == "What, according to the thesis, follows from FIXTURE Tramway Timetable?"
+
+
+def test_the_summary_outline_is_what_it_was_and_every_kind_uses_only_printed_titles():
+    from article import topics
+    topic = a_topic()
+
+    assert [brief for _, brief in topics.outline(topic, topics.SUMMARY)] == topics.default_briefs(topic, 3)
+    assert topics.outline(topic)[0][0] == "5.1 FIXTURE THE LAMP OIL LEDGER"         # the heading as printed
+    words = {"fixture", "the", "lamp", "oil", "ledger", "grafting", "calendar", "tramway", "timetable", "canal", "survey"}
+    for kind in topics.OUTLINE_KINDS:
+        pairs = topics.outline(topic, kind)
+        assert len(pairs) == 3 and all(brief.endswith("?") for _, brief in pairs)
+        for heading, _ in pairs:
+            assert set(re.findall(r"[a-z]+", heading.lower())) <= words           # nothing added to a title
+    with pytest.raises(ValueError):
+        topics.outline(topic, "persuade")

@@ -752,11 +752,10 @@ def parse_outline(text: str) -> list[tuple[str, str]]:
     return outline
 
 
-def outline_from(topic: article_topics.Topic) -> str:
-    ranked = sorted(topic.sections, key=lambda s: -s.passages)[: pipeline.MIN_SECTIONS]
-    chosen = [section for section in topic.sections if section in ranked]
-    briefs = article_topics.default_briefs(topic, pipeline.MIN_SECTIONS)
-    return "\n".join(f"{section.title} | {brief}" for section, brief in zip(chosen, briefs))
+def outline_from(topic: article_topics.Topic, kind: str = article_topics.SUMMARY) -> str:
+    """An outline to edit, from the chapter's own section titles. No model is involved."""
+    return "\n".join(f"{heading} | {brief}"
+                     for heading, brief in article_topics.outline(topic, kind, pipeline.MIN_SECTIONS))
 
 
 def persist(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
@@ -867,8 +866,14 @@ def render_step_outline(workspace: pipeline.Workspace, document: Document) -> No
     topic = listed[labels.index(choice)] if choice != OWN_TOPIC else None
     if topic is not None:
         st.caption("Sections: " + "; ".join(f"{s.title} ({s.passages})" for s in topic.sections))
+        kind = st.selectbox(
+            "What each section should do", article_topics.OUTLINE_KINDS, key="article_outline_kind",
+            help="“What it says” asks for a summary of each section. The others ask for a step in an "
+                 "argument: a definition, how something works, a comparison, what follows, what is left open. "
+                 "The questions are built from the thesis's own section titles, with no model. Edit them freely.",
+        )
         if st.button("Fill the outline from this chapter's sections"):
-            plan["outline"] = st.session_state.article_outline = outline_from(topic)
+            plan["outline"] = st.session_state.article_outline = outline_from(topic, kind)
             st.rerun()
     remembered("title", st.text_input, "Title (yours to write)")
     remembered(
