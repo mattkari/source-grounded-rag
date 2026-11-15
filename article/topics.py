@@ -88,14 +88,18 @@ def default_briefs(topic: Topic, count: int = 3) -> list[str]:
     return [f"What does the thesis say about “{section.title}”?" for section in chosen]
 
 
+def count(passages: int) -> str:
+    return "1 passage" if passages == 1 else f"{passages} passages"
+
+
 def format_topics(topics: list[Topic]) -> str:
     lines = []
     for number, topic in enumerate(topics, start=1):
         thin = "  (thin: few passages)" if topic.passages < 3 else ""
-        lines.append(f"{number:>2}. {topic.chapter} — {topic.passages} passages, {topic.pages}{thin}")
+        lines.append(f"{number:>2}. {topic.chapter} — {count(topic.passages)}, {topic.pages}{thin}")
         for section in topic.sections:
             lines.append(
-                f"      · {section.title} — {section.passages} passages, "
+                f"      · {section.title} — {count(section.passages)}, "
                 f"{_span(section.page_first, section.page_last)}"
             )
     return "\n".join(lines)

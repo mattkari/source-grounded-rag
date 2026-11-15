@@ -35,7 +35,7 @@ def text_input(at: AppTest, prefix: str):
 
 def all_text(at: AppTest) -> str:
     parts = []
-    for kind in ("title", "subheader", "markdown", "caption", "info", "warning", "error", "success", "code"):
+    for kind in ("title", "header", "subheader", "markdown", "caption", "info", "warning", "error", "success", "code"):
         parts += [str(element.value) for element in getattr(at, kind)]
     return "\n".join(parts)
 
@@ -86,7 +86,7 @@ def index_thesis(at: AppTest) -> AppTest:
 def test_the_builtin_thesis_is_the_default_and_carries_no_unevaluated_notice(app):
     assert not app.exception
     assert app.sidebar.selectbox[0].options == [BUILTIN_LABEL]
-    assert app.subheader[0].value.startswith(settings.document_short_title)
+    assert app.header[0].value.startswith(settings.document_short_title)
     assert "not evaluated" not in all_text(app)
 
 
@@ -162,7 +162,7 @@ def test_a_ready_thesis_joins_the_picker_and_is_labelled_not_evaluated_when_acti
 
     assert not app.exception
     assert app.title[0].value == "Source-Grounded Research Assistant"
-    assert app.subheader[0].value.startswith(UPLOAD_SHORT_TITLE)
+    assert app.header[0].value.startswith(UPLOAD_SHORT_TITLE)
     assert "Ingested and audited — **not evaluated**." in all_text(app)
 
 
