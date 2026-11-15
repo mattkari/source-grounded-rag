@@ -58,13 +58,53 @@ def handle_as_subject(text: str) -> list[str]:
     return [" ".join(text[start:end].split()) for start, end in sorted(spans)]
 
 
+QUOTE_MAX_WORDS = 25        # one direct quotation
+QUOTE_MAX_SHARE = 0.20      # all quotations together, as a share of the section's words (ADR 0005)
+_QUOTED = re.compile(r"“([^”]+)”|\"([^\"]+)\"")
+_WORD = re.compile(r"[^\W\d_][\w’'ʿʾ-]*")
+
+
+def _words(text: str) -> int:
+    return len(_WORD.findall(ask_free(text)))
+
+
+def ask_free(text: str) -> str:
+    """Text without its note markers."""
+    return re.sub(_HANDLE, "", text)
+
+
+def quotations(text: str) -> list[str]:
+    """Direct quotations: text inside double quotation marks, straight or curly.
+    Single marks are left alone; the sources use them for terms, not for speech."""
+    return [first or second for first, second in _QUOTED.findall(text)]
+
+
+def quotation_failures(text: str) -> list[str]:
+    failures = []
+    quoted = quotations(text)
+    long = [q for q in quoted if _words(q) > QUOTE_MAX_WORDS]
+    if long:
+        failures.append(
+            f"quotation_too_long: {len(long)} direct quotation(s) over {QUOTE_MAX_WORDS} words "
+            f"(the longest is {max(_words(q) for q in long)}); paraphrase and keep the note"
+        )
+    total = _words(text)
+    share = sum(_words(q) for q in quoted) / total if total else 0.0
+    if share > QUOTE_MAX_SHARE:
+        failures.append(
+            f"too_much_quotation: {share:.0%} of the section is direct quotation "
+            f"(the limit is {QUOTE_MAX_SHARE:.0%}); paraphrase and keep the note"
+        )
+    return failures
+
+
 def prose_failures(result: dict) -> list[str]:
     """Why this payload may not be printed in an article, as recorded reasons."""
-    failures = []
+    failures = quotation_failures(result.get("answer") or "")
     subjects = [hit for text in _texts(result) for hit in handle_as_subject(text)]
     if subjects:
         shown = "; ".join(f"“{hit}”" for hit in subjects[:3])
-        failures.append(f"handle_used_as_subject: a note marker stands where a noun should ({shown})")
+        failures.insert(0, f"handle_used_as_subject: a note marker stands where a noun should ({shown})")
     return failures
 
 

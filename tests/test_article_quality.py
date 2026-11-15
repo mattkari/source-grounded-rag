@@ -272,3 +272,48 @@ def test_a_commentary_verdict_survives_saving_and_reopening(workspace, monkeypat
 
     assert reopened.commentary is True and reopened.commentary_verdicts[0]["verdict"] == "reject"
     assert pipeline.render(workspace, reopened).markdown == pipeline.render(workspace, draft).markdown
+
+
+# =====================================================================================
+# 4. Quotation limit
+# =====================================================================================
+
+WORDS = "FIXTURE lamp oil ledger harbour canal tramway orchard viaduct beacon quarry".split()
+
+
+def words(n: int) -> str:
+    return " ".join(WORDS[i % len(WORDS)] for i in range(n))
+
+
+def test_a_direct_quotation_may_run_to_twenty_five_words_and_no_further():
+    at_limit = f"{words(200)} “{words(25)}” [E1]."
+    over = f"{words(200)} “{words(26)}” [E1]."
+
+    assert checks.quotation_failures(at_limit) == []
+    assert checks.quotation_failures(over) == [
+        "quotation_too_long: 1 direct quotation(s) over 25 words (the longest is 26); paraphrase and keep the note"]
+    assert checks.quotation_failures(over.replace("“", '"').replace("”", '"')) != []      # straight marks too
+
+
+def test_quotations_together_may_be_a_fifth_of_a_section_and_no_more():
+    def section(quoted_each: int) -> str:                              # 100 words, four quotations
+        return " ".join(f"{words(25 - quoted_each)} “{words(quoted_each)}” [E1]." for _ in range(4))
+
+    assert checks.quotation_failures(section(5)) == []                 # 20 of 100
+    assert checks.quotation_failures(section(6)) == [
+        "too_much_quotation: 24% of the section is direct quotation (the limit is 20%); paraphrase and keep the note"]
+    assert checks.quotation_failures(f"{words(40)} ‘{words(30)}’ [E1].") == []     # single marks: a term, not speech
+
+
+def test_a_section_built_from_long_quotations_is_blocked_and_recorded(workspace, monkeypatch):
+    quoting = " ".join(f"FIXTURE the keeper wrote “{words(27)}” [E1]." for _ in range(3))
+    model = scripted(monkeypatch, lighthouse=payload(quoting, cites=["E1"]))
+    section = pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])
+    draft = pipeline.Draft("FIXTURE title", [section])
+    article = pipeline.render(workspace, draft)
+    failures = pipeline.build_record(workspace, draft, article)["sections"][0]["article_check_failures"]
+
+    assert section.outcome.failures == []
+    assert [failure.split(":")[0] for failure in failures] == ["quotation_too_long", "too_much_quotation"]
+    assert article.blocked[0]["reason"].startswith("article check failed: quotation_too_long: 3 direct quotation(s)")
+    assert "FIXTURE heading" not in article.markdown and len(model.calls) == 1
