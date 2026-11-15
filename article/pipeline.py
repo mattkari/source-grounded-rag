@@ -21,7 +21,7 @@ from pathlib import Path
 
 import ask
 from article import assemble, checks, export as article_export, sentences, sources, topics, voice
-from article.assemble import GENERATED, RESEARCHER, VERDICTS, FrameElement, SectionDraft
+from article.assemble import GENERATED, RESEARCHER, SUGGESTED, VERDICTS, FrameElement, SectionDraft
 from documents import Document, default_document
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "output" / "articles"
@@ -221,6 +221,8 @@ class Draft:
     pair_verdicts: dict[str, dict] = field(default_factory=dict)
     sentence_edits: dict[str, dict] = field(default_factory=dict)
     own_words: dict[str, dict] = field(default_factory=dict)     # sid -> {"kept_at": iso}: unnoted, kept as theirs
+    # "introduction" | "conclusion" -> every suggestion asked for, newest last (ADR 0008)
+    frame_suggestions: dict[str, list[dict]] = field(default_factory=dict)
     frame_plan: dict[str, str] = field(default_factory=dict)
     editorial: bool = False
     frame_done: set[str] = field(default_factory=set)   # generated frame steps already made
@@ -360,6 +362,85 @@ def status(draft: Draft, article: assemble.Article) -> str:
             return DRAFT
     given = [(pair_verdict(draft, pair) or {}).get("verdict") for pair in article.pairs]
     return REVIEWED if all(v in VERDICTS and v != "does not" for v in given) else DRAFT
+
+
+FRAME_KINDS = {"introduction": "an introduction to", "conclusion": "a conclusion for"}
+_BRACKET = re.compile(r"\[[^\]]*\]")
+
+
+def section_text(article: assemble.Article) -> str:
+    """The article's own section prose, without its note markers: all that a frame
+    suggestion is given, and all it may draw on."""
+    parts = [text for kind, text in article.blocks if kind in ("heading", "paragraph")]
+    return re.sub(r"\s+([.,;:])", r"\1", _BRACKET.sub("", "\n\n".join(parts)))
+
+
+def suggest_frame(workspace: Workspace, draft: Draft, kind: str) -> dict:
+    """Ask once for an introduction or a conclusion, from the article's own text.
+
+    One model call, made when the researcher asks for it. Nothing is retrieved
+    and no passage is shown: the model sees the section text and nothing else.
+    The suggestion may add no name, number or transliterated term the sections
+    do not hold, no bracket and no em dash; one that does is kept in the record
+    as rejected and is not offered. It prints nothing by itself.
+    """
+    if kind not in FRAME_KINDS:
+        raise ArticleError("A suggestion is for the introduction or the conclusion.")
+    body = section_text(render(workspace, draft))
+    if not body.strip():
+        raise ArticleError("There is no section text yet to suggest from.")
+    prompt, digest = checks.load_prompt(checks.FRAME_PROMPT)
+    task = f"Write {FRAME_KINDS[kind]} the article titled “{draft.title}”."
+    try:
+        result, system_hash = ask.suggest_from_text(task, f"{prompt}\nARTICLE\n=======\n{body}")
+        error = None
+    except (Exception, SystemExit) as exc:  # recorded, never retried (hard rule 9)
+        result, system_hash, error = {}, None, f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}"
+    text = " ".join((result.get("answer") or "").split())
+    problems = []
+    if error:
+        problems.append(f"the pipeline failed: {error}")
+    elif not text:
+        problems.append("no_text: the model returned nothing to suggest")
+    else:
+        added = checks.new_terms(f"{draft.title}\n{body}", text)
+        if added:
+            problems.append("new_terms: the suggestion adds " + ", ".join(f"“{term}”" for term in added[:8]))
+        if _BRACKET.search(text):
+            problems.append("brackets: the suggestion holds a bracket or a note marker")
+        if ask.PAGE_CLAIM_RE.findall(text):
+            problems.append("page_number: the suggestion holds a page number")
+        if voice.EM_DASH.search(text):
+            problems.append("em_dash: the suggestion uses an em dash")
+        problems += checks.quotation_failures(text)
+    suggestion = {
+        "kind": kind, "prompt": checks.FRAME_PROMPT, "prompt_sha256_12": digest,
+        "system_prompt_sha256_12": system_hash, "text": text or None, "rejected_because": problems,
+        "suggested_at": _now(),
+    }
+    draft.frame_suggestions.setdefault(kind, []).append(suggestion)
+    return suggestion
+
+
+def offered(draft: Draft, kind: str) -> str | None:
+    """The newest suggestion for this part, if it passed its checks."""
+    latest = (draft.frame_suggestions.get(kind) or [None])[-1]
+    return latest["text"] if latest and not latest["rejected_because"] else None
+
+
+def set_frame(draft: Draft, kind: str, text: str) -> None:
+    """Put the researcher's introduction or conclusion in the article. If it started
+    from a suggestion that passed its checks, it is recorded as suggested by the model
+    and accepted by the researcher, with what the model proposed kept beside it.
+    Otherwise it is the researcher's own. Empty text takes the part out."""
+    if kind not in FRAME_KINDS:
+        raise ArticleError("This is for the introduction or the conclusion.")
+    text, proposed = text.strip(), offered(draft, kind)
+    element = None
+    if text:
+        element = (FrameElement(SUGGESTED, text=text, suggestion=proposed) if proposed
+                   else FrameElement(RESEARCHER, text=text))
+    setattr(draft, kind, element)
 
 
 def export_blockers(draft: Draft, article: assemble.Article) -> list[str]:
@@ -603,6 +684,9 @@ def _frame_record(element: FrameElement | None) -> dict | None:
     if element.origin == RESEARCHER:
         # The researcher's own words: kept so the article can be rebuilt; outside the support rate.
         return {"origin": RESEARCHER, "text": element.text}
+    if element.origin == SUGGESTED:
+        return {"origin": SUGGESTED, "text": element.text, "suggestion": element.suggestion,
+                "edited_by_researcher": element.text != element.suggestion}
     return {"origin": GENERATED, "brief": element.brief, **_outcome_record(element.outcome, element.error)}
 
 
@@ -669,6 +753,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             checks.SECTION_PROMPT: checks.load_prompt(checks.SECTION_PROMPT)[1],
             **({checks.EDITORIAL_PROMPT: checks.load_prompt(checks.EDITORIAL_PROMPT)[1]}
                if any(section.editorial for section in draft.sections) else {}),
+            **({checks.FRAME_PROMPT: checks.load_prompt(checks.FRAME_PROMPT)[1]} if draft.frame_suggestions else {}),
         },
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
@@ -682,6 +767,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             "transitions": [_frame_record(element) for element in draft.transitions],
             "conclusion": _frame_record(draft.conclusion),
         },
+        "frame_suggestions": draft.frame_suggestions,
         "blocked": article.blocked,
         "frame_sentences_without_a_note": article.unnoted,
         "limitations_kept_in_record_only": article.limits_held_back,
@@ -759,6 +845,8 @@ def _frame_from(record: dict | None, workspace: Workspace) -> FrameElement | Non
         return None
     if record["origin"] == RESEARCHER:
         return FrameElement(RESEARCHER, text=record.get("text", ""))
+    if record["origin"] == SUGGESTED:
+        return FrameElement(SUGGESTED, text=record.get("text", ""), suggestion=record.get("suggestion", ""))
     outcome, error = _outcome_from(record, record["brief"], workspace)
     return FrameElement(GENERATED, brief=record["brief"], outcome=outcome, error=error)
 
@@ -810,6 +898,7 @@ def load(folder: Path, workspace: Workspace) -> Draft:
         },
         article_id=record["article_id"],
         created=record["created"],
+        frame_suggestions={kind: list(asked) for kind, asked in record.get("frame_suggestions", {}).items()},
         frame_plan=dict(record.get("plan", {}).get("frame", {})),
         editorial=record.get("plan", {}).get("editorial", False),
         frame_done=set(record.get("drafting", {}).get("frame_steps_done", [])),

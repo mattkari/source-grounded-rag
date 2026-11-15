@@ -50,6 +50,9 @@ class Scripted:
 
     def __call__(self, question, items, instructions=None):
         self.calls.append(question)
+        if instructions and instructions.startswith("FRAME TASK"):
+            self.frames = getattr(self, "frames", []) + [(question, list(items), instructions)]
+            return self.script["FRAME"], "fixturehash"
         if instructions and instructions.startswith("EDITORIAL TASK"):
             self.edits = getattr(self, "edits", 0) + 1
             key = next(key for key in self.script if key in question)
@@ -236,19 +239,49 @@ def test_a_note_judged_does_not_keeps_the_draft_until_its_sentences_are_removed(
     assert saved["sentences"]["edits"]["0.1"]["original"] == "FIXTURE and it says another [E2]."     # what it said is kept
 
 
-def test_generated_frame_text_is_marked_as_commentary_and_costs_one_call_each(view):
-    def generate(at):
-        for part in ("introduction", "transitions", "conclusion"):
-            at.radio(key=f"article_{part}").set_value("Generate as labelled commentary")
+def test_an_introduction_is_suggested_from_the_articles_own_text_and_printed_only_when_used(view):
+    view.model.script["FRAME"] = payload("FIXTURE the ledger and the calendar together tell of the timetable.", [])
+    draft(view)
+    judge(view, ["supports"] * 4)
+    finish(view)
+    assert len(view.model.calls) == 3 and assemble.COMMENTARY_LABEL not in article_file(view)
 
-    draft(view, options=generate)
-    text = article_file(view)
+    button(view, "Suggest an introduction (one model call)").click()
+    view.run()
+    question, items, instructions = view.model.frames[0]
+    assert len(view.model.calls) == 4 and items == []                   # one call, and it is shown no passage
+    assert "FIXTURE the ledger says one thing." in instructions and "[E" not in instructions and "[1]" not in instructions
+    assert view.text_area(key="article_frame_introduction").value == "FIXTURE the ledger and the calendar together tell of the timetable."
+    assert "together tell of the timetable" not in article_file(view)   # a suggestion prints nothing by itself
 
-    assert len(view.model.calls) == 3 + 1 + 2 + 1
-    assert text.count(assemble.COMMENTARY_LABEL) == 4
-    assert f"{assemble.COMMENTARY_LABEL} FIXTURE a generated opening [1]." in text
-    assert record(view)["frame"]["conclusion"]["origin"] == "generated"
-    assert record(view)["support"]["notes"] == 4                        # the frame added no note of its own
+    view.text_area(key="article_frame_introduction").set_value("FIXTURE the ledger and the calendar tell of the timetable.")
+    view.run()
+    button(view, "Use this introduction").click()
+    view.run()
+    text, saved = article_file(view), record(view)
+
+    assert "FIXTURE the ledger and the calendar tell of the timetable." in text
+    assert assemble.COMMENTARY_LABEL not in text                        # printed as the article's own text
+    assert saved["frame"]["introduction"] == {
+        "origin": "suggested by model, accepted by researcher",
+        "text": "FIXTURE the ledger and the calendar tell of the timetable.",
+        "suggestion": "FIXTURE the ledger and the calendar together tell of the timetable.",
+        "edited_by_researcher": True}
+    assert saved["status"] == "reviewed" and saved["support"]["pairs"] == 4      # it adds nothing to judge
+    assert "suggested by model, accepted by researcher" in all_text(view)
+
+
+def test_a_suggestion_that_adds_a_name_is_not_offered_and_the_reason_is_shown(view):
+    view.model.script["FRAME"] = payload("FIXTURE Harland kept the ledger in 1923.", [])
+    draft(view)
+    finish(view)
+    button(view, "Suggest a conclusion (one model call)").click()
+    view.run()
+
+    assert view.text_area(key="article_frame_conclusion").value == ""
+    assert "The suggestion asked for was not offered: new_terms: the suggestion adds “1923”, “Harland”." in all_text(view)
+    assert record(view)["frame_suggestions"]["conclusion"][0]["rejected_because"] != []
+    assert record(view)["frame"]["conclusion"] is None and len(view.model.calls) == 4      # asked once, not again
 
 
 def test_a_blocked_section_is_shown_with_its_reason_and_a_refused_one_can_be_stated(view):
@@ -481,7 +514,7 @@ def test_the_plan_is_made_one_step_at_a_time_and_going_back_loses_nothing(view):
     plan = all_text(view)
     assert "Step 3 of 5" in plan and "**FIXTURE harbour title**" in plan
     assert "1. **FIXTURE first heading** — FIXTURE-A what does the harbour ledger say?" in plan
-    assert "- Introduction: left out" in plan and "- Conclusion: yours" in plan and "- Commentary: on" in plan
+    assert "- Introduction: left out for now" in plan and "- Conclusion: yours" in plan and "- Commentary: on" in plan
     assert "Drafting makes 3 model call(s) for the sections and up to 0" in plan
 
     button(view, "Back to frame and options").click()

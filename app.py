@@ -828,8 +828,7 @@ def planned(plan: dict) -> tuple[list[tuple[str, str]], dict]:
     return outline, {
         "sections": len(outline),
         "editorial": len(outline) if plan["editorial"] else 0,
-        "frame": sum(plan[part] == GENERATE for part in ("introduction", "conclusion"))
-        + (max(len(outline) - 1, 0) if plan["transitions"] == GENERATE else 0),
+        "frame": 0,                                     # the frame is yours, or a suggestion asked for later
     }
 
 
@@ -892,13 +891,12 @@ def render_step_frame() -> None:
     step_header(STEP_FRAME)
     st.caption(
         "The introduction, transitions and conclusion are not on a page of the thesis, so none can be "
-        "cited. Write them yourself, or have them generated from the passages the sections cite. "
-        "Generated text is marked in the article as commentary. A box left empty leaves that part out."
+        "cited. Write them here if you have them. A box left empty leaves that part out. After drafting "
+        "you can ask for a suggested introduction and conclusion, written from the article's own text, "
+        "and edit it before it is used."
     )
     for part, hint in (("introduction", ""), ("transitions", " — one per line, in order"), ("conclusion", "")):
-        origin = remembered(part, st.radio, part.capitalize(), [I_WRITE, GENERATE], horizontal=True)
-        if origin == I_WRITE:
-            remembered(f"{part}_text", st.text_area, f"Your {part}{hint}", height=90)
+        remembered(f"{part}_text", st.text_area, f"Your {part}{hint} (optional)", height=90)
     remembered(
         "commentary", st.checkbox, "Include the model's own commentary (one paragraph per section at most)",
         help="Commentary is the model's inference, not the author's position. It is marked as such, "
@@ -927,15 +925,14 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
     st.markdown(f"**{plan['title'] or '(no title yet)'}**")
     st.markdown("\n".join(f"{n}. **{heading}** — {brief}" for n, (heading, brief) in enumerate(outline, start=1)))
     st.markdown("\n".join(
-        f"- {part.capitalize()}: " + ("generated as labelled commentary" if plan[part] == GENERATE
-                                      else "yours" if plan[f"{part}_text"].strip() else "left out")
+        f"- {part.capitalize()}: " + ("yours" if plan[f"{part}_text"].strip() else "left out for now")
         for part in ("introduction", "transitions", "conclusion")
     ))
     st.markdown(f"- Commentary: {'on' if plan['commentary'] else 'off'}\n"
                 f"- Editorial pass: {'on' if plan['editorial'] else 'off'}")
     st.caption(
         f"Drafting makes {calls['sections']} model call(s) for the sections and up to "
-        f"{calls['frame'] + calls['editorial']} for generated frame text and the editorial pass. Nothing is "
+        f"{calls['editorial']} for the editorial pass. Nothing is "
         "retried. Each finished step is saved, so an interrupted draft can be resumed."
     )
     if st.button("Draft the article", type="primary"):
@@ -1188,6 +1185,42 @@ def render_step_review(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
         go_to_step(STEP_FINISH)
 
 
+def render_frame_part(workspace: pipeline.Workspace, draft: pipeline.Draft, kind: str) -> None:
+    """The introduction or the conclusion: the researcher's to write, with a suggestion
+    on request. A suggestion is drawn from the article's own text and is only a text to
+    edit: nothing is printed until the researcher says "use this"."""
+    current = getattr(draft, kind)
+    latest = (draft.frame_suggestions.get(kind) or [None])[-1]
+    key = f"article_frame_{kind}"
+    if f"{key}_incoming" in st.session_state:               # a new suggestion, put in before the box is drawn
+        st.session_state[key] = st.session_state.pop(f"{key}_incoming")
+    elif key not in st.session_state:
+        st.session_state[key] = current.text if current is not None and current.origin != pipeline.GENERATED else ""
+    st.markdown(f"**{kind.capitalize()}**")
+    if latest and latest["rejected_because"]:
+        st.warning("The suggestion asked for was not offered: " + "; ".join(latest["rejected_because"]) + ".")
+    text = st.text_area(f"The {kind} (yours to write or edit)", key=key, height=150)
+    ask_for, use = st.columns(2)
+    with ask_for:
+        article_word = "an introduction" if kind == "introduction" else "a conclusion"
+        if st.button(f"Suggest {article_word} (one model call)", key=f"{key}_suggest", use_container_width=True):
+            with st.spinner("Asking for a suggestion from the article's own text…"):
+                suggestion = pipeline.suggest_frame(workspace, draft, kind)
+            if not suggestion["rejected_because"]:
+                st.session_state[f"{key}_incoming"] = suggestion["text"]
+            persist(workspace, draft)
+            st.rerun()
+    with use:
+        if st.button(f"Use this {kind}", key=f"{key}_use", type="primary", use_container_width=True):
+            pipeline.set_frame(draft, kind, text)
+            persist(workspace, draft)
+            st.rerun()
+    if current is not None and current.origin != pipeline.GENERATED:
+        st.caption(f"In the article now, recorded as: {current.origin}.")
+    elif current is not None:
+        st.caption("In the article now as labelled commentary, from an earlier version. Using a text here replaces it.")
+
+
 def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
     if st.button("Back to the review"):
         go_to_step(STEP_REVIEW)
@@ -1205,6 +1238,16 @@ def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
         f"**Sentences to judge:** {counts['pairs']} — supports {counts['supports']}, partly {counts['partly']}, "
         f"does not {counts['does not']}, not judged {counts['not judged']}"
     )
+    with st.expander("Introduction and conclusion", expanded=draft.introduction is None and draft.conclusion is None):
+        st.caption(
+            "Neither is on a page of the thesis, so neither carries a note. Write them, or ask for a "
+            "suggestion drawn only from the sections above, and edit it. What you use is printed as "
+            "the article's own text and recorded as yours or as suggested by the model and accepted by you."
+        )
+        render_frame_part(workspace, draft, "introduction")
+        render_frame_part(workspace, draft, "conclusion")
+        article = pipeline.render(workspace, draft)
+
     # What leaves the app is what the record shows as reviewed (ADR 0008): the export is
     # locked until then, and the working draft on disk keeps its DRAFT line.
     blockers = pipeline.export_blockers(draft, article)

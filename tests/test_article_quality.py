@@ -1123,3 +1123,112 @@ def test_exported_html_cannot_carry_markup_from_the_text(workspace, monkeypatch)
     page = pipeline.export(workspace, draft)["html"]
 
     assert "<p>FIXTURE the keeper wrote &lt;b&gt;oil&lt;/b&gt; &amp; more [1].</p>" in page
+
+
+# =====================================================================================
+# ADR 0008, item 6: the frame is a suggestion, not printed commentary
+# =====================================================================================
+
+GOOD_FRAME = "FIXTURE the keeper logged the oil that came by sea."
+
+
+class Framer(Scripted):
+    """Answers a brief from the script and a frame task with what it was given."""
+
+    def __init__(self, frame):
+        super().__init__({**SCRIPT, "lighthouse": payload(TWO, cites=["E1", "E2"])})
+        self.frame, self.frames = frame, []
+
+    def __call__(self, question, items, instructions=None):
+        if instructions and instructions.startswith("FRAME TASK"):
+            self.frames.append((question, list(items), instructions))
+            if isinstance(self.frame, BaseException):
+                raise self.frame
+            return payload(self.frame, cites=[]), "fixturehash"
+        return super().__call__(question, items, instructions)
+
+
+def framed(workspace, monkeypatch, frame):
+    model = Framer(frame)
+    monkeypatch.setattr(ask, "call_model", model)
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+    return draft, model
+
+
+def test_a_frame_suggestion_sees_only_the_articles_own_text_and_prints_nothing(workspace, monkeypatch):
+    draft, model = framed(workspace, monkeypatch, GOOD_FRAME)
+    embedded, embed = [], ask.embed_texts
+    monkeypatch.setattr(ask, "embed_texts", lambda texts, **kw: embedded.append(texts) or embed(texts, **kw))
+    before = pipeline.render(workspace, draft).markdown
+
+    suggestion = pipeline.suggest_frame(workspace, draft, "introduction")
+    question, items, instructions = model.frames[0]
+    prompt, digest = checks.load_prompt(checks.FRAME_PROMPT)
+
+    assert items == [] and embedded == []                               # no passage, no retrieval
+    assert instructions == (f"{prompt}\nARTICLE\n=======\nFIXTURE heading\n\n"
+                            "FIXTURE the keeper logged lamp oil. FIXTURE the oil came by sea.")
+    assert question == "Write an introduction to the article titled “FIXTURE title”."
+    assert suggestion["text"] == GOOD_FRAME and suggestion["rejected_because"] == []
+    assert pipeline.render(workspace, draft).markdown == before         # a suggestion prints nothing by itself
+    record = pipeline.build_record(workspace, draft, pipeline.render(workspace, draft))
+    assert record["prompts"][checks.FRAME_PROMPT] == digest == record["frame_suggestions"]["introduction"][0]["prompt_sha256_12"]
+    assert record["frame"]["introduction"] is None and len(model.frames) == 1
+
+
+@pytest.mark.parametrize(("frame", "reason"), [
+    ("FIXTURE Harland kept the oil ledger.", "new_terms: the suggestion adds “Harland”"),
+    ("FIXTURE the keeper logged oil in 1923.", "new_terms: the suggestion adds “1923”"),
+    ("FIXTURE the keeper kept his amāna.", "new_terms: the suggestion adds “amāna”"),
+    ("FIXTURE the keeper logged oil [E1].", "brackets: the suggestion holds a bracket or a note marker"),
+    ("FIXTURE the keeper logged oil [1].", "brackets: the suggestion holds a bracket or a note marker"),
+    ("FIXTURE the keeper — the oil came by sea.", "em_dash: the suggestion uses an em dash"),
+    (RuntimeError("FIXTURE provider outage"), "the pipeline failed: RuntimeError: FIXTURE provider outage"),
+    ("", "no_text: the model returned nothing to suggest"),
+])
+def test_a_suggestion_that_adds_what_the_sections_do_not_hold_is_recorded_and_not_offered(workspace, monkeypatch, frame, reason):
+    draft, model = framed(workspace, monkeypatch, frame)
+    suggestion = pipeline.suggest_frame(workspace, draft, "conclusion")
+
+    assert any(problem.startswith(reason) for problem in suggestion["rejected_because"]), suggestion["rejected_because"]
+    assert pipeline.offered(draft, "conclusion") is None and len(model.frames) == 1          # not asked again
+    assert pipeline.build_record(workspace, draft, pipeline.render(workspace, draft))["frame_suggestions"]["conclusion"][0]["rejected_because"]
+
+
+def test_an_accepted_suggestion_is_printed_without_the_commentary_label_and_recorded_as_accepted(workspace, monkeypatch, tmp_path):
+    draft, _ = framed(workspace, monkeypatch, GOOD_FRAME)
+    pipeline.suggest_frame(workspace, draft, "conclusion")
+    pipeline.set_frame(draft, "conclusion", GOOD_FRAME)
+    article = pipeline.render(workspace, draft)
+    record = pipeline.build_record(workspace, draft, article)["frame"]["conclusion"]
+
+    assert f"\n{GOOD_FRAME}\n" in article.markdown and assemble.COMMENTARY_LABEL not in article.markdown
+    assert record == {"origin": "suggested by model, accepted by researcher", "text": GOOD_FRAME,
+                      "suggestion": GOOD_FRAME, "edited_by_researcher": False}
+    assert len(article.pairs) == 3                                      # it adds nothing to judge
+
+    reopened = pipeline.load(pipeline.save(workspace, draft, tmp_path / "out"), workspace)
+    assert pipeline.render(workspace, reopened).markdown == article.markdown
+    assert reopened.conclusion.origin == assemble.SUGGESTED and reopened.frame_suggestions["conclusion"][0]["text"] == GOOD_FRAME
+
+
+def test_text_written_with_no_suggestion_on_offer_is_the_researchers_own(workspace, monkeypatch):
+    draft, _ = framed(workspace, monkeypatch, "FIXTURE Harland kept the ledger.")
+    pipeline.set_frame(draft, "introduction", "FIXTURE my own opening.")
+    assert pipeline.build_record(workspace, draft, pipeline.render(workspace, draft))["frame"]["introduction"] == {
+        "origin": "researcher", "text": "FIXTURE my own opening."}
+
+    pipeline.suggest_frame(workspace, draft, "introduction")            # rejected: it adds a name
+    pipeline.set_frame(draft, "introduction", "FIXTURE my own opening, again.")
+    assert draft.introduction.origin == "researcher"
+    pipeline.set_frame(draft, "introduction", "  ")
+    assert draft.introduction is None
+    with pytest.raises(pipeline.ArticleError):
+        pipeline.suggest_frame(workspace, draft, "transition")
+
+
+def test_no_shell_calls_the_model_without_evidence_itself():
+    for shell in ("app.py", "main.py", "evaluate.py", "write_article.py"):
+        assert "suggest_from_text" not in (ROOT / shell).read_text(encoding="utf-8"), shell
+    source = (ROOT / "ask.py").read_text(encoding="utf-8")
+    assert "suggest_from_text" not in source[source.index("def main()"):]

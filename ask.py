@@ -604,6 +604,18 @@ def draft_from_evidence(
     )
 
 
+def suggest_from_text(task: str, instructions: str) -> tuple[dict, str]:
+    """The same model call with no evidence at all.
+
+    Used only by the article writer, to suggest an introduction or a conclusion
+    from the article's own section text (ADR 0008). Nothing is retrieved and
+    nothing is cited, so the result is never an answer and is never validated or
+    rendered as one: the caller checks it and shows it to the researcher as a
+    suggestion to edit. No shell exposes it.
+    """
+    return _generate(task, [], instructions)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Query the authorised research collection.")
     parser.add_argument("question", help="the question to ask")

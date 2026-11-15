@@ -37,6 +37,9 @@ NOT_COVERED_HEADING = "What this article does not cover"
 LIMIT_OPENING = "the thesis does not"      # a line a reader can follow opens like this
 LIMIT_MAX_WORDS = 30
 RESEARCHER, GENERATED = "researcher", "generated"
+# An introduction or conclusion the model suggested from the article's own text and the
+# researcher accepted, perhaps after editing it (ADR 0008). It is printed as the article's.
+SUGGESTED = "suggested by model, accepted by researcher"
 # A sentence, with any closing quotation marks and note markers that trail its full stop.
 _SENTENCE = re.compile(r".+?(?:[.!?][\"'’”)]*(?:\s?\[E\d+\])*(?=\s|$)|$)", re.DOTALL)
 _TABLE_LINE = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
@@ -65,6 +68,7 @@ class FrameElement:
     brief: str = ""                            # generated: what the model was asked
     outcome: ask.QueryOutcome | None = None
     error: str | None = None
+    suggestion: str = ""                       # SUGGESTED: what the model proposed, before any edit
 
 
 @dataclass
@@ -238,7 +242,7 @@ def reader_limit(result: dict) -> str | None:
 def _frame_text(element: FrameElement | None, what: str, notes: _Notes, article: "Article") -> str | None:
     if element is None:
         return None
-    if element.origin == RESEARCHER:
+    if element.origin in (RESEARCHER, SUGGESTED):
         return element.text.strip() or None
     reason = block_reason(element.outcome, element.error)
     if reason:
