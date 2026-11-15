@@ -70,21 +70,16 @@ def run_trial(*, chapter: int, title: str, briefs: list[str], headings: list[str
         return 2
 
     print(f"Topic: {topic.chapter} ({topic.passages} passages, {topic.pages})", file=stream)
-    drafted = []
-    for heading, brief in zip(headings, briefs):
-        section = pipeline.draft_section(workspace, heading, brief)
-        drafted.append(section)
-        print(f"  section: {heading} -> {assemble.block_reason(section.outcome, section.error) or 'drafted'}",
+    reference_text = "\n".join(path.read_text(encoding="utf-8") for path in references)
+    origin = GENERATED if frame == GENERATED else "none"
+    draft = pipeline.new_draft(title, list(zip(headings, briefs)), topic=topic.chapter,
+                               introduction=origin, transitions=origin, conclusion=origin)
+    pipeline.run(workspace, draft, out_dir, reference_text)
+    drafted = draft.sections
+    for section in drafted:
+        print(f"  section: {section.heading} -> {assemble.block_reason(section.outcome, section.error) or 'drafted'}",
               file=stream)
 
-    draft = pipeline.Draft(title=title, sections=drafted, topic=topic.chapter,
-                           transitions=[None] * (len(drafted) - 1))
-    if frame == GENERATED and any(pipeline.usable(s) for s in drafted):
-        draft.introduction = pipeline.draft_introduction(title, drafted)
-        draft.transitions = [pipeline.draft_transition(a, b) for a, b in zip(drafted, drafted[1:])]
-        draft.conclusion = pipeline.draft_conclusion(title, drafted)
-
-    reference_text = "\n".join(path.read_text(encoding="utf-8") for path in references)
     folder = pipeline.save(workspace, draft, out_dir, reference_text)
     article = pipeline.render(workspace, draft)
 

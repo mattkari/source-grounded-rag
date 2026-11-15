@@ -364,3 +364,42 @@ def test_the_editorial_pass_is_off_by_default_and_shows_what_it_kept_and_what_it
     assert saved["sections"][2]["editorial"]["rejected_because"] == ["new_terms: the rewrite adds “Harland”"]
     shown = all_text(view)
     assert "rewrite rejected; the original stands" in shown and "new_terms: the rewrite adds “Harland”" in shown
+
+
+# --- save as you go, and resume (ADR 0005) -----------------------------------------------------
+
+
+class Restart(BaseException):
+    """The container going away in the middle of a call."""
+
+
+def test_a_draft_cut_short_is_on_disk_and_resumes_without_resending_what_was_done(view, monkeypatch):
+    # The container goes away during the third section: the pipeline is run here, outside the page.
+    outline = [tuple(part.strip() for part in line.split("|")) for line in OUTLINE.splitlines()]
+    workspace = pipeline.open_workspace()
+
+    def dying(question, items, instructions=None):
+        if "FIXTURE-C" in question:
+            raise Restart()
+        return view.model(question, items, instructions)
+
+    monkeypatch.setattr(ask, "call_model", dying)
+    with pytest.raises(Restart):
+        pipeline.run(workspace, pipeline.new_draft("FIXTURE harbour title", outline))
+    saved = record(view)
+    assert saved["status"] == "drafting" and [bool(s.get("pending")) for s in saved["sections"]] == [False, False, True]
+
+    monkeypatch.setattr(ask, "call_model", view.model)                  # the container is back; the page is opened afresh
+    view.run()
+    listed = view.selectbox(key="article_saved")
+    assert listed.format_func(listed.value) == "FIXTURE harbour title — unfinished, 1 model call(s) left"
+    button(view, "Open this article").click()
+    view.run()
+    assert "1 model call(s) remain" in all_text(view) and "## FIXTURE third heading" not in article_file(view)
+    before = len(view.model.calls)
+    button(view, "Resume drafting").click()
+    view.run()
+
+    assert len(view.model.calls) == before + 1 and "FIXTURE-C" in view.model.calls[-1]      # one call: the missing one
+    assert record(view)["status"] == "draft" and "## FIXTURE third heading" in article_file(view)
+    assert len(list(view.out.glob("*"))) == 1 and not view.exception

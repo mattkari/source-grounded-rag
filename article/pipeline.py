@@ -25,9 +25,11 @@ from article.assemble import GENERATED, RESEARCHER, VERDICTS, FrameElement, Sect
 from documents import Document, default_document
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "output" / "articles"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+READABLE_SCHEMAS = (2, 3)      # 2: before plans and step-by-step saving; read as finished
 MIN_SECTIONS, MAX_SECTIONS = 3, 6
-DRAFT, REVIEWED = "draft", "reviewed"
+DRAFTING, DRAFT, REVIEWED = "drafting", "draft", "reviewed"
+FRAME_ORIGINS = (RESEARCHER, GENERATED, "none")
 
 
 class ArticleError(RuntimeError):
@@ -115,7 +117,7 @@ def edit_section(section: SectionDraft) -> SectionDraft:
 
 
 def usable(section: SectionDraft) -> bool:
-    return section.kept and assemble.block_reason(section.outcome, section.error) is None
+    return section.kept and not section.pending and assemble.block_reason(section.outcome, section.error) is None
 
 
 def cited(outcome: ask.QueryOutcome) -> list[ask.EvidenceItem]:
@@ -196,6 +198,102 @@ class Draft:
     commentary_verdicts: dict[int, dict] = field(default_factory=dict)
     article_id: str | None = None
     created: str | None = None
+    # The plan, fixed before the first call, so an interrupted draft can be resumed
+    # from its record (ADR 0005). `frame_plan` maps introduction / transitions /
+    # conclusion to "researcher", "generated" or "none".
+    frame_plan: dict[str, str] = field(default_factory=dict)
+    editorial: bool = False
+    frame_done: set[str] = field(default_factory=set)   # generated frame steps already made
+    complete: bool = True                               # False while steps of the plan remain
+
+
+def new_draft(title: str, outline: list[tuple[str, str]], *, topic: str | None = None,
+              introduction: str = "none", transitions: str = "none", conclusion: str = "none",
+              introduction_text: str = "", transitions_text: list[str] | None = None, conclusion_text: str = "",
+              commentary: bool = False, editorial: bool = False) -> Draft:
+    """A plan and nothing else: every section pending, no model called yet. Text the
+    researcher wrote is placed at once; it needs no call."""
+    check_outline(title, outline)
+    plan = {"introduction": introduction, "transitions": transitions, "conclusion": conclusion}
+    for part, origin in plan.items():
+        if origin not in FRAME_ORIGINS:
+            raise ArticleError(f"The {part} is one of: {', '.join(FRAME_ORIGINS)}.")
+    gaps = len(outline) - 1
+    typed = list(transitions_text or [])[:gaps] + [""] * max(gaps - len(transitions_text or []), 0)
+    return Draft(
+        title=title.strip(), topic=topic, commentary=commentary, editorial=editorial, frame_plan=plan, complete=False,
+        sections=[SectionDraft(heading.strip(), brief.strip(), pending=True) for heading, brief in outline],
+        introduction=written(introduction_text) if introduction == RESEARCHER else None,
+        transitions=[written(text) if transitions == RESEARCHER else None for text in typed],
+        conclusion=written(conclusion_text) if conclusion == RESEARCHER else None,
+    )
+
+
+def planned_calls(draft: Draft) -> dict[str, int]:
+    """Model calls the plan still needs, counted without making any. The editorial
+    and transition counts are upper bounds: neither is made for a blocked section."""
+    pending = sum(1 for s in draft.sections if s.pending)
+    plan = draft.frame_plan
+    remaining = {
+        "sections": pending,
+        "editorial": sum(1 for s in draft.sections if s.pending or (usable(s) and s.editorial is None))
+        if draft.editorial else 0,
+        "introduction": int(plan.get("introduction") == GENERATED and "introduction" not in draft.frame_done),
+        "transitions": sum(1 for n in range(len(draft.sections) - 1) if f"transition:{n}" not in draft.frame_done)
+        if plan.get("transitions") == GENERATED else 0,
+        "conclusion": int(plan.get("conclusion") == GENERATED and "conclusion" not in draft.frame_done),
+    }
+    remaining["model_calls"] = sum(remaining.values())
+    remaining["embedding_calls"] = pending          # one question embedded per section
+    return remaining
+
+
+def run(workspace: Workspace, draft: Draft, out_dir: Path | None = None, reference_text: str = "",
+        on_step=None) -> Draft:
+    """Carry out what the plan still needs, saving the record after every step.
+
+    A restart loses at most the step in flight. Called again on a reloaded draft
+    it resumes: a section, rewrite or frame element already in the record is not
+    sent again, whether it succeeded, was blocked or failed (hard rule 9).
+    """
+    def done(what: str) -> None:
+        save(workspace, draft, out_dir, reference_text)
+        if on_step:
+            on_step(what)
+
+    if draft.article_id is None:
+        save(workspace, draft, out_dir, reference_text)        # the plan is on disk before any call
+    for index, section in enumerate(draft.sections):
+        if section.pending:
+            drafted = draft_section(workspace, section.heading, section.brief)
+            drafted.kept, drafted.state_gap = section.kept, section.state_gap
+            draft.sections[index] = drafted
+            done(f"section {index + 1}: {section.heading}")
+    if draft.editorial:
+        for index, section in enumerate(draft.sections):
+            if usable(section) and section.editorial is None:
+                edit_section(section)
+                done(f"editorial pass {index + 1}: {section.heading}")
+    plan = draft.frame_plan
+    if plan.get("introduction") == GENERATED and "introduction" not in draft.frame_done:
+        draft.introduction = draft_introduction(draft.title, draft.sections)
+        draft.frame_done.add("introduction")
+        done("introduction")
+    if plan.get("transitions") == GENERATED:
+        draft.transitions += [None] * (len(draft.sections) - 1 - len(draft.transitions))
+        for n, (before, after) in enumerate(zip(draft.sections, draft.sections[1:])):
+            if f"transition:{n}" not in draft.frame_done:
+                draft.transitions[n] = draft_transition(before, after)
+                draft.frame_done.add(f"transition:{n}")
+                done(f"transition {n + 1}")
+    if plan.get("conclusion") == GENERATED and "conclusion" not in draft.frame_done:
+        draft.conclusion = draft_conclusion(draft.title, draft.sections)
+        draft.frame_done.add("conclusion")
+        done("conclusion")
+    if not draft.complete:
+        draft.complete = True
+        done("finished")
+    return draft
 
 
 def check_outline(title: str, outline: list[tuple[str, str]]) -> None:
@@ -226,7 +324,10 @@ def render(workspace: Workspace, draft: Draft) -> assemble.Article:
 
 def status(draft: Draft, article: assemble.Article) -> str:
     """Reviewed only when every note in the article has a verdict and none is *does not*,
-    and every commentary paragraph printed in it has been accepted by the researcher."""
+    and every commentary paragraph printed in it has been accepted by the researcher.
+    While steps of the plan remain it is still being drafted."""
+    if not draft.complete:
+        return DRAFTING
     if not article.notes:
         return DRAFT
     for entry in article.commentary:
@@ -289,7 +390,9 @@ def notes_record(draft: Draft, article: assemble.Article) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _outcome_record(outcome: ask.QueryOutcome | None, error: str | None) -> dict:
+def _outcome_record(outcome: ask.QueryOutcome | None, error: str | None, pending: bool = False) -> dict:
+    if pending:
+        return {"pending": True}
     if outcome is None:
         return {"error": error}
     return {
@@ -348,7 +451,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             "brief": section.brief,
             "kept_by_researcher": section.kept,
             "gap_stated": section.state_gap,
-            "blocked": assemble.block_reason(section.outcome, section.error),
+            "blocked": None if section.pending else assemble.block_reason(section.outcome, section.error),
             # The one limit printed for this section, as printed; every limitation
             # and gap the model gave is in `result` below.
             "limitation_printed": article.limits_printed.get(section.heading),
@@ -356,7 +459,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             "editorial": section.editorial,
             "footnote_text_cut_from": [chunk_id for chunk_id in retrieved if chunk_id in cut],
             "voice": voice.measure(answer) if answer else None,
-            **_outcome_record(section.outcome, section.error),
+            **_outcome_record(section.outcome, section.error, section.pending),
         }
 
     return {
@@ -379,6 +482,9 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
         "commentary_switched_on": draft.commentary,
+        "plan": {"frame": draft.frame_plan, "editorial": draft.editorial},
+        "drafting": {"complete": draft.complete, "frame_steps_done": sorted(draft.frame_done),
+                     "model_calls_remaining": planned_calls(draft)["model_calls"]},
         "sections": [section_record(section) for section in draft.sections],
         "frame": {
             "introduction": _frame_record(draft.introduction),
@@ -414,9 +520,14 @@ def save(workspace: Workspace, draft: Draft, out_dir: Path | None = None, refere
     folder = out_dir / draft.article_id
     folder.mkdir(parents=True, exist_ok=True)
     article = render(workspace, draft)
-    (folder / "article.md").write_text(article.markdown, encoding="utf-8")
     record = build_record(workspace, draft, article, reference_text)
-    (folder / "record.json").write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+    # Written beside the file and then moved into place, so a restart in the middle of
+    # a save leaves the last whole record, never half of one.
+    for name, text in (("article.md", article.markdown),
+                       ("record.json", json.dumps(record, ensure_ascii=False, indent=1))):
+        partial = folder / f"{name}.partial"
+        partial.write_text(text, encoding="utf-8")
+        partial.replace(folder / name)
     return folder
 
 
@@ -426,6 +537,8 @@ def save(workspace: Workspace, draft: Draft, out_dir: Path | None = None, refere
 
 
 def _outcome_from(record: dict, brief: str, workspace: Workspace) -> tuple[ask.QueryOutcome | None, str | None]:
+    if record.get("pending"):
+        return None, None
     if "error" in record:
         return None, record["error"]
     try:
@@ -451,7 +564,7 @@ def _frame_from(record: dict | None, workspace: Workspace) -> FrameElement | Non
 def load(folder: Path, workspace: Workspace) -> Draft:
     """Rebuild a draft from its record. No model is called."""
     record = json.loads((Path(folder) / "record.json").read_text(encoding="utf-8"))
-    if record.get("schema_version") != SCHEMA_VERSION:
+    if record.get("schema_version") not in READABLE_SCHEMAS:
         raise ArticleError("This article was saved by an earlier version and cannot be reopened.")
     if record["document_id"] != workspace.document.document_id:
         raise ArticleError(f"This article was drafted from {record['document_id']}, not the thesis now open.")
@@ -464,6 +577,7 @@ def load(folder: Path, workspace: Workspace) -> Draft:
         sections.append(SectionDraft(
             entry["heading"], entry["brief"], outcome, error,
             kept=entry["kept_by_researcher"], state_gap=entry["gap_stated"], editorial=editorial,
+            pending=bool(entry.get("pending")),
             prose=editorial["result"]["answer"] if editorial and editorial["accepted"] else None))
     return Draft(
         title=record["title"]["text"],
@@ -485,6 +599,10 @@ def load(folder: Path, workspace: Workspace) -> Draft:
         },
         article_id=record["article_id"],
         created=record["created"],
+        frame_plan=dict(record.get("plan", {}).get("frame", {})),
+        editorial=record.get("plan", {}).get("editorial", False),
+        frame_done=set(record.get("drafting", {}).get("frame_steps_done", [])),
+        complete=record.get("drafting", {}).get("complete", True),
     )
 
 
@@ -494,10 +612,11 @@ def saved_articles(out_dir: Path | None = None, document_id: str | None = None) 
     rows = []
     for path in sorted(out_dir.glob("*/record.json"), reverse=True) if out_dir.exists() else []:
         record = json.loads(path.read_text(encoding="utf-8"))
-        if record.get("schema_version") != SCHEMA_VERSION:
+        if record.get("schema_version") not in READABLE_SCHEMAS:
             continue
         if document_id and record.get("document_id") != document_id:
             continue
         rows.append({"article_id": record["article_id"], "title": record["title"]["text"],
-                     "status": record["status"], "support": record["support"], "folder": path.parent})
+                     "status": record["status"], "support": record["support"], "folder": path.parent,
+                     "model_calls_remaining": record.get("drafting", {}).get("model_calls_remaining", 0)})
     return rows

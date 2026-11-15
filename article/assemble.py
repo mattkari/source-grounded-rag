@@ -54,6 +54,7 @@ class SectionDraft:
     # the answer, or None; `editorial` is the full recorded outcome of the pass.
     prose: str | None = None
     editorial: dict | None = None
+    pending: bool = False                     # True: planned, not yet sent to the model
 
 
 @dataclass
@@ -228,8 +229,8 @@ def assemble(
     # What will be printed for each section: its paragraphs, or the gap line.
     printed: list[tuple[SectionDraft, bool]] = []          # (section, is a real drafted section)
     for section in sections:
-        if not section.kept:
-            continue
+        if not section.kept or section.pending:
+            continue                                         # dropped, or not drafted yet
         reason = block_reason(section.outcome, section.error)
         if reason is None:
             printed.append((section, True))

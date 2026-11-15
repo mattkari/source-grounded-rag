@@ -449,3 +449,149 @@ def test_the_known_targets_of_the_voice_profile_are_checked_and_the_rest_are_not
         {"check": "em_dashes", "target": "at most 0", "value": 1, "met": False}]
     assert [check["met"] for check in voice.profile_checks(joined)] == [True, True]
     assert len(voice.PROFILE) == 2
+
+
+# =====================================================================================
+# 6. Save as you go, and resume
+# =====================================================================================
+
+OUTLINE = [(f"FIXTURE heading {n + 1}", brief) for n, brief in enumerate(BRIEFS)]
+
+
+class Restart(BaseException):
+    """The container going away in the middle of a call. Not an error the pipeline records."""
+
+
+class Dying(Scripted):
+    """Answers until the call numbered `at`, then the process is gone."""
+
+    def __init__(self, at, script=None):
+        super().__init__({**SCRIPT, **(script or {})})
+        self.at, self.kinds = at, []
+
+    def __call__(self, question, items, instructions=None):
+        self.kinds.append("edit" if instructions and instructions.startswith("EDITORIAL TASK") else question[:28])
+        if len(self.kinds) == self.at:
+            raise Restart()
+        return super().__call__(question, items, instructions)
+
+
+def on_disk(folder) -> dict:
+    return json.loads((folder / "record.json").read_text(encoding="utf-8"))
+
+
+def interrupted(workspace, monkeypatch, tmp_path, at, **plan):
+    draft = pipeline.new_draft("FIXTURE harbour title", OUTLINE, **plan)
+    monkeypatch.setattr(ask, "call_model", Dying(at))
+    with pytest.raises(Restart):
+        pipeline.run(workspace, draft, tmp_path / "out")
+    (folder,) = (tmp_path / "out").iterdir()
+    return folder
+
+
+def test_the_plan_is_on_disk_before_the_first_call_and_each_section_as_it_finishes(workspace, monkeypatch, tmp_path):
+    folder = interrupted(workspace, monkeypatch, tmp_path, at=2, conclusion="researcher",
+                         conclusion_text="FIXTURE my closing words.")
+    record = on_disk(folder)
+
+    assert record["status"] == "drafting" and record["drafting"]["complete"] is False
+    assert [bool(s.get("pending")) for s in record["sections"]] == [False, True, True]
+    assert record["sections"][0]["result"]["answer"] == SCRIPT["lighthouse"]["answer"]      # the paid section is kept
+    assert [s["brief"] for s in record["sections"]] == BRIEFS                               # the plan, in full
+    assert record["frame"]["conclusion"] == {"origin": "researcher", "text": "FIXTURE my closing words."}
+    assert record["drafting"]["model_calls_remaining"] == 2
+    assert "FIXTURE the keeper logged lamp oil [1]." in (folder / "article.md").read_text(encoding="utf-8")
+    assert not list(folder.glob("*.partial"))
+
+
+def test_a_restart_before_the_first_answer_still_leaves_the_plan(workspace, monkeypatch, tmp_path):
+    record = on_disk(interrupted(workspace, monkeypatch, tmp_path, at=1))
+
+    assert [bool(s.get("pending")) for s in record["sections"]] == [True, True, True]
+    assert record["drafting"]["model_calls_remaining"] == 3 and record["title"]["text"] == "FIXTURE harbour title"
+
+
+def test_resuming_sends_only_what_is_missing(workspace, monkeypatch, tmp_path):
+    folder = interrupted(workspace, monkeypatch, tmp_path, at=3, introduction="generated", conclusion="generated")
+    model = Scripted(SCRIPT)
+    monkeypatch.setattr(ask, "call_model", model)
+
+    draft = pipeline.load(folder, workspace)
+    assert pipeline.planned_calls(draft) == {"sections": 1, "editorial": 0, "introduction": 1, "transitions": 0,
+                                             "conclusion": 1, "model_calls": 3, "embedding_calls": 1}
+    pipeline.run(workspace, draft, tmp_path / "out")
+    asked = [question for question, _, _ in model.calls]
+
+    assert [q for q in asked if "FIXTURE:" in q] == [BRIEFS[2]]         # sections 1 and 2 are not sent again
+    assert len(asked) == 3 and sum("introduce" in q for q in asked) == 1 and sum("establish" in q for q in asked) == 1
+    record = on_disk(folder)
+    assert record["status"] == "draft" and record["drafting"] == {
+        "complete": True, "frame_steps_done": ["conclusion", "introduction"], "model_calls_remaining": 0}
+    assert len(list((tmp_path / "out").iterdir())) == 1                 # the same article, not a second one
+    assert record["support"]["notes"] == 3
+
+    pipeline.run(workspace, pipeline.load(folder, workspace), tmp_path / "out")
+    assert len(model.calls) == 3                                        # a finished article asks for nothing
+
+
+def test_a_restart_in_the_frame_or_the_editorial_pass_loses_only_the_step_in_flight(workspace, monkeypatch, tmp_path):
+    # calls: 3 sections, 3 rewrites, introduction, 2 transitions, conclusion. The 8th is the first transition.
+    folder = interrupted(workspace, monkeypatch, tmp_path, at=8, editorial=True, introduction="generated",
+                         transitions="generated", conclusion="generated")
+    record = on_disk(folder)
+    assert [s["editorial"]["accepted"] for s in record["sections"]] == [True, True, True]
+    assert record["drafting"]["frame_steps_done"] == ["introduction"] and record["drafting"]["model_calls_remaining"] == 3
+
+    model = Dying(at=99)
+    monkeypatch.setattr(ask, "call_model", model)
+    pipeline.run(workspace, pipeline.load(folder, workspace), tmp_path / "out")
+
+    assert "edit" not in model.kinds and len(model.kinds) == 3          # two transitions and the conclusion
+    assert not any(kind.startswith("FIXTURE:") for kind in model.kinds)
+    assert on_disk(folder)["drafting"]["complete"] is True
+
+
+def test_a_section_that_failed_is_a_recorded_outcome_and_is_not_sent_again_on_resume(workspace, monkeypatch, tmp_path):
+    draft = pipeline.new_draft("FIXTURE harbour title", OUTLINE)
+    monkeypatch.setattr(ask, "call_model", Dying(at=3, script={"orchard": RuntimeError("FIXTURE provider outage")}))
+    with pytest.raises(Restart):
+        pipeline.run(workspace, draft, tmp_path / "out")
+    (folder,) = (tmp_path / "out").iterdir()
+    assert on_disk(folder)["sections"][1]["error"] == "RuntimeError: FIXTURE provider outage"
+
+    model = Scripted(SCRIPT)
+    monkeypatch.setattr(ask, "call_model", model)
+    pipeline.run(workspace, pipeline.load(folder, workspace), tmp_path / "out")
+
+    assert [question for question, _, _ in model.calls] == [BRIEFS[2]]
+    assert on_disk(folder)["sections"][1]["blocked"] == "the pipeline failed: RuntimeError: FIXTURE provider outage"
+
+
+def test_an_article_saved_before_plans_existed_still_opens_as_finished(workspace, monkeypatch, tmp_path):
+    scripted(monkeypatch)
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+    folder = pipeline.save(workspace, draft, tmp_path / "out")
+    record = on_disk(folder)
+    record["schema_version"] = 2
+    for key in ("plan", "drafting", "commentary_switched_on", "prompts"):
+        record.pop(key)
+    (folder / "record.json").write_text(json.dumps(record), encoding="utf-8")
+
+    reopened = pipeline.load(folder, workspace)
+
+    assert reopened.complete is True and pipeline.planned_calls(reopened)["model_calls"] == 0
+    assert pipeline.render(workspace, reopened).markdown == pipeline.render(workspace, draft).markdown
+
+
+def test_a_restart_during_the_editorial_pass_resumes_the_rewrites_still_owed(workspace, monkeypatch, tmp_path):
+    folder = interrupted(workspace, monkeypatch, tmp_path, at=5, editorial=True)      # dies in the second rewrite
+    assert [bool(s["editorial"]) for s in on_disk(folder)["sections"]] == [True, False, False]
+
+    model = Dying(at=99)
+    monkeypatch.setattr(ask, "call_model", model)
+    draft = pipeline.load(folder, workspace)
+    assert pipeline.planned_calls(draft)["editorial"] == 2
+    pipeline.run(workspace, draft, tmp_path / "out")
+
+    assert model.kinds == ["edit", "edit"]                              # the two rewrites owed, and no section
+    assert [bool(s["editorial"]) for s in on_disk(folder)["sections"]] == [True, True, True]

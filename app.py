@@ -639,30 +639,22 @@ def persist(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
     pipeline.save(workspace, draft, reference_text=st.session_state.get("article_reference", ""))
 
 
-def start_draft(workspace: pipeline.Workspace, title: str, outline: list[tuple[str, str]], topic: str | None,
-                frame: dict) -> pipeline.Draft:
-    """Sections first, then the frame. Each model call is made once."""
-    sections = [pipeline.draft_section(workspace, heading, brief) for heading, brief in outline]
-    draft = pipeline.Draft(title=title.strip(), sections=sections, topic=topic,
-                           transitions=[None] * (len(sections) - 1), commentary=frame["commentary"])
-    if frame["editorial"]:
-        for section in sections:
-            pipeline.edit_section(section)
-    if frame["introduction"] == GENERATE:
-        draft.introduction = pipeline.draft_introduction(title, sections)
-    else:
-        draft.introduction = pipeline.written(frame["introduction_text"])
-    if frame["transitions"] == GENERATE:
-        draft.transitions = [pipeline.draft_transition(a, b) for a, b in zip(sections, sections[1:])]
-    else:
-        typed = [line.strip() for line in frame["transitions_text"].splitlines() if line.strip()]
-        typed += [""] * (len(sections) - 1 - len(typed))
-        draft.transitions = [pipeline.written(text) for text in typed[: len(sections) - 1]]
-    if frame["conclusion"] == GENERATE:
-        draft.conclusion = pipeline.draft_conclusion(title, sections)
-    else:
-        draft.conclusion = pipeline.written(frame["conclusion_text"])
-    return draft
+def plan_draft(title: str, outline: list[tuple[str, str]], topic: str | None, frame: dict) -> pipeline.Draft:
+    """The plan only: no model is called here."""
+    origin = {I_WRITE: pipeline.RESEARCHER, GENERATE: pipeline.GENERATED}
+    return pipeline.new_draft(
+        title, outline, topic=topic, commentary=frame["commentary"], editorial=frame["editorial"],
+        introduction=origin[frame["introduction"]], introduction_text=frame["introduction_text"],
+        transitions=origin[frame["transitions"]],
+        transitions_text=[line.strip() for line in frame["transitions_text"].splitlines() if line.strip()],
+        conclusion=origin[frame["conclusion"]], conclusion_text=frame["conclusion_text"],
+    )
+
+
+def carry_out(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
+    """Run what the plan still needs. The record is saved after every step, so a
+    restart loses at most the step in flight; the draft can then be resumed."""
+    pipeline.run(workspace, draft, reference_text=st.session_state.get("article_reference", ""))
 
 
 def render_article_setup(workspace: pipeline.Workspace, document: Document) -> None:
@@ -673,8 +665,10 @@ def render_article_setup(workspace: pipeline.Workspace, document: Document) -> N
             by_id = {row["article_id"]: row for row in saved}
             chosen = st.selectbox(
                 "Saved article", list(by_id), key="article_saved",
-                format_func=lambda i: f"{by_id[i]['title']} — {by_id[i]['status']}, "
-                                      f"{by_id[i]['support']['notes']} notes",
+                format_func=lambda i: f"{by_id[i]['title']} — " + (
+                    f"unfinished, {by_id[i]['model_calls_remaining']} model call(s) left"
+                    if by_id[i]["status"] == pipeline.DRAFTING
+                    else f"{by_id[i]['status']}, {by_id[i]['support']['notes']} notes"),
             )
             if st.button("Open this article"):
                 try:
@@ -746,15 +740,15 @@ def render_article_setup(workspace: pipeline.Workspace, document: Document) -> N
     )
     if st.button("Draft the article", type="primary"):
         try:
-            pipeline.check_outline(title, outline)
+            draft = plan_draft(title, outline, topic.chapter if topic else None, frame)
         except pipeline.ArticleError as exc:
             st.error(str(exc))
             return
-        with st.spinner("Drafting from the thesis…"):
-            draft = start_draft(workspace, title, outline, topic.chapter if topic else None, frame)
-            persist(workspace, draft)       # the record on disk first; the screen second
+        persist(workspace, draft)           # the plan is on disk before the first call
         st.session_state.article_draft = draft
         st.session_state.article_draft_document = document.document_id
+        with st.spinner("Drafting from the thesis… each finished step is saved."):
+            carry_out(workspace, draft)
         st.rerun()
 
 
@@ -850,6 +844,20 @@ def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -
     if st.button("Start another article"):
         del st.session_state["article_draft"]
         st.rerun()
+
+    if not draft.complete:
+        left = pipeline.planned_calls(draft)
+        st.warning(
+            f"This article was not finished: {left['model_calls']} model call(s) remain. What was drafted is "
+            "saved. Resuming sends only what is missing; finished sections are not sent or charged again."
+        )
+        if st.button("Resume drafting", type="primary"):
+            with st.spinner("Drafting what is missing… each finished step is saved."):
+                carry_out(workspace, draft)
+            st.rerun()
+        with st.container(border=True):
+            st.markdown(re.sub(r"^(#{1,2}) ", r"##\1 ", pipeline.render(workspace, draft).markdown, flags=re.MULTILINE))
+        return
 
     render_section_choices(workspace, draft)
     if any(s.outcome and s.outcome.result.get("ai_interpretation") for s in draft.sections):
