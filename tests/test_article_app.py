@@ -48,7 +48,7 @@ class Scripted:
     def __init__(self, script):
         self.script, self.calls = dict(script), []
 
-    def __call__(self, question, items):
+    def __call__(self, question, items, instructions=None):
         self.calls.append(question)
         return next(value for key, value in self.script.items() if key in question), "fixturehash"
 

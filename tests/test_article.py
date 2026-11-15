@@ -304,9 +304,10 @@ class Scripted:
     """Stand-in for `ask.call_model`. Records every call and the passages it was given."""
 
     def __init__(self, script):
-        self.script, self.calls, self.seen = script, [], []
+        self.script, self.calls, self.seen, self.instructions = script, [], [], []
 
-    def __call__(self, question, items):
+    def __call__(self, question, items, instructions=None):
+        self.instructions.append(instructions)
         self.seen += [item.chunk for item in items]
         self.calls.append((question, [item.chunk["chunk_id"] for item in items], [item.handle for item in items]))
         behaviour = next(value for key, value in self.script.items() if key in question)
@@ -840,7 +841,7 @@ def test_the_researcher_can_drop_a_section_or_state_that_the_thesis_does_not_cov
 
 
 def test_a_note_on_an_unnumbered_page_is_listed_as_it_is_cited_today(workspace, monkeypatch):
-    monkeypatch.setattr(ask, "call_model", lambda question, items: (
+    monkeypatch.setattr(ask, "call_model", lambda question, items, instructions=None: (
         payload(f"FIXTURE the plate shows a chart [{next(i.handle for i in items if i.chunk['page_start'] is None)}].",
                 cites=[next(i.handle for i in items if i.chunk["page_start"] is None)]), "fixturehash"))
     section = pipeline.draft_section(workspace, "FIXTURE plate", "FIXTURE: what does the unnumbered plate show of the harbour chart?")

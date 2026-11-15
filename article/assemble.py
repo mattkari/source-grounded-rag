@@ -20,6 +20,7 @@ import re
 from dataclasses import dataclass, field
 
 import ask
+from article import checks
 
 COMMENTARY_LABEL = "Commentary (the article's own reading, not the author's):"
 DRAFT_LINE = "DRAFT — the notes in this article have not yet been checked by the researcher."
@@ -77,6 +78,9 @@ def block_reason(outcome: ask.QueryOutcome | None, error: str | None = None) -> 
     result = outcome.result
     if result.get("evidence_sufficiency") == "insufficient" or result.get("answer") is None:
         return INSUFFICIENT
+    form = checks.prose_failures(result)
+    if form:
+        return "article check failed: " + "; ".join(form)
     texts = [result["answer"], *result.get("limitations", []), *result.get("ai_interpretation", [])]
     if any(_TABLE_LINE.search(text) for text in texts):
         return "the draft contains a table, which the article format does not allow"

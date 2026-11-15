@@ -167,12 +167,24 @@ def _get_prompt() -> tuple[str, str]:
     return _prompt_cache
 
 
-def call_model(question: str, items: list[EvidenceItem]) -> tuple[dict, str]:
+INSTRUCTIONS_HEADING = "INSTRUCTIONS FOR THIS ANSWER\n============================"
+
+
+def call_model(
+    question: str, items: list[EvidenceItem], instructions: str | None = None
+) -> tuple[dict, str]:
+    """`instructions` is a versioned, hashed prompt file's text, appended to the
+    request by the article writer only (PLAN_V6, ADR 0005). It adds rules of
+    form; the system prompt, the evidence block and the schema are unchanged.
+    With None — every question, every evaluation run — the request is exactly
+    what it was before the parameter existed."""
     system_prompt, prompt_hash = _get_prompt()
     user_content = (
         f"EVIDENCE\n========\n{render_evidence_block(items)}\n\n"
         f"QUESTION\n========\n{question}"
     )
+    if instructions is not None:
+        user_content += f"\n\n{INSTRUCTIONS_HEADING}\n{instructions}"
 
     if settings.llm_provider == "ollama":
         return _call_ollama(system_prompt, user_content), prompt_hash
@@ -499,6 +511,7 @@ def run_query(
     document: Document | None = None,
     *,
     retrieve_evidence: bool = True,
+    instructions: str | None = None,
 ) -> QueryOutcome:
     """Retrieve -> ground -> validate. No printing, no process control.
 
@@ -510,13 +523,16 @@ def run_query(
     on an empty evidence list, so the two conditions differ in exactly one
     variable. It is not a second pipeline, and no shell exposes it — only
     evaluate.py passes it.
+
+    `instructions` is passed on to `call_model` by the article writer only. It
+    plays no part in retrieval: the passages are found from the question alone.
     """
     items = (
         retrieve(question, vectors, chunks, top_k or settings.top_k, document)
         if retrieve_evidence
         else []
     )
-    result, prompt_hash = call_model(question, items)
+    result, prompt_hash = _generate(question, items, instructions)
     return QueryOutcome(
         question=question,
         result=result,
@@ -527,7 +543,17 @@ def run_query(
     )
 
 
-def draft_from_evidence(question: str, items: list[EvidenceItem]) -> QueryOutcome:
+def _generate(question: str, items: list[EvidenceItem], instructions: str | None) -> tuple[dict, str]:
+    """The one call to the model. The argument is passed only when there is one,
+    so a question is sent exactly as it always was."""
+    if instructions is None:
+        return call_model(question, items)
+    return call_model(question, items, instructions=instructions)
+
+
+def draft_from_evidence(
+    question: str, items: list[EvidenceItem], instructions: str | None = None
+) -> QueryOutcome:
     """The same model call and the same validation, on passages already chosen.
 
     Used only by the article writer (PLAN_V6 §6) to draft an introduction,
@@ -536,7 +562,7 @@ def draft_from_evidence(question: str, items: list[EvidenceItem]) -> QueryOutcom
     sections did not use; a handle outside `items` fails validation as always.
     It is not a second pipeline, and no shell exposes it.
     """
-    result, prompt_hash = call_model(question, items)
+    result, prompt_hash = _generate(question, items, instructions)
     return QueryOutcome(
         question=question,
         result=result,

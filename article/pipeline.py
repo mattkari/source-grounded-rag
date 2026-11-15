@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ask
-from article import assemble, sources, topics, voice
+from article import assemble, checks, sources, topics, voice
 from article.assemble import GENERATED, RESEARCHER, VERDICTS, FrameElement, SectionDraft
 from documents import Document, default_document
 
@@ -71,8 +71,10 @@ def _attempt(call, *args) -> tuple[ask.QueryOutcome | None, str | None]:
 
 def draft_section(workspace: Workspace, heading: str, brief: str) -> SectionDraft:
     """One brief through the one pipeline, on the filtered sources."""
+    instructions, _ = checks.load_prompt(checks.SECTION_PROMPT)
     outcome, error = _attempt(
-        ask.run_query, brief, workspace.sources.vectors, workspace.sources.chunks, None, workspace.document
+        lambda: ask.run_query(brief, workspace.sources.vectors, workspace.sources.chunks, None,
+                              workspace.document, instructions=instructions)
     )
     return SectionDraft(heading.strip(), brief.strip(), outcome, error)
 
@@ -101,7 +103,9 @@ def _rehandle(items: list[ask.EvidenceItem]) -> list[ask.EvidenceItem]:
 def _generated(brief: str, items: list[ask.EvidenceItem]) -> FrameElement:
     if not items:
         return FrameElement(GENERATED, brief=brief, error="no cited passages to draw on")
-    outcome, error = _attempt(ask.draft_from_evidence, brief, _rehandle(items))
+    instructions, _ = checks.load_prompt(checks.SECTION_PROMPT)
+    fresh = _rehandle(items)
+    outcome, error = _attempt(lambda: ask.draft_from_evidence(brief, fresh, instructions=instructions))
     return FrameElement(GENERATED, brief=brief, outcome=outcome, error=error)
 
 
@@ -241,6 +245,7 @@ def _outcome_record(outcome: ask.QueryOutcome | None, error: str | None) -> dict
         ],
         "result": outcome.result,
         "validation_failures": list(outcome.failures),
+        "article_check_failures": checks.prose_failures(outcome.result),
     }
 
 
@@ -294,6 +299,9 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "corpus_text_sha256": workspace.manifest.get("corpus_text_sha256"),
         "model": ask.settings.llm_model,
         "provider": ask.settings.llm_provider,
+        # Every prompt that shaped this article, by file and hash. The system prompt's
+        # own hash is on each section, as on every answer.
+        "prompts": {checks.SECTION_PROMPT: checks.load_prompt(checks.SECTION_PROMPT)[1]},
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
         "sections": [section_record(section) for section in draft.sections],
