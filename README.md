@@ -277,6 +277,53 @@ What to know before relying on it:
 - The measurement rules, their cut-offs, and what running them on the built-in thesis revealed are
   in [`docs/decisions/0003-automatic-layout-measurement.md`](docs/decisions/0003-automatic-layout-measurement.md).
 
+## Drafting an article from the thesis
+
+[`docs/plans/PLAN_V6.md`](docs/plans/PLAN_V6.md). The article writer turns what a thesis says into a
+draft for general readers in which every claim carries a note back to a printed page. It drafts; you
+decide and publish. Nothing is posted anywhere.
+
+**In the web app**, choose **Write an article** in the sidebar. The view walks through it: pick a
+topic from the chapters the thesis prints (or your own), write the title and an outline of three to
+six sections, choose for the introduction, transitions and conclusion whether you write them or they
+are generated as labelled commentary, and draft. Then judge every note with the sentence and the
+cited passage side by side. The article and its record are saved after every step, a saved article
+can be reopened, and `article.md` can be downloaded. With Docker, `compose.yaml` mounts `./output`
+so drafts outlive the container.
+
+**From the command line**, for a quick draft without the review step:
+
+```bash
+python scripts/article_trial.py --topics          # what the thesis covers; no model call
+python scripts/article_trial.py --sources         # what the footnote filter leaves to draft from; no model call
+python scripts/article_trial.py --chapter <n> --title "<your title>" --reference <your_writing.md>
+```
+
+The third command drafts an article and spends API credit: one embedding call and one model call per
+section, plus one model call for each generated introduction, transition and conclusion. Nothing is
+retried. It writes `output/articles/<id>/article.md` and `record.json`; `output/` is ignored by git.
+
+- **Every section goes through `ask.run_query`**, so facts come only from retrieved passages and are
+  validated as any answer is. A section that fails validation, is refused, or contains a table is
+  left out, and the reason is printed and recorded.
+- **Footnotes and the reference list are never drafted from.** A footnote usually cites another
+  writer, and the built-in index holds the thesis's footnotes as body text. `article/sources.py` cuts
+  footnote text out of what the model sees, leaves out reference-list passages, and leaves out a
+  passage that is mostly footnote. The index itself is never changed: the filter is a side file of
+  passage ids and character offsets (`footnote_maps/`), with no text of the thesis in it. Every
+  exclusion is counted and shown. It is a heuristic about the shape of a page, tested on one thesis.
+- **Introduction, transitions and conclusion** are either your own words or drafted only from
+  passages the sections already cite. Nothing new is retrieved. Generated ones, and the model's own
+  inferences, open with the words "Commentary (the article's own reading, not the author's):". A
+  generated sentence that carries no note is raised for you to check.
+- **Notes are plain `[n]` markers** with a Sources list resolved from stored provenance, in a form
+  Medium can import: no tables, no footnotes.
+- **Your verdicts.** Each note is judged *supports*, *partly* or *does not*. The article is marked
+  DRAFT until every note has a verdict. A note judged *does not* keeps it a draft until its sentences
+  are removed; the verdict stays in the record. The record gives the counts.
+- **Voice** is reported as plain counts beside the same counts for your own writing (`--reference`).
+  There is no score and no threshold: whether it is close enough is your call.
+
 ## Evaluation
 
 Sprint E1 (`docs/plans/PLAN_V3.md`) adds the harness that measures what the demo could only show

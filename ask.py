@@ -527,6 +527,25 @@ def run_query(
     )
 
 
+def draft_from_evidence(question: str, items: list[EvidenceItem]) -> QueryOutcome:
+    """The same model call and the same validation, on passages already chosen.
+
+    Used only by the article writer (PLAN_V6 §6) to draft an introduction,
+    transition or conclusion from the passages an article's sections already
+    cite. Nothing new is retrieved, so the text cannot draw on a passage the
+    sections did not use; a handle outside `items` fails validation as always.
+    It is not a second pipeline, and no shell exposes it.
+    """
+    result, prompt_hash = call_model(question, items)
+    return QueryOutcome(
+        question=question,
+        result=result,
+        items=items,
+        failures=validate(result, items),
+        prompt_hash=prompt_hash,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Query the authorised research collection.")
     parser.add_argument("question", help="the question to ask")

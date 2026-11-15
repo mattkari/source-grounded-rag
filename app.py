@@ -19,6 +19,11 @@ its identity and approves or rejects it. That view is also a shell: every rule
 (nothing embedded before approval, nothing cited before the identity is
 confirmed) lives in upload.py and is tested there. One thesis is active at a
 time and each question searches only that one.
+
+Since PLAN_V6 there is a third view, "Write an article". It too is a shell:
+sections are drafted by ask.run_query on the filtered sources, and every rule
+(what may be drafted from, what blocks a section, when an article stops being
+a draft) lives in the `article` package and is tested there.
 """
 
 from __future__ import annotations
@@ -31,6 +36,7 @@ import ask
 import audit
 import runs
 import upload
+from article import assemble, pipeline, sources as article_sources, topics as article_topics, voice
 from config import settings
 from documents import Document, default_document
 
@@ -79,7 +85,16 @@ NOT_EVALUATED = (
     "faithful to the PDF; it says nothing about whether answers are correct."
 )
 
-VIEW_ASK, VIEW_LIBRARY = "Ask questions", "Thesis library"
+VIEW_ASK, VIEW_LIBRARY, VIEW_ARTICLE = "Ask questions", "Thesis library", "Write an article"
+
+ARTICLE_EXPLAINER = (
+    "Drafts an article for general readers from the active thesis. Every claim carries a note back "
+    "to a printed page. **It drafts; you check every note and decide.** Nothing is published or "
+    "sent anywhere."
+)
+OWN_TOPIC = "My own topic"
+I_WRITE, GENERATE = "I write it", "Generate as labelled commentary"
+NOT_JUDGED = "not judged"
 
 
 # ---------------------------------------------------------------------------
@@ -554,6 +569,279 @@ def render_library() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Write an article (PLAN_V6) — a shell over the `article` package
+# ---------------------------------------------------------------------------
+
+
+@st.cache_resource(show_spinner="Reading what the thesis offers…")
+def load_workspace(document_id: str) -> pipeline.Workspace:
+    return pipeline.open_workspace(upload.find_document(document_id))
+
+
+def parse_outline(text: str) -> list[tuple[str, str]]:
+    """One section per line: `Heading | the question the section must answer`."""
+    outline = []
+    for line in text.splitlines():
+        if line.strip():
+            heading, _, brief = line.partition("|")
+            outline.append((heading.strip(), brief.strip()))
+    return outline
+
+
+def outline_from(topic: article_topics.Topic) -> str:
+    ranked = sorted(topic.sections, key=lambda s: -s.passages)[: pipeline.MIN_SECTIONS]
+    chosen = [section for section in topic.sections if section in ranked]
+    briefs = article_topics.default_briefs(topic, pipeline.MIN_SECTIONS)
+    return "\n".join(f"{section.title} | {brief}" for section, brief in zip(chosen, briefs))
+
+
+def persist(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
+    pipeline.save(workspace, draft, reference_text=st.session_state.get("article_reference", ""))
+
+
+def start_draft(workspace: pipeline.Workspace, title: str, outline: list[tuple[str, str]], topic: str | None,
+                frame: dict) -> pipeline.Draft:
+    """Sections first, then the frame. Each model call is made once."""
+    sections = [pipeline.draft_section(workspace, heading, brief) for heading, brief in outline]
+    draft = pipeline.Draft(title=title.strip(), sections=sections, topic=topic,
+                           transitions=[None] * (len(sections) - 1))
+    if frame["introduction"] == GENERATE:
+        draft.introduction = pipeline.draft_introduction(title, sections)
+    else:
+        draft.introduction = pipeline.written(frame["introduction_text"])
+    if frame["transitions"] == GENERATE:
+        draft.transitions = [pipeline.draft_transition(a, b) for a, b in zip(sections, sections[1:])]
+    else:
+        typed = [line.strip() for line in frame["transitions_text"].splitlines() if line.strip()]
+        typed += [""] * (len(sections) - 1 - len(typed))
+        draft.transitions = [pipeline.written(text) for text in typed[: len(sections) - 1]]
+    if frame["conclusion"] == GENERATE:
+        draft.conclusion = pipeline.draft_conclusion(title, sections)
+    else:
+        draft.conclusion = pipeline.written(frame["conclusion_text"])
+    return draft
+
+
+def render_article_setup(workspace: pipeline.Workspace, document: Document) -> None:
+    listed = workspace.topics()
+    saved = pipeline.saved_articles(document_id=document.document_id)
+    if saved:
+        with st.expander(f"Saved articles ({len(saved)})"):
+            by_id = {row["article_id"]: row for row in saved}
+            chosen = st.selectbox(
+                "Saved article", list(by_id), key="article_saved",
+                format_func=lambda i: f"{by_id[i]['title']} — {by_id[i]['status']}, "
+                                      f"{by_id[i]['support']['notes']} notes",
+            )
+            if st.button("Open this article"):
+                try:
+                    st.session_state.article_draft = pipeline.load(by_id[chosen]["folder"], workspace)
+                    st.session_state.article_draft_document = document.document_id
+                    st.rerun()
+                except pipeline.ArticleError as exc:
+                    st.error(str(exc))
+
+    st.subheader("1. Topic", divider="grey")
+    st.caption("What the thesis covers, from the chapters and sections it prints. No model is involved.")
+    labels = [f"{t.chapter} — {t.passages} passages, {t.pages}" + ("  (thin)" if t.passages < 3 else "")
+              for t in listed]
+    choice = st.selectbox("Topic", [OWN_TOPIC] + labels, key="article_topic")
+    topic = listed[labels.index(choice)] if choice != OWN_TOPIC else None
+    if topic is not None:
+        st.caption("Sections: " + "; ".join(f"{s.title} ({s.passages})" for s in topic.sections))
+        if st.button("Fill the outline from this chapter's sections"):
+            st.session_state.article_outline = outline_from(topic)
+            st.rerun()
+
+    st.subheader("2. Title and outline", divider="grey")
+    title = st.text_input("Title (yours to write)", key="article_title")
+    outline_text = st.text_area(
+        f"Outline — {pipeline.MIN_SECTIONS} to {pipeline.MAX_SECTIONS} sections, one per line: "
+        "Heading | the question the section must answer",
+        key="article_outline", height=160,
+    )
+
+    st.subheader("3. Introduction, transitions, conclusion", divider="grey")
+    st.caption(
+        "None of these is on a page of the thesis, so none can be cited. Write them yourself, or "
+        "have them generated from the passages the sections cite. Generated text is marked in the "
+        "article as commentary. A box left empty leaves that part out."
+    )
+    frame = {}
+    for part, hint in (("introduction", ""), ("transitions", " — one per line, in order"), ("conclusion", "")):
+        frame[part] = st.radio(part.capitalize(), [I_WRITE, GENERATE], key=f"article_{part}_origin", horizontal=True)
+        frame[f"{part}_text"] = (
+            st.text_area(f"Your {part}{hint}", key=f"article_{part}_text", height=90)
+            if frame[part] == I_WRITE else ""
+        )
+
+    st.subheader("4. Your own writing, for comparison (optional)", divider="grey")
+    reference = st.file_uploader("A piece of your published writing (text or Markdown)", type=["txt", "md"],
+                                 key="article_reference_file")
+    st.session_state.article_reference = reference.getvalue().decode("utf-8", errors="replace") if reference else ""
+
+    outline = parse_outline(outline_text)
+    generated = sum(frame[part] == GENERATE for part in ("introduction", "conclusion"))
+    generated += max(len(outline) - 1, 0) if frame["transitions"] == GENERATE else 0
+    st.caption(
+        f"Drafting makes {len(outline)} model call(s) for the sections and up to {generated} for generated "
+        "frame text. Nothing is retried."
+    )
+    if st.button("Draft the article", type="primary"):
+        try:
+            pipeline.check_outline(title, outline)
+        except pipeline.ArticleError as exc:
+            st.error(str(exc))
+            return
+        with st.spinner("Drafting from the thesis…"):
+            draft = start_draft(workspace, title, outline, topic.chapter if topic else None, frame)
+            persist(workspace, draft)       # the record on disk first; the screen second
+        st.session_state.article_draft = draft
+        st.session_state.article_draft_document = document.document_id
+        st.rerun()
+
+
+def render_section_choices(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
+    changed = False
+    for index, section in enumerate(draft.sections):
+        reason = assemble.block_reason(section.outcome, section.error)
+        if reason is None:
+            keep = st.checkbox(f"Keep section: {section.heading}", value=section.kept, key=f"article_keep_{index}")
+            changed |= keep != section.kept
+            section.kept = keep
+        elif reason == assemble.INSUFFICIENT:
+            st.warning(f"**{section.heading}** was not written: {reason}.")
+            say = st.checkbox("Say so in the article, under this heading", value=section.state_gap,
+                              key=f"article_gap_{index}")
+            changed |= say != section.state_gap
+            section.state_gap = say
+        else:
+            st.error(f"**{section.heading}** is blocked and left out: {reason}")
+    if changed:
+        persist(workspace, draft)
+        st.rerun()
+
+
+def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article: assemble.Article) -> None:
+    st.subheader("Check every note", divider="grey")
+    st.caption(
+        "The checks so far show that each note points at a real passage. Only reading shows whether "
+        "the passage supports the sentence. Judge each note; the article stays a draft until you have."
+    )
+    choices = {}
+    for note in article.notes:
+        chunk = workspace.by_id[note["chunk_id"]]
+        recorded = draft.verdicts.get(note["chunk_id"], {})
+        with st.container(border=True):
+            st.markdown(f"**Note [{note['n']}]** — {ask.page_phrase(chunk)}")
+            left, right = st.columns(2)
+            with left:
+                st.caption("The article says")
+                for sentence in article.carriers.get(note["n"], []):
+                    st.markdown(f"> {sentence}")
+            with right:
+                st.caption("The passage it cites" + (" (footnote text removed)"
+                                                    if note["chunk_id"] in workspace.sources.removed else ""))
+                with st.container(height=280):       # a passage is long; the verdict stays in view
+                    st.text(chunk["text"])
+            options = [NOT_JUDGED, *assemble.VERDICTS]
+            verdict = st.radio("Does the passage support it?", options, horizontal=True,
+                               index=options.index(recorded.get("verdict", NOT_JUDGED)),
+                               key=f"article_verdict_{note['chunk_id']}")
+            reason = st.text_input("Reason (optional)", value=recorded.get("reason", ""),
+                                   key=f"article_reason_{note['chunk_id']}")
+            choices[note["chunk_id"]] = (verdict, reason)
+            if recorded.get("verdict") == "does not":
+                st.warning("Judged “does not”. The article stays a draft until these sentences are removed.")
+                if st.button("Remove the sentences that carry this note", key=f"article_remove_{note['chunk_id']}"):
+                    pipeline.remove_sentences(draft, note["chunk_id"])
+                    persist(workspace, draft)
+                    st.rerun()
+    if article.notes and st.button("Record my verdicts", type="primary"):
+        for chunk_id, (verdict, reason) in choices.items():
+            recorded = draft.verdicts.get(chunk_id, {})
+            if verdict != NOT_JUDGED and (verdict, reason.strip()) != (recorded.get("verdict"), recorded.get("reason")):
+                pipeline.set_verdict(draft, chunk_id, verdict, reason)
+        persist(workspace, draft)
+        st.rerun()
+
+
+def render_article_draft(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
+    if st.button("Start another article"):
+        del st.session_state["article_draft"]
+        st.rerun()
+
+    render_section_choices(workspace, draft)
+    article = pipeline.render(workspace, draft)
+    state = pipeline.status(draft, article)
+    counts = assemble.support_rate(pipeline.notes_record(draft, article))
+
+    for item in article.blocked:
+        if not item["what"].startswith("section:"):
+            st.error(f"The generated {item['what']} is blocked and left out: {item['reason']}")
+    for item in article.unnoted:
+        st.warning(
+            f"The generated {item['what']} has {item['sentences']} sentence(s) with no note. "
+            "Check that they add no fact of their own."
+        )
+
+    if state == pipeline.REVIEWED:
+        st.success("Reviewed: every note has your verdict.")
+    else:
+        st.info("Draft: not every note has been judged, or a note judged “does not” is still in the article.")
+    st.markdown(
+        f"**Notes:** {counts['notes']} — supports {counts['supports']}, partly {counts['partly']}, "
+        f"does not {counts['does not']}, not judged {counts['not judged']}"
+    )
+
+    st.subheader("The article", divider="grey")
+    with st.container(border=True):
+        st.markdown(article.markdown)
+    st.download_button("Download article.md", article.markdown, file_name="article.md", mime="text/markdown")
+    st.caption(f"Saved in `output/articles/{draft.article_id}/` with its record.")
+
+    with st.expander("Voice — plain counts beside your own writing"):
+        columns = pipeline.voice_columns(article, st.session_state.get("article_reference", ""))
+        st.code(voice.format_comparison(columns))
+        st.caption("Surface counts only. There is no score: whether it is close enough is your call.")
+
+    render_review(workspace, draft, article)
+
+
+def render_article(document: Document) -> None:
+    st.title(VIEW_ARTICLE)
+    st.subheader(document.short_title, divider="grey")
+    st.markdown(ARTICLE_EXPLAINER)
+    try:
+        workspace = load_workspace(document.document_id)
+    except article_sources.NoFootnoteMap as exc:
+        st.error(str(exc))
+        return
+    except BaseException as exc:  # SystemExit (no index / model mismatch) included
+        st.error("The thesis could not be loaded, so no article can be drafted yet.")
+        with st.expander(DIAGNOSTICS_LABEL):
+            st.code(f"{type(exc).__name__}: {exc}")
+        return
+
+    with st.expander("What an article may draw on"):
+        st.caption(
+            "Footnotes and the reference list usually give other writers' words, so they are never "
+            "drafted from. This is a check on the shape of each page, not a proof."
+        )
+        st.code("\n".join(workspace.sources.report.lines()))
+
+    # A draft belongs to the thesis it was drafted from. If another thesis is now
+    # active it leaves the screen; it is still saved, under "Saved articles".
+    if st.session_state.get("article_draft_document") != document.document_id:
+        st.session_state.pop("article_draft", None)
+    draft = st.session_state.get("article_draft")
+    if draft is None:
+        render_article_setup(workspace, document)
+    else:
+        render_article_draft(workspace, draft)
+
+
+# ---------------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------------
 
@@ -648,11 +936,13 @@ def main() -> None:
         st.session_state.view = st.session_state.pop("pending_view")
 
     with st.sidebar:
-        view = st.radio("View", [VIEW_ASK, VIEW_LIBRARY], key="view", label_visibility="collapsed")
+        view = st.radio("View", [VIEW_ASK, VIEW_LIBRARY, VIEW_ARTICLE], key="view", label_visibility="collapsed")
     document = choose_document()
 
     if view == VIEW_LIBRARY:
         render_library()
+    elif view == VIEW_ARTICLE:
+        render_article(document)
     else:
         render_chat(document)
 
