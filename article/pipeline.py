@@ -116,6 +116,19 @@ def edit_section(section: SectionDraft) -> SectionDraft:
     return section
 
 
+def em_dashes(draft: "Draft") -> dict[str, int]:
+    """Em dashes in each section's prose as it is printed, by heading. Reported, never
+    changed: a dash cannot be swapped for a comma or a semicolon without choosing how
+    the sentence is read, and that choice is the researcher's (ADR 0006)."""
+    counts = {}
+    for section in draft.sections:
+        if usable(section):
+            found = len(voice.EM_DASH.findall(section.prose or section.outcome.result["answer"]))
+            if found:
+                counts[section.heading] = found
+    return counts
+
+
 def usable(section: SectionDraft) -> bool:
     return section.kept and not section.pending and assemble.block_reason(section.outcome, section.error) is None
 
@@ -494,6 +507,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "blocked": article.blocked,
         "frame_sentences_without_a_note": article.unnoted,
         "limitations_kept_in_record_only": article.limits_held_back,
+        "em_dashes_in_print": em_dashes(draft),
         "notes": notes,
         "support": assemble.support_rate(notes),
         "support_excludes": "text written by the researcher, which carries no notes",

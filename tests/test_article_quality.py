@@ -595,3 +595,129 @@ def test_a_restart_during_the_editorial_pass_resumes_the_rewrites_still_owed(wor
 
     assert model.kinds == ["edit", "edit"]                              # the two rewrites owed, and no section
     assert [bool(s["editorial"]) for s in on_disk(folder)["sections"]] == [True, True, True]
+
+
+# =====================================================================================
+# Combined handles (ADR 0006): one handle per bracket, and no raw handle in print
+# =====================================================================================
+
+COMBINED = ["[E1, E2]", "[E1,E2]", "[E1, 2]", "[E1; E2]", "[E1-E3]"]
+
+
+@pytest.mark.parametrize("bracket", COMBINED)
+def test_an_article_section_with_a_combined_handle_is_blocked(workspace, monkeypatch, bracket):
+    model = scripted(monkeypatch, lighthouse=payload(
+        f"FIXTURE the keeper logged lamp oil [E1]. FIXTURE virtue arises from balance {bracket}.", cites=["E1", "E2", "E3"]))
+    section = pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])
+    draft = pipeline.Draft("FIXTURE title", [section])
+    article = pipeline.render(workspace, draft)
+
+    assert article.blocked[0]["reason"].startswith("validation failed: malformed_handle:")
+    assert bracket in article.blocked[0]["reason"]
+    assert "[E" not in article.markdown and "FIXTURE heading" not in article.markdown
+    assert pipeline.build_record(workspace, draft, article)["sections"][0]["validation_failures"] != []
+    assert len(model.calls) == 1
+
+
+@pytest.mark.parametrize("bracket", COMBINED)
+def test_an_editorial_rewrite_with_a_combined_handle_is_rejected(workspace, monkeypatch, bracket):
+    rewrite = payload(f"FIXTURE the keeper logged lamp oil, and it came in winter {bracket}.", cites=["E1", "E2"])
+    section, _ = edited(workspace, monkeypatch, rewrite)
+    article = pipeline.render(workspace, pipeline.Draft("FIXTURE title", [section]))
+
+    assert section.editorial["accepted"] is False and section.prose is None
+    assert section.editorial["rejected_because"][0].startswith("validation failed: malformed_handle:")
+    assert "FIXTURE the keeper logged lamp oil [1]. FIXTURE the oil came in winter [2]." in article.markdown
+    assert "[E" not in article.markdown
+
+
+def test_a_generated_frame_element_with_a_combined_handle_is_blocked(workspace, monkeypatch):
+    scripted(monkeypatch, introduce=payload("FIXTURE an opening that joins two [E1, E2].", cites=["E1", "E2"]))
+    section = pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])
+    draft = pipeline.Draft("FIXTURE title", [section], introduction=pipeline.draft_introduction("FIXTURE title", [section]))
+    article = pipeline.render(workspace, draft)
+
+    assert article.blocked[0]["what"] == "introduction" and "malformed_handle" in article.blocked[0]["reason"]
+    assert "[E" not in article.markdown
+
+
+def test_a_draft_saved_before_the_fix_is_blocked_when_it_is_reopened(workspace, monkeypatch, tmp_path):
+    """The two drafts on the Pi have `validation_failures: []` in their records and a
+    combined handle in their text. Reopened, they must not print it."""
+    scripted(monkeypatch)
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+    folder = pipeline.save(workspace, draft, tmp_path / "out")
+    record = json.loads((folder / "record.json").read_text(encoding="utf-8"))
+    record["sections"][0]["result"]["answer"] = "FIXTURE virtue arises from balance [E1, E2]."
+    record["sections"][0]["result"]["citations_used"] = ["E1", "E2"]
+    assert record["sections"][0]["validation_failures"] == []          # as recorded at the time
+    (folder / "record.json").write_text(json.dumps(record), encoding="utf-8")
+
+    article = pipeline.render(workspace, pipeline.load(folder, workspace))
+
+    assert "[E" not in article.markdown and "FIXTURE heading" not in article.markdown
+    assert article.blocked[0]["reason"].startswith("validation failed: malformed_handle:")
+
+
+def test_the_assembled_article_never_holds_a_raw_handle_whatever_was_let_through(workspace, monkeypatch):
+    """The final guard, with every earlier check switched off."""
+    scripted(monkeypatch, lighthouse=payload("FIXTURE oil [E1]. FIXTURE balance [E1, E2]. FIXTURE more [E9].", cites=["E1"]))
+    section = pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])
+    monkeypatch.setattr(assemble, "block_reason", lambda outcome, error=None: None)
+    monkeypatch.setattr(ask, "MARKER_RE", re.compile(r"\[E(1)\]"))     # and a renumberer that leaves [E9] behind
+    text = pipeline.render(workspace, pipeline.Draft("FIXTURE title", [section])).markdown
+
+    assert "FIXTURE oil [1]." in text and "[E" not in text
+    assert text.count(ask.UNRESOLVED_NOTE) == 2
+
+
+def test_the_prompts_state_the_handle_format_and_their_new_versions_are_what_is_recorded(workspace, monkeypatch):
+    rule = "never `[E1, E2]`"
+    system = ask.settings.prompt_path.read_text(encoding="utf-8")
+    old = (ask.settings.prompt_path.parent / "system_grounded_v2.md").read_text(encoding="utf-8")
+
+    assert ask.settings.prompt_path.name == "system_grounded_v3.md"
+    assert "One handle per bracket" in system and "`[E1, E2]`" in system and "`[E1, E2]`" not in old
+    assert system.replace(system[system.index("7. **One handle per bracket.**"):system.index("# Reference apparatus")], "\n") == old
+    assert (checks.SECTION_PROMPT, checks.EDITORIAL_PROMPT) == ("article_section_v2.md", "article_editorial_v2.md")
+    for name in (checks.SECTION_PROMPT, checks.EDITORIAL_PROMPT):
+        text, digest = checks.load_prompt(name)
+        assert rule in text
+        assert digest != checks.load_prompt(name.replace("_v2", "_v1"))[1]          # the record shows the change
+
+    section, _ = edited(workspace, monkeypatch, REWRITE)
+    draft = pipeline.Draft("FIXTURE title", [section])
+    prompts = pipeline.build_record(workspace, draft, pipeline.render(workspace, draft))["prompts"]
+    assert set(prompts) == {"article_section_v2.md", "article_editorial_v2.md"}
+
+
+def test_em_dashes_in_a_section_are_reported_and_printed_exactly_as_written(workspace, monkeypatch):
+    dashed = "FIXTURE the three lamps—red, green and white—stand in a row [E1]. FIXTURE one is lit — the red [E1]."
+    scripted(monkeypatch, lighthouse=payload(dashed, cites=["E1"]))
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+    article = pipeline.render(workspace, draft)
+
+    assert dashed.replace("[E1]", "[1]") in article.markdown           # not a character of it is changed
+    assert article.blocked == []                                        # a matter of style: reported, not blocked
+    assert pipeline.em_dashes(draft) == {"FIXTURE heading": 3}
+    assert pipeline.build_record(workspace, draft, article)["em_dashes_in_print"] == {"FIXTURE heading": 3}
+
+
+def test_a_section_without_em_dashes_reports_none(workspace, monkeypatch):
+    scripted(monkeypatch)
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+
+    assert pipeline.em_dashes(draft) == {}
+
+
+def test_a_rewrite_accepted_before_the_fix_gives_way_to_the_original_when_reopened(workspace, monkeypatch, tmp_path):
+    section, _ = edited(workspace, monkeypatch, REWRITE)
+    folder = pipeline.save(workspace, pipeline.Draft("FIXTURE title", [section]), tmp_path / "out")
+    record = json.loads((folder / "record.json").read_text(encoding="utf-8"))
+    record["sections"][0]["editorial"]["result"]["answer"] = "FIXTURE oil was logged, and it came in winter [E1, E2]."
+    (folder / "record.json").write_text(json.dumps(record), encoding="utf-8")
+
+    text = pipeline.render(workspace, pipeline.load(folder, workspace)).markdown
+
+    assert "FIXTURE the keeper logged lamp oil [1]. FIXTURE the oil came in winter [2]." in text      # the validated original
+    assert "[E" not in text and ask.UNRESOLVED_NOTE not in text

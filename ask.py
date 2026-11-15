@@ -27,6 +27,29 @@ from documents import Document, default_document
 from embeddings import active_model_name, embed_texts
 
 MARKER_RE = re.compile(r"\[E(\d+)\]")
+# Any bracket whose content opens like a handle. Exactly `[En]` is a handle; anything
+# else that opens this way ("[E1, E2]", "[E1-E3]", "[e4]") is a malformed one (ADR 0006).
+_BRACKET_RE = re.compile(r"\[([^\[\]]*)\]")
+_LOOKS_LIKE_HANDLE = re.compile(r"\s*[Ee]\s*\d")
+_HANDLE_BODY = re.compile(r"E\d+")
+UNRESOLVED_NOTE = "[unresolved note]"
+
+
+def malformed_handles(text: str) -> list[str]:
+    """Brackets that open like an evidence handle and are not exactly one `[En]`."""
+    return [
+        match.group(0) for match in _BRACKET_RE.finditer(text)
+        if _LOOKS_LIKE_HANDLE.match(match.group(1)) and not _HANDLE_BODY.fullmatch(match.group(1))
+    ]
+
+
+def scrub_handles(text: str) -> str:
+    """The renderers' last guard: no bracket that looks like a handle is shown to a
+    reader. Validation should already have stopped it; this holds if it did not.
+    The bracket is replaced by a fixed marker; no other character is changed."""
+    return _BRACKET_RE.sub(
+        lambda match: UNRESOLVED_NOTE if _LOOKS_LIKE_HANDLE.match(match.group(1)) else match.group(0), text
+    )
 PAGE_CLAIM_RE = re.compile(r"\b(?:p{1,2})\.\s*\d+", re.IGNORECASE)
 SUPERSCRIPTS = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
 
@@ -295,6 +318,15 @@ def validate(result: dict, items: list[EvidenceItem]) -> list[str]:
     if unresolvable:
         failures.append(f"citation_hallucination: {unresolvable} not in the evidence set")
 
+    # A joined bracket resolves to nothing, yet `citations_used` may still list its
+    # parts, so the check above passes. Without this one the bracket is printed raw:
+    # an opaque handle in front of the reader, on a sentence with no note at all.
+    malformed = malformed_handles(body)
+    if malformed:
+        failures.append(
+            f"malformed_handle: {malformed} is not a single [En] marker; one handle per bracket"
+        )
+
     sufficiency = result.get("evidence_sufficiency")
     if sufficiency == "insufficient":
         if result.get("answer") is not None:
@@ -383,7 +415,7 @@ def substitute_markers(text: str, order: dict[str, int]) -> str:
         n = order.get(handle)
         return str(n).translate(SUPERSCRIPTS) if n else match.group(0)
 
-    return MARKER_RE.sub(swap, text)
+    return scrub_handles(MARKER_RE.sub(swap, text))
 
 
 def assign_order(result: dict, items: list[EvidenceItem]) -> dict[str, int]:

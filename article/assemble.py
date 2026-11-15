@@ -91,6 +91,12 @@ def block_reason(outcome: ask.QueryOutcome | None, error: str | None = None) -> 
     if outcome.failures:
         return "validation failed: " + "; ".join(outcome.failures)
     result = outcome.result
+    # Checked again here, not only when the draft was made: a record saved before
+    # this check existed says it passed (ADR 0006).
+    joined = ask.malformed_handles(" ".join(
+        [result.get("answer") or "", *result.get("limitations", []), *result.get("ai_interpretation", [])]))
+    if joined:
+        return f"validation failed: malformed_handle: {joined} is not a single [En] marker; one handle per bracket"
     if result.get("evidence_sufficiency") == "insufficient" or result.get("answer") is None:
         return INSUFFICIENT
     form = checks.prose_failures(result)
@@ -152,7 +158,8 @@ def _cited_passages(text: str, items: list[ask.EvidenceItem]) -> list[str]:
 
 
 def _section_body(section: SectionDraft, notes: _Notes) -> list[str]:
-    body = notes.renumber(section.prose or section.outcome.result["answer"], section.outcome.items)
+    rewrite = section.prose if section.prose and not ask.malformed_handles(section.prose) else None
+    body = notes.renumber(rewrite or section.outcome.result["answer"], section.outcome.items)
     return [body] if body else []
 
 
@@ -291,7 +298,8 @@ def assemble(
             out += [f"[{n}] " + ask.footnote(n, notes.items[n]).split(". ", 1)[1], ""]
     out += [f"*{CLOSING_LINE_REVIEWED if reviewed else CLOSING_LINE}*", ""]
 
-    article.markdown = "\n".join(out)
+    # The last guard: whatever came through, no raw handle is printed (ADR 0006).
+    article.markdown = ask.scrub_handles("\n".join(out))
     article.notes = [{"n": n, "chunk_id": notes.items[n].chunk["chunk_id"], "verdict": None} for n in sorted(notes.items)]
     article.carriers = notes.carriers
     return article

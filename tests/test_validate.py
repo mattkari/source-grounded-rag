@@ -101,3 +101,35 @@ def test_several_violations_are_all_reported(items, answer):
 def test_a_spelled_out_page_reference_is_flagged(items, answer):
     result = answer(answer="FIXTURE claim, see page 12 [E1].")
     assert any(f.startswith("invented_page_reference") for f in ask.validate(result, items))
+
+
+# --- combined handles (ADR 0006) -------------------------------------------------------------
+
+COMBINED = ["[E1, E2]", "[E1,E2]", "[E1, 2]", "[E1; E2]", "[E1-E3]"]
+
+
+@pytest.mark.parametrize("bracket", COMBINED)
+def test_a_combined_handle_fails_validation_even_when_citations_used_lists_its_parts(items, answer, bracket):
+    """The first real drafts: the model wrote one bracket for two passages and listed
+    both in `citations_used`, so nothing failed and the bracket was printed raw."""
+    result = answer(answer=f"FIXTURE the keeper logged lamp oil {bracket}.", citations_used=["E1", "E2", "E3"])
+
+    failures = ask.validate(result, items)
+
+    assert len(failures) == 1 and failures[0].startswith("malformed_handle:")
+    assert bracket in failures[0] and "one handle per bracket" in failures[0]
+
+
+@pytest.mark.parametrize("field", ["limitations", "ai_interpretation"])
+def test_a_combined_handle_is_found_in_every_field_that_is_printed(items, answer, field):
+    result = answer(**{field: ["FIXTURE a further line [E1, E2]."]})
+
+    assert any(f.startswith("malformed_handle:") for f in ask.validate(result, items))
+
+
+def test_separate_handles_and_ordinary_brackets_are_not_malformed(items, answer):
+    result = answer(answer="FIXTURE oil [E1] [E2], pears [E3][E4], and [sic] an [Editor's note] [E5].",
+                    citations_used=["E1", "E2", "E3", "E4", "E5"])
+
+    assert ask.validate(result, items) == []
+    assert ask.malformed_handles("FIXTURE [E1] and [1] and [see Example 2] and [E 12, E3] and [e4]") == ["[E 12, E3]", "[e4]"]
