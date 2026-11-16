@@ -11,23 +11,30 @@ that lives in [`docs/plans/PLAN_V2.md`](docs/plans/PLAN_V2.md), which is authori
 **A source-grounded RAG research assistant for scholarly literature review** — it answers questions
 from an authorised research collection and refuses when that collection lacks sufficient evidence.
 
-**Tech stack:** not yet chosen in code. The plan recommends Python 3.11+ with a Typer CLI, PyMuPDF
-extraction, a NumPy + SQLite index, hybrid dense/BM25 retrieval, and configurable embedding and
-generation providers. **Nothing is installed and no source code exists.** Treat the stack as
-proposed, not decided, until Sprint 1 is approved.
+**Tech stack, as built:** Python 3.11, plain scripts at the repository root (no package, no Typer
+CLI), PyMuPDF extraction, a NumPy index of dense vectors with cosine ranking, Streamlit for the web
+UI, and configurable embedding and generation providers. `PLAN_V2.md` also describes hybrid
+dense/BM25 retrieval and a SQLite index; **those are planned, not built**. Where the plan and the
+code differ, the code and the later plans (`PLAN_V3`–`V6`) and ADRs say what exists.
 
-**Folder map** (planned; only the starred entries exist today):
+**Folder map** (what exists today):
 
 ```
-docs/plans/PLAN_V2.md   ★ authoritative architecture + sprint plan
-README.md               ★ overview + Task Log (append a row after each approved sprint)
-CLAUDE.md               ★ this file
-corpus.yaml               declares the authorised research collection
-prompts/                  versioned prompt files, hashed into every run record
-src/sgrag/                config, models, ingestion, chunking, providers, index,
-                          retrieval, generation, citation, evaluation, runs, cli
-tests/                    unit, provenance, contract, golden, integration
-data/                     raw / canonical / index / runs  — all gitignored
+config.py               the one settings object; the only place that reads the environment
+ask.py                  the pipeline: retrieve, call_model, validate, render, run_query
+ingest.py, layout.py    extraction and chunking; layout measurement for uploaded theses
+upload.py, audit.py, identity.py, documents.py   the thesis library (PLAN_V4)
+app.py, main.py         shells: Streamlit web UI, interactive loop
+evaluate.py, evaluation/   the evaluation harness and its metrics (PLAN_V3, PLAN_V5)
+article/, write_article.py   the article writer and its command line (PLAN_V6)
+runs.py                 the query run log
+scripts/                check_gold.py, results_tables.py, measure_thesis.py
+prompts/                versioned prompt files, hashed into every run and article record
+footnote_maps/          per-document footnote spans: ids and offsets, no thesis text
+index/, data/canonical/ the built-in thesis's index and extraction — frozen, never rewritten
+tests/                  the offline suite
+docs/plans/             PLAN_V2 (architecture) to PLAN_V6; docs/decisions/ holds the ADRs
+runs/, library/, output/   run records, uploaded theses, drafted articles — local, gitignored
 ```
 
 ---

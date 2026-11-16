@@ -13,6 +13,7 @@ reason, and shown.
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -20,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ask
-from article import assemble, checks, export as article_export, sentences, sources, topics, voice
+from article import assemble, checks, export as article_export, sentences, sources, terms, topics, voice
 from article.assemble import GENERATED, RESEARCHER, SUGGESTED, VERDICTS, FrameElement, SectionDraft
 from documents import Document, default_document
 
@@ -82,7 +83,24 @@ def draft_section(workspace: Workspace, heading: str, brief: str) -> SectionDraf
     return SectionDraft(heading.strip(), brief.strip(), outcome, error)
 
 
-def edit_section(section: SectionDraft) -> SectionDraft:
+EXEMPLAR_WORDS = 300
+
+
+def voice_example(text: str) -> str:
+    """The opening of the researcher's own writing, to whole sentences, as much as the
+    editor is shown: about `EXEMPLAR_WORDS` words. Enough to hear a voice; too little to
+    be a source."""
+    kept, words = [], 0
+    for line in text.split("\n"):
+        for sentence in sentences.split(" ".join(line.split())):
+            if words and words + len(sentence.split()) > EXEMPLAR_WORDS:
+                return " ".join(kept)
+            kept.append(sentence)
+            words += len(sentence.split())
+    return " ".join(kept)
+
+
+def edit_section(section: SectionDraft, exemplar: str = "") -> SectionDraft:
     """The optional editorial pass: one more call, through the same model call and
     the same validation, asking for the validated prose to be rewritten for flow.
 
@@ -95,7 +113,12 @@ def edit_section(section: SectionDraft) -> SectionDraft:
         return section
     original = section.outcome.result["answer"]
     prompt, digest = checks.load_prompt(checks.EDITORIAL_PROMPT)
-    instructions = f"{prompt}\nDRAFT\n=====\n{original}"
+    # The researcher's own prose, if they gave some, is shown for its voice alone (ADR 0010).
+    # What a rewrite may add is still checked against the DRAFT only, so nothing of the
+    # example's content can pass into the section.
+    shown = voice_example(exemplar)
+    example = f"\nVOICE EXAMPLE\n=============\n{shown}\n" if shown else ""
+    instructions = f"{prompt}{example}\nDRAFT\n=====\n{original}"
     outcome, error = _attempt(lambda: ask.draft_from_evidence(section.brief, section.outcome.items, instructions=instructions))
     failures = [f"the pipeline failed: {error}"] if outcome is None else checks.editorial_failures(
         original, outcome.result, outcome.failures)
@@ -109,6 +132,9 @@ def edit_section(section: SectionDraft) -> SectionDraft:
         "system_prompt_sha256_12": outcome.prompt_hash if outcome else None,
         "similarity_to_original": round(difflib.SequenceMatcher(None, original, rewrite, autojunk=False).ratio(), 3)
         if rewrite else None,
+        # The example is the researcher's own text and stays out of this entry: its size and hash only.
+        "voice_example": {"words": len(shown.split()),
+                          "sha256_12": hashlib.sha256(shown.encode("utf-8")).hexdigest()[:12]} if shown else None,
         "voice_before": voice.measure(original),
         "voice_after": voice.measure(rewrite) if rewrite else None,
     }
@@ -219,12 +245,18 @@ class Draft:
     # "<sid>|<chunk id>" -> {"verdict", "reason", "judged_at", "judged_text"}: the researcher's
     # verdict on one sentence and one note it carries, and the text it was given on.
     pair_verdicts: dict[str, dict] = field(default_factory=dict)
+    # "<sid>|<chunk id>" -> the model's second opinion on that pair, asked for by the researcher
+    # after their own verdict (ADR 0011). It is never a verdict and changes none.
+    second_opinions: dict[str, dict] = field(default_factory=dict)
     sentence_edits: dict[str, dict] = field(default_factory=dict)
     own_words: dict[str, dict] = field(default_factory=dict)     # sid -> {"kept_at": iso}: unnoted, kept as theirs
     # "introduction" | "conclusion" -> every suggestion asked for, newest last (ADR 0008)
     frame_suggestions: dict[str, list[dict]] = field(default_factory=dict)
     frame_plan: dict[str, str] = field(default_factory=dict)
     editorial: bool = False
+    # The researcher's own prose, shown to the editorial pass as an example of voice. Kept
+    # with the plan so an interrupted draft resumes with it; it is theirs, and stays local.
+    voice_exemplar: str = ""
     frame_done: set[str] = field(default_factory=set)   # generated frame steps already made
     complete: bool = True                               # False while steps of the plan remain
 
@@ -232,7 +264,7 @@ class Draft:
 def new_draft(title: str, outline: list[tuple[str, str]], *, topic: str | None = None,
               introduction: str = "none", transitions: str = "none", conclusion: str = "none",
               introduction_text: str = "", transitions_text: list[str] | None = None, conclusion_text: str = "",
-              commentary: bool = False, editorial: bool = False) -> Draft:
+              commentary: bool = False, editorial: bool = False, voice_exemplar: str = "") -> Draft:
     """A plan and nothing else: every section pending, no model called yet. Text the
     researcher wrote is placed at once; it needs no call."""
     check_outline(title, outline)
@@ -244,6 +276,7 @@ def new_draft(title: str, outline: list[tuple[str, str]], *, topic: str | None =
     typed = list(transitions_text or [])[:gaps] + [""] * max(gaps - len(transitions_text or []), 0)
     return Draft(
         title=title.strip(), topic=topic, commentary=commentary, editorial=editorial, frame_plan=plan, complete=False,
+        voice_exemplar=voice_exemplar if editorial else "",
         sections=[SectionDraft(heading.strip(), brief.strip(), pending=True) for heading, brief in outline],
         introduction=written(introduction_text) if introduction == RESEARCHER else None,
         transitions=[written(text) if transitions == RESEARCHER else None for text in typed],
@@ -294,7 +327,7 @@ def run(workspace: Workspace, draft: Draft, out_dir: Path | None = None, referen
     if draft.editorial:
         for index, section in enumerate(draft.sections):
             if usable(section) and section.editorial is None:
-                edit_section(section)
+                edit_section(section, draft.voice_exemplar)
                 done(f"editorial pass {index + 1}: {section.heading}")
     plan = draft.frame_plan
     if plan.get("introduction") == GENERATED and "introduction" not in draft.frame_done:
@@ -554,6 +587,55 @@ def pair_flags(workspace: Workspace, pair: dict) -> list[str]:
     return checks.reported_speech_flags(pair["raw"], matches[0].text) if matches else []
 
 
+_OPINIONS = {"sufficient": "supports", "partial": "partly", "insufficient": "does not"}
+
+
+def second_opinion(workspace: Workspace, draft: Draft, pair: dict) -> dict:
+    """Ask the model, once, whether the cited passage supports this sentence.
+
+    Only after the researcher has given their own verdict on the pair: the
+    opinion is there to be compared with a judgement already made, not to make
+    it. It is shown as the model's reading and recorded apart from the verdict.
+    It accepts nothing, rejects nothing and blocks nothing; the researcher's
+    verdict stands until the researcher changes it.
+
+    One call, through the same model call and validation, on the one cited
+    passage: nothing is retrieved. An answer that fails validation is recorded
+    and no opinion is shown.
+    """
+    if pair_verdict(draft, pair) is None:
+        raise ArticleError("Give your own verdict on this sentence first. A second opinion comes after it.")
+    item = ask.EvidenceItem("E1", workspace.by_id[pair["chunk_id"]], 0.0, workspace.document)
+    # The sentence as the model is shown it: its note markers removed, so that none of its
+    # handles is mistaken for the one passage in front of the model.
+    shown = re.sub(r"\s+([.,;:])", r"\1", re.sub(r"\s*\[E\d+\]", "", pair["raw"])).strip()
+    prompt, digest = checks.load_prompt(checks.SUPPORT_PROMPT)
+    outcome, error = _attempt(lambda: ask.draft_from_evidence(
+        "Does the passage support the sentence?", [item], instructions=f"{prompt}\nSENTENCE\n========\n{shown}"))
+    problems = ([f"the pipeline failed: {error}"] if outcome is None
+                else [f"validation failed: {'; '.join(outcome.failures)}"] if outcome.failures else [])
+    result = outcome.result if outcome else {}
+    opinion = None if problems else _OPINIONS.get(result.get("evidence_sufficiency"))
+    if outcome and not problems and opinion is None:
+        problems.append("no_opinion: the model's answer names none of the three")
+    reason = " ".join([result.get("answer") or "", *result.get("limitations", []),
+                       *result.get("unsupported_by_evidence", [])]).strip()
+    given = {
+        "opinion": opinion, "reason": ask.scrub_handles(re.sub(r"\s*\[E1\]", "", reason)) if opinion else "",
+        "not_offered_because": problems, "prompt": checks.SUPPORT_PROMPT, "prompt_sha256_12": digest,
+        "system_prompt_sha256_12": outcome.prompt_hash if outcome else None, "asked_at": _now(),
+        "asked_after_verdict": pair_verdict(draft, pair)["verdict"], "judged_text": pair["raw"],
+    }
+    draft.second_opinions[pair_key(pair)] = given
+    return given
+
+
+def opinion_on(draft: Draft, pair: dict) -> dict | None:
+    """The second opinion asked for on this pair, if the sentence still reads as it did."""
+    given = draft.second_opinions.get(pair_key(pair))
+    return given if given and given["judged_text"] == pair["raw"] else None
+
+
 def pairs_record(draft: Draft, article: assemble.Article, workspace: Workspace | None = None) -> list[dict]:
     """Every sentence-and-note pair the article has, with the researcher's verdict,
     and every pair it had: a sentence deleted after a verdict keeps that verdict here."""
@@ -569,6 +651,8 @@ def pairs_record(draft: Draft, article: assemble.Article, workspace: Workspace |
             # the text the verdict was given on; None for a verdict carried over from a note
             "raw": None if given.get("carried_over") or not given else pair["raw"],
             "raised": pair_flags(workspace, pair) if workspace is not None else [],
+            # The model's reading, asked for after the verdict above. Not a verdict.
+            "second_opinion": opinion_on(draft, pair),
         })
     for key, given in draft.pair_verdicts.items():
         sid, chunk_id = key.split("|", 1)
@@ -795,11 +879,12 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             **({checks.EDITORIAL_PROMPT: checks.load_prompt(checks.EDITORIAL_PROMPT)[1]}
                if any(section.editorial for section in draft.sections) else {}),
             **({checks.FRAME_PROMPT: checks.load_prompt(checks.FRAME_PROMPT)[1]} if draft.frame_suggestions else {}),
+            **({checks.SUPPORT_PROMPT: checks.load_prompt(checks.SUPPORT_PROMPT)[1]} if draft.second_opinions else {}),
         },
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
         "commentary_switched_on": draft.commentary,
-        "plan": {"frame": draft.frame_plan, "editorial": draft.editorial},
+        "plan": {"frame": draft.frame_plan, "editorial": draft.editorial, "voice_exemplar": draft.voice_exemplar},
         "drafting": {"complete": draft.complete, "frame_steps_done": sorted(draft.frame_done),
                      "model_calls_remaining": planned_calls(draft)["model_calls"]},
         "sections": [section_record(section) for section in draft.sections],
@@ -812,6 +897,8 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "blocked": article.blocked,
         "frame_sentences_without_a_note": article.unnoted,
         "limitations_kept_in_record_only": article.limits_held_back,
+        # Raised for the researcher to read side by side; nothing is decided from it (ADR 0009).
+        "terms_used_in_more_than_one_section": terms.as_record(terms.shared_terms(article.pairs, article.own_words)),
         "export": {"ready": not export_blockers(draft, article), "blocked_by": export_blockers(draft, article)},
         "sentences": {
             "held_back_without_a_note": article.held_back,
@@ -939,9 +1026,14 @@ def load(folder: Path, workspace: Workspace) -> Draft:
         },
         article_id=record["article_id"],
         created=record["created"],
+        second_opinions={
+            f"{row['sid']}|{row['chunk_id']}": row["second_opinion"]
+            for row in record.get("pairs", []) if row.get("second_opinion")
+        },
         frame_suggestions={kind: list(asked) for kind, asked in record.get("frame_suggestions", {}).items()},
         frame_plan=dict(record.get("plan", {}).get("frame", {})),
         editorial=record.get("plan", {}).get("editorial", False),
+        voice_exemplar=record.get("plan", {}).get("voice_exemplar", ""),
         frame_done=set(record.get("drafting", {}).get("frame_steps_done", [])),
         complete=record.get("drafting", {}).get("complete", True),
     )

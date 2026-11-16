@@ -125,9 +125,14 @@ def report(workspace: pipeline.Workspace, draft: pipeline.Draft, folder: Path, r
     for heading, count in pipeline.em_dashes(draft).items():
         print(f"\nEM DASHES: “{heading}” prints {count} (target 0). They are left as written; "
               "replace them by hand if you wish.", file=stream)
+    print("\nSOURCE FILTER (footnotes and the reference list are never drafted from)", file=stream)
+    for line in workspace.sources.report.lines():
+        print(f"  {line}", file=stream)
     columns = pipeline.voice_columns(article, reference_text)
     print("\nVOICE (plain counts; no score)", file=stream)
     print(voice.format_comparison(columns), file=stream)
+    if not reference_text.strip():
+        print("  No --reference file was given, so there is nothing of yours to compare with.", file=stream)
     for check in voice.profile_checks(columns["draft, sourced"]):
         print(f"  {check['check']}: {check['value']} (target {check['target']}) -> "
               f"{'met' if check['met'] else 'NOT met'}", file=stream)
@@ -156,6 +161,9 @@ def main(argv: list[str] | None = None, stream=None) -> int:
     parser.add_argument("--conclusion-file", type=Path, metavar="FILE", help="your own conclusion")
     parser.add_argument("--commentary", action="store_true", help="print the model's commentary (one paragraph a section; needs your verdict)")
     parser.add_argument("--editorial", action="store_true", help="one more call per section to rewrite it for flow; kept only if it preserves")
+    parser.add_argument("--voice-example", type=Path, metavar="FILE",
+                        help="a file of your own published prose, shown to the editorial pass as an example of how "
+                             "you write (its opening, about 300 words). Needs --editorial. It is sent to the model.")
     parser.add_argument("--reference", action="append", default=[], type=Path, metavar="FILE",
                         help="a file of your own published writing, for the voice comparison")
     parser.add_argument("--document", metavar="ID", help="an approved uploaded thesis; default is the built-in one")
@@ -201,6 +209,7 @@ def main(argv: list[str] | None = None, stream=None) -> int:
         return 0
 
     missing = [str(path) for path in [args.outline, args.from_record, args.introduction_file, args.conclusion_file,
+                                      args.voice_example,
                                       *args.reference] if path is not None and not path.exists()]
     if missing:
         print(f"No such file: {', '.join(missing)}", file=stream)
@@ -226,6 +235,7 @@ def main(argv: list[str] | None = None, stream=None) -> int:
             conclusion, conclusion_text = _origin(args.frame, args.conclusion_file)
             draft = pipeline.new_draft(
                 title, outline, commentary=args.commentary, editorial=args.editorial,
+                voice_exemplar=args.voice_example.read_text(encoding="utf-8") if args.voice_example else "",
                 introduction=introduction, introduction_text=introduction_text,
                 transitions=pipeline.GENERATED if args.frame == GENERATE else "none",
                 conclusion=conclusion, conclusion_text=conclusion_text,

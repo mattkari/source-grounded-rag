@@ -57,6 +57,8 @@ def test_a_note_marker_standing_as_a_word_of_the_sentence_is_found(text):
     "FIXTURE the keeper logged oil [E1], and the calendar lists rootstock [E2].",
     "FIXTURE the keeper wrote “oil came late” [E1]. FIXTURE the tramway closed [E3][E4].",
     "FIXTURE the author states that the harbour silted up [E2], which the survey notes too [E6].",
+    "FIXTURE the amber beacon draws ships in [E3].",                    # ends on a preposition: not a noun use
+    "FIXTURE this is the doctrine the keeper believed in [E2], and lived by [E4].",
 ])
 def test_a_marker_at_the_end_of_its_clause_is_left_alone(text):
     assert checks.handle_as_subject(text) == []
@@ -682,16 +684,17 @@ def test_the_prompts_state_the_handle_format_and_their_new_versions_are_what_is_
     assert ask.settings.prompt_path.name == "system_grounded_v3.md"
     assert "One handle per bracket" in system and "`[E1, E2]`" in system and "`[E1, E2]`" not in old
     assert system.replace(system[system.index("7. **One handle per bracket.**"):system.index("# Reference apparatus")], "\n") == old
-    assert (checks.SECTION_PROMPT, checks.EDITORIAL_PROMPT) == ("article_section_v2.md", "article_editorial_v2.md")
+    assert (checks.SECTION_PROMPT, checks.EDITORIAL_PROMPT) == ("article_section_v2.md", "article_editorial_v3.md")
     for name in (checks.SECTION_PROMPT, checks.EDITORIAL_PROMPT):
         text, digest = checks.load_prompt(name)
         assert rule in text
-        assert digest != checks.load_prompt(name.replace("_v2", "_v1"))[1]          # the record shows the change
+        earlier = re.sub(r"_v(\d)", lambda m: f"_v{int(m.group(1)) - 1}", name)
+        assert digest != checks.load_prompt(earlier)[1]                  # the record shows the change
 
     section, _ = edited(workspace, monkeypatch, REWRITE)
     draft = pipeline.Draft("FIXTURE title", [section])
     prompts = pipeline.build_record(workspace, draft, pipeline.render(workspace, draft))["prompts"]
-    assert set(prompts) == {"article_section_v2.md", "article_editorial_v2.md"}
+    assert set(prompts) == {"article_section_v2.md", "article_editorial_v3.md"}
 
 
 def test_em_dashes_in_a_section_are_reported_and_printed_exactly_as_written(workspace, monkeypatch):
@@ -1335,3 +1338,236 @@ def test_the_summary_outline_is_what_it_was_and_every_kind_uses_only_printed_tit
             assert set(re.findall(r"[a-z]+", heading.lower())) <= words           # nothing added to a title
     with pytest.raises(ValueError):
         topics.outline(topic, "persuade")
+
+
+# =====================================================================================
+# ADR 0009: terms used in more than one section, side by side
+# =====================================================================================
+
+# The fourth error of the first published article, rebuilt from invented text: one term
+# names one thing in the first section and another in the second. Each sentence can be
+# faithful to its own passage, so nothing but reading the two together shows the clash.
+CLASH = [
+    {"sid": "0.0", "section": 0, "sentence": "FIXTURE the keeper's night lamp, the amber beacon, warns ships off the rocks [1]."},
+    {"sid": "0.1", "section": 0, "sentence": "FIXTURE the harbour master kept the lamp oil ledger [1]."},
+    {"sid": "1.0", "section": 1, "sentence": "FIXTURE the amber beacon draws ships into the harbour at dusk [2]."},
+    {"sid": "1.0", "section": 1, "sentence": "FIXTURE the amber beacon draws ships into the harbour at dusk [2]."},   # a second note on it
+    {"sid": "1.1", "section": 1, "sentence": "FIXTURE the tide tables were printed each spring [3]."},
+    {"sid": "2.0", "section": 2, "sentence": "FIXTURE the “lamp oil ledger” records what the amāna cost [4]."},
+    {"sid": "2.L", "section": 2, "sentence": "The thesis does not say who lit the amber beacon [4]."},
+]
+
+
+def test_a_term_used_in_two_sections_is_listed_with_every_sentence_that_uses_it():
+    from article import terms
+    found = {term.term: term for term in terms.shared_terms(CLASH)}
+
+    beacon = found["amber beacon"]
+    assert beacon.sections == 2 and beacon.count == 2                   # one sentence counts once, whatever its notes
+    assert [use["sid"] for use in beacon.uses[0]] == ["0.0"] and [use["sid"] for use in beacon.uses[1]] == ["1.0"]
+    assert "warns ships off" in beacon.uses[0][0]["sentence"] and "draws ships into" in beacon.uses[1][0]["sentence"]
+    assert found["lamp oil ledger"].sections == 2                       # in running text and in quotation marks
+    assert "lamp oil" not in found and "oil ledger" not in found        # the longest form is the one shown
+    assert "tide tables" not in found and "harbour master" not in found          # one section only: not listed
+    assert not any("the thesis" in term or term.startswith("fixture") and " " not in term for term in found)
+
+
+def test_a_transliterated_term_is_followed_across_sections_and_the_closing_list_is_left_out():
+    from article import terms
+    uses = [{"sid": "0.0", "section": 0, "sentence": "FIXTURE the amāna is a trust held by the keeper [1]."},
+            {"sid": "1.0", "section": 1, "sentence": "FIXTURE the keeper pays the amāna each spring [2]."},
+            {"sid": "1.L", "section": 1, "sentence": "The thesis does not define the zakhīra [2]."},
+            {"sid": "2.0", "section": 2, "sentence": "FIXTURE the zakhīra is stored in the tower [3]."}]
+    found = {term.term: term for term in terms.shared_terms(uses)}
+
+    assert found["amāna"].sections == 2
+    quoted = [{"sid": "0.0", "section": 0, "sentence": "FIXTURE the keeper calls it “balance” [1]."},
+              {"sid": "1.0", "section": 1, "sentence": "FIXTURE a different “balance” is struck by the tide [2]."}]
+    assert [term.term for term in terms.shared_terms(quoted)] == ["balance"]       # a single word, once it is quoted
+    joined = [{"sid": "0.0", "section": 0, "sentence": "FIXTURE the doctrine of light guides the keeper [1]."},
+              {"sid": "1.0", "section": 1, "sentence": "FIXTURE the doctrine of light is rejected by the keeper [2]."}]
+    assert "doctrine of light" in [term.term for term in terms.shared_terms(joined)]
+    assert not any(" the " in term.term for term in terms.shared_terms(joined))
+    assert "zakhīra" not in found                                       # its other use is a limit line, not a section's prose
+
+
+def test_the_table_is_capped_recorded_by_id_and_decides_nothing(workspace, monkeypatch):
+    from article import terms
+    scripted(monkeypatch,
+             lighthouse=payload("FIXTURE the amber beacon warns ships off the rocks [E1].", cites=["E1"]),
+             orchard=payload("FIXTURE the amber beacon draws ships into the harbour [E1].", cites=["E1"]),
+             tramway=payload("FIXTURE the timetable changed [E1].", cites=["E1"]))
+    sections = [pipeline.draft_section(workspace, f"FIXTURE heading {n + 1}", brief) for n, brief in enumerate(BRIEFS)]
+    draft = pipeline.Draft("FIXTURE title", sections)
+    article = pipeline.render(workspace, draft)
+    record = pipeline.build_record(workspace, draft, article)
+
+    assert {"term": "amber beacon", "sections": [0, 1], "sentences": ["0.0", "1.0"]} in record["terms_used_in_more_than_one_section"]
+    assert "warns ships" not in json.dumps(record["terms_used_in_more_than_one_section"])     # ids, not sentences
+    assert article.blocked == [] and pipeline.export_blockers(draft, article) == ["3 of 3 sentences are not judged yet"]
+    many = [{"sid": f"{s}.0", "section": s, "sentence": " ".join(f"FIXTURE alpha{n} beta{n}," for n in range(30))} for s in (0, 1)]
+    assert len(terms.shared_terms(many)) == terms.SHOWN
+
+
+# =====================================================================================
+# ADR 0010: the researcher's own prose as an example of voice in the editorial pass
+# =====================================================================================
+
+OWN_PROSE = ("FIXTURE I walked the quay at dusk. But the lamps were not yet lit. So I waited by the wall. "
+             "Harland came down at seven, as he always did, and lit them one by one.")
+
+
+def test_the_example_is_shown_between_the_rules_and_the_draft_and_only_when_given(workspace, monkeypatch):
+    prompt, _ = checks.load_prompt(checks.EDITORIAL_PROMPT)
+    plain, model = edited(workspace, monkeypatch, REWRITE)
+    assert model.edits[0][0] == f"{prompt}\nDRAFT\n=====\n{ORIGINAL}"                 # no example: exactly as before
+    assert plain.editorial["voice_example"] is None
+
+    model = Editor(ORIGINAL, payload(REWRITE, cites=["E1", "E2"]))
+    monkeypatch.setattr(ask, "call_model", model)
+    section = pipeline.edit_section(pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0]), OWN_PROSE)
+
+    assert model.edits[0][0] == f"{prompt}\nVOICE EXAMPLE\n=============\n{OWN_PROSE}\n\nDRAFT\n=====\n{ORIGINAL}"
+    assert "Use it for one thing only: how the author writes." in prompt
+    assert section.editorial["accepted"] is True
+    assert section.editorial["voice_example"]["words"] == len(OWN_PROSE.split())
+    assert re.fullmatch(r"[0-9a-f]{12}", section.editorial["voice_example"]["sha256_12"])
+    assert "quay" not in json.dumps(section.editorial)                  # its size and hash, never its words
+
+
+def test_nothing_of_the_examples_content_can_pass_into_the_section(workspace, monkeypatch):
+    borrowed = "FIXTURE the keeper logged lamp oil [E1]. But Harland lit the lamps, and the oil came in winter [E2]."
+    model = Editor(ORIGINAL, payload(borrowed, cites=["E1", "E2"]))
+    monkeypatch.setattr(ask, "call_model", model)
+    section = pipeline.edit_section(pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0]), OWN_PROSE)
+
+    assert section.editorial["accepted"] is False and section.prose is None
+    assert section.editorial["rejected_because"] == ["new_terms: the rewrite adds “Harland”"]
+    first_person = payload("FIXTURE the keeper logged lamp oil [E1]. So I think the oil came in winter [E2].", cites=["E1", "E2"])
+    monkeypatch.setattr(ask, "call_model", Editor(ORIGINAL, first_person))
+    again = pipeline.edit_section(pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0]), OWN_PROSE)
+    assert again.editorial["rejected_because"] == ["new_terms: the rewrite adds “I”"]       # nor its first person
+
+
+def test_the_example_is_cut_to_whole_sentences_of_about_three_hundred_words():
+    long = " ".join(f"FIXTURE sentence number {n} has just eight words." for n in range(100))
+    shown = pipeline.voice_example(long)
+
+    assert len(shown.split()) == 296 and shown.endswith("words.")       # 37 sentences of eight words: under 300, none cut
+    assert pipeline.voice_example("FIXTURE short.\n\nFIXTURE and a second line.") == "FIXTURE short. FIXTURE and a second line."
+    assert pipeline.voice_example("") == ""
+
+
+def test_the_example_travels_with_the_plan_so_a_resumed_draft_still_has_it(workspace, monkeypatch, tmp_path):
+    draft = pipeline.new_draft("FIXTURE harbour title", OUTLINE, editorial=True, voice_exemplar=OWN_PROSE)
+    monkeypatch.setattr(ask, "call_model", Dying(at=5))                 # dies in the second rewrite
+    with pytest.raises(Restart):
+        pipeline.run(workspace, draft, tmp_path / "out")
+    (folder,) = (tmp_path / "out").iterdir()
+
+    seen = []
+    def model(question, items, instructions=None):
+        seen.append(instructions or "")
+        return payload("FIXTURE one thing [E1].", cites=["E1"]), "fixturehash"
+    monkeypatch.setattr(ask, "call_model", model)
+    pipeline.run(workspace, pipeline.load(folder, workspace), tmp_path / "out")
+
+    assert len(seen) == 2 and all("VOICE EXAMPLE\n=============\nFIXTURE I walked the quay" in i for i in seen)
+    assert pipeline.new_draft("FIXTURE t", OUTLINE, voice_exemplar=OWN_PROSE).voice_exemplar == ""     # no editorial pass: not kept
+
+
+# =====================================================================================
+# ADR 0011: a second opinion from the model, after the researcher's verdict
+# =====================================================================================
+
+AGREES = payload("FIXTURE the passage says the keeper logged lamp oil [E1].", cites=["E1"])
+PARTLY = payload("FIXTURE the passage says oil was logged [E1].", cites=["E1"], sufficiency="partial",
+                 limitations=["FIXTURE it does not say the oil came by sea."])
+AGAINST = {**REFUSAL, "unsupported_by_evidence": ["FIXTURE the passage gives this to Harland, not to the thesis."]}
+
+
+class Reader(Scripted):
+    """Answers a brief from the script, and a support task with the reading it was given."""
+
+    def __init__(self, reading):
+        super().__init__({**SCRIPT, "lighthouse": payload(TWO, cites=["E1", "E2"])})
+        self.reading, self.readings = reading, []
+
+    def __call__(self, question, items, instructions=None):
+        if instructions and instructions.startswith("SUPPORT TASK"):
+            self.readings.append((question, [(i.handle, i.chunk["chunk_id"]) for i in items], instructions))
+            if isinstance(self.reading, BaseException):
+                raise self.reading
+            return self.reading, "fixturehash"
+        return super().__call__(question, items, instructions)
+
+
+def judged(workspace, monkeypatch, reading, verdict="supports"):
+    model = Reader(reading)
+    monkeypatch.setattr(ask, "call_model", model)
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+    article = pipeline.render(workspace, draft)
+    for pair in article.pairs:
+        pipeline.set_pair_verdict(draft, pair, verdict)
+    return draft, article, model
+
+
+def test_a_second_opinion_is_not_given_before_the_researchers_own_verdict(workspace, monkeypatch):
+    model = Reader(AGREES)
+    monkeypatch.setattr(ask, "call_model", model)
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+    pair = pipeline.render(workspace, draft).pairs[0]
+
+    with pytest.raises(pipeline.ArticleError, match="Give your own verdict on this sentence first"):
+        pipeline.second_opinion(workspace, draft, pair)
+    assert model.readings == [] and draft.second_opinions == {}
+
+
+@pytest.mark.parametrize(("reading", "opinion", "reason"), [
+    (AGREES, "supports", "FIXTURE the passage says the keeper logged lamp oil."),
+    (PARTLY, "partly", "FIXTURE the passage says oil was logged. FIXTURE it does not say the oil came by sea."),
+    (AGAINST, "does not", "FIXTURE the passage gives this to Harland, not to the thesis."),
+])
+def test_the_model_reads_the_one_cited_passage_and_its_reading_changes_no_verdict(workspace, monkeypatch, reading, opinion, reason):
+    draft, article, model = judged(workspace, monkeypatch, reading)
+    embedded, embed = [], ask.embed_texts
+    monkeypatch.setattr(ask, "embed_texts", lambda texts, **kw: embedded.append(texts) or embed(texts, **kw))
+    pair = article.pairs[2]                                             # the second sentence with its second note
+    given = pipeline.second_opinion(workspace, draft, pair)
+    question, items, instructions = model.readings[0]
+    prompt, digest = checks.load_prompt(checks.SUPPORT_PROMPT)
+
+    assert (given["opinion"], given["reason"], given["not_offered_because"]) == (opinion, reason, [])
+    assert items == [("E1", pair["chunk_id"])] and embedded == []       # the one passage, nothing retrieved
+    assert instructions == f"{prompt}\nSENTENCE\n========\nFIXTURE the oil came by sea."     # no marker of the article's
+    assert len(model.readings) == 1 and given["asked_after_verdict"] == "supports"
+    after = pipeline.render(workspace, draft)
+    assert pipeline.pair_verdict(draft, pair)["verdict"] == "supports"  # the researcher's verdict stands
+    assert pipeline.status(draft, after) == "reviewed" and pipeline.export_blockers(draft, after) == []
+    record = pipeline.build_record(workspace, draft, after)
+    assert record["pairs"][2]["second_opinion"]["opinion"] == opinion and record["pairs"][0]["second_opinion"] is None
+    assert record["pairs"][2]["verdict"] == "supports" and record["support"]["supports"] == 3
+    assert record["prompts"][checks.SUPPORT_PROMPT] == digest
+
+
+@pytest.mark.parametrize(("reading", "why"), [
+    (payload("FIXTURE it is supported, see p. 9 [E1].", cites=["E1"]), "validation failed: invented_page_reference"),
+    (payload("FIXTURE it is supported [E2].", cites=["E2"]), "validation failed: citation_hallucination"),
+    (RuntimeError("FIXTURE provider outage"), "the pipeline failed: RuntimeError: FIXTURE provider outage"),
+])
+def test_a_reading_that_fails_is_recorded_and_no_opinion_is_shown(workspace, monkeypatch, reading, why):
+    draft, article, model = judged(workspace, monkeypatch, reading)
+    given = pipeline.second_opinion(workspace, draft, article.pairs[0])
+
+    assert given["opinion"] is None and given["reason"] == "" and given["not_offered_because"][0].startswith(why)
+    assert len(model.readings) == 1                                     # asked once, not again
+
+
+def test_an_opinion_lapses_when_the_sentence_is_edited_and_survives_reopening_otherwise(workspace, monkeypatch, tmp_path):
+    draft, article, _ = judged(workspace, monkeypatch, AGAINST)
+    pipeline.second_opinion(workspace, draft, article.pairs[0])
+    reopened = pipeline.load(pipeline.save(workspace, draft, tmp_path / "out"), workspace)
+    assert pipeline.opinion_on(reopened, pipeline.render(workspace, reopened).pairs[0])["opinion"] == "does not"
+
+    pipeline.edit_sentence(reopened, "0.0", "FIXTURE the keeper kept a ledger of lamp oil [E1].")
+    assert pipeline.opinion_on(reopened, pipeline.render(workspace, reopened).pairs[0]) is None

@@ -39,7 +39,7 @@ import audit
 import runs
 import upload
 from article import assemble, pipeline, sentences as article_sentences, sources as article_sources
-from article import topics as article_topics, voice
+from article import terms as article_terms, topics as article_topics, voice
 from config import settings
 from documents import Document, default_document
 
@@ -767,6 +767,7 @@ def plan_draft(title: str, outline: list[tuple[str, str]], topic: str | None, fr
     origin = {I_WRITE: pipeline.RESEARCHER, GENERATE: pipeline.GENERATED}
     return pipeline.new_draft(
         title, outline, topic=topic, commentary=frame["commentary"], editorial=frame["editorial"],
+        voice_exemplar=st.session_state.get("article_reference", "") if frame.get("voice_example") else "",
         introduction=origin[frame["introduction"]], introduction_text=frame["introduction_text"],
         transitions=origin[frame["transitions"]],
         transitions_text=[line.strip() for line in frame["transitions_text"].splitlines() if line.strip()],
@@ -785,7 +786,7 @@ STEP_OUTLINE, STEP_FRAME, STEP_DRAFT, STEP_REVIEW, STEP_FINISH = range(5)
 PLAN_DEFAULTS = {
     "topic": OWN_TOPIC, "title": "", "outline": "",
     "introduction": I_WRITE, "introduction_text": "", "transitions": I_WRITE, "transitions_text": "",
-    "conclusion": I_WRITE, "conclusion_text": "", "commentary": False, "editorial": False,
+    "conclusion": I_WRITE, "conclusion_text": "", "commentary": False, "editorial": False, "voice_example": False,
 }
 
 
@@ -917,6 +918,13 @@ def render_step_frame() -> None:
                                      key="article_reference_file")
         if reference is not None:
             st.session_state.article_reference = reference.getvalue().decode("utf-8", errors="replace")
+        remembered(
+            "voice_example", st.checkbox,
+            "Show its opening to the editorial pass as an example of how I write",
+            help="About 300 words of it are sent to the model with each section, for its voice only: the "
+                 "length of your sentences and how you join them. A rewrite still may add no name, number "
+                 "or term the section did not have. It needs the editorial pass switched on.",
+        )
     if st.button("Next: check the plan", type="primary"):
         go_to_step(STEP_DRAFT)
 
@@ -933,8 +941,10 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
         f"- {part.capitalize()}: " + ("yours" if plan[f"{part}_text"].strip() else "left out for now")
         for part in ("introduction", "transitions", "conclusion")
     ))
+    voiced = plan["editorial"] and plan["voice_example"] and st.session_state.get("article_reference")
     st.markdown(f"- Commentary: {'on' if plan['commentary'] else 'off'}\n"
-                f"- Editorial pass: {'on' if plan['editorial'] else 'off'}")
+                f"- Editorial pass: {'on' if plan['editorial'] else 'off'}"
+                + (", with your own writing as its example of voice" if voiced else ""))
     st.caption(
         f"Drafting makes {calls['sections']} model call(s) for the sections and up to "
         f"{calls['editorial']} for the editorial pass. Nothing is "
@@ -1049,6 +1059,25 @@ def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict
     reason = st.text_input("Reason (optional)", value=recorded.get("reason", ""), key=f"article_reason_{key}")
     if recorded.get("verdict") == "does not":
         st.warning("Judged “does not”. The article stays a draft until this sentence is edited or deleted.")
+    if recorded.get("verdict"):
+        # Offered only once the researcher has judged: it is compared with a verdict, it never makes one.
+        opinion = pipeline.opinion_on(draft, pair)
+        if opinion is None:
+            if st.button("Ask the model for a second opinion (one model call)", key=f"article_opinion_{key}"):
+                with st.spinner("Asking whether the passage supports the sentence…"):
+                    pipeline.second_opinion(workspace, draft, pair)
+                persist(workspace, draft)
+                st.rerun()
+        elif opinion["opinion"] is None:
+            st.caption("A second opinion was asked for and could not be given: "
+                       + "; ".join(opinion["not_offered_because"]) + ".")
+        else:
+            st.info(f"**The model's reading, not a verdict: {opinion['opinion']}.** {opinion['reason']}")
+            if opinion["opinion"] != recorded["verdict"]:
+                st.warning(
+                    f"It differs from your verdict ({recorded['verdict']}). Read the passage again. "
+                    "Your verdict stands until you change it."
+                )
     with st.expander("Edit or delete this sentence", expanded=recorded.get("verdict") == "does not"):
         st.caption(
             "Keep each marker such as [E1] exactly as it is: it ties the sentence to its passage. "
@@ -1157,6 +1186,26 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
             st.rerun()
 
 
+def render_terms(draft: pipeline.Draft, article: assemble.Article) -> None:
+    """Terms the article uses in more than one section, with each sentence that uses
+    them, section by section. A term can be faithful to its passage each time and
+    still name two different things; only reading the uses together shows it."""
+    shared = article_terms.shared_terms(article.pairs, article.own_words)
+    if not shared:
+        return
+    with st.expander(f"Terms used in more than one section ({len(shared)})"):
+        st.caption(
+            "Check that each term means the same thing wherever it is used. The thesis itself may use "
+            "one term in two senses on different pages; each sentence can then match its passage and "
+            "the article still contradict itself. Nothing here is checked for you."
+        )
+        for term in shared:
+            st.markdown(f"**{term.term}** — in {term.sections} sections")
+            for section in sorted(term.uses):
+                for use in term.uses[section]:
+                    st.markdown(f"- *{draft.sections[section].heading}*: {use['sentence']}")
+
+
 def render_resume(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
     left = pipeline.planned_calls(draft)
     st.warning(
@@ -1197,6 +1246,7 @@ def render_step_review(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
             "Check that they add no fact of their own."
         )
     render_review(workspace, draft, article)
+    render_terms(draft, article)
     if st.button("Next: the finished article"):
         go_to_step(STEP_FINISH)
 

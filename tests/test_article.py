@@ -1,4 +1,4 @@
-"""The article writer's W0 trial — `article/` and `scripts/article_trial.py` (PLAN_V6).
+"""The article writer — `article/` and its command line, `write_article.py` (PLAN_V6).
 
 Offline. The generation model is replaced at `ask.call_model` and nowhere else;
 retrieval, validation, citation resolution and assembly are the real code.
@@ -20,7 +20,7 @@ from article import assemble, footnotes, pipeline, sources, topics, voice
 from article.assemble import GENERATED, RESEARCHER, FrameElement, SectionDraft
 from documents import LayoutProfile, default_document
 from pdf_factory import ThesisSpec, make_thesis
-from scripts import article_trial
+import write_article
 
 ROOT = Path(ask.__file__).resolve().parent
 
@@ -350,10 +350,15 @@ def trial(tmp_path, monkeypatch, fixture_index):
         def run(self, script=SCRIPT, **kwargs):
             self.model = Scripted(script)
             monkeypatch.setattr(ask, "call_model", self.model)
-            args = dict(chapter=1, title="FIXTURE harbour title", briefs=list(BRIEFS), headings=None,
-                        frame=GENERATED, references=[], out_dir=self.out_dir, stream=self.log)
+            args = dict(title="FIXTURE harbour title", briefs=list(BRIEFS), frame=GENERATED, references=[])
             args.update(kwargs)
-            self.code = article_trial.run_trial(**args)
+            outline = tmp_path / "outline.txt"
+            outline.write_text("\n".join(f"{brief.rstrip('?')} | {brief}" for brief in args["briefs"]), encoding="utf-8")
+            argv = ["--title", args["title"], "--outline", str(outline), "--out-dir", str(self.out_dir),
+                    "--frame", "generate" if args["frame"] == GENERATED else "none"]
+            for reference in args["references"]:
+                argv += ["--reference", str(reference)]
+            self.code = write_article.main(argv, self.log)
             folders = sorted(self.out_dir.glob("*")) if self.out_dir.exists() else []
             self.article = (folders[-1] / "article.md").read_text(encoding="utf-8") if folders else None
             self.record = json.loads((folders[-1] / "record.json").read_text(encoding="utf-8")) if folders else None
@@ -369,7 +374,7 @@ def test_the_trial_writes_one_assembled_article_and_its_record(trial):
     for heading in ("## FIXTURE: what did the lighthouse keeper log about lamp oil", "## Sources"):
         assert heading in t.article
     assert t.article.count(assemble.COMMENTARY_LABEL) == 4          # introduction, two transitions, conclusion
-    assert t.record["status"] == "draft" and t.record["topic"] == "FIXTURE chapter"
+    assert t.record["status"] == "draft"
     assert t.record["model"] == ask.settings.llm_model              # recorded, never set (hard rule 1)
     assert t.record["title"] == {"origin": "researcher", "text": "FIXTURE harbour title"}
     assert [s["blocked"] for s in t.record["sections"]] == [None, None, None]
@@ -377,7 +382,7 @@ def test_the_trial_writes_one_assembled_article_and_its_record(trial):
     assert t.record["support"] == {"supports": 0, "partly": 0, "does not": 0, "not judged": 3, "notes": 3, "pairs": 3}
     assert t.record["source_filter"]["reference_list_excluded"] == 1
     assert t.record["source_filter"]["passages_available"] == 5
-    assert "Notes to check: 3." in t.log.getvalue()
+    assert "Notes to check in the web app: 3." in t.log.getvalue()
 
 
 def test_frame_text_is_drafted_only_from_passages_the_sections_cite(trial):
@@ -487,19 +492,19 @@ def test_without_a_pdf_or_a_stored_map_nothing_is_drafted(trial):
 
 
 def test_the_trial_refuses_a_chapter_that_is_not_listed_or_the_wrong_number_of_briefs(trial):
-    assert trial.run(chapter=7).code == 2
     assert trial.run(briefs=BRIEFS[:2]).code == 2
     assert trial.run(briefs=BRIEFS * 3).code == 2                    # three to six sections
     assert trial.run(title="  ").code == 2                           # the title is the researcher's
     assert trial.model.calls == [] and not trial.out_dir.exists()
 
 
-def test_listing_topics_calls_no_model(trial, monkeypatch, capsys):
+def test_listing_topics_calls_no_model(trial, monkeypatch):
     monkeypatch.setattr(ask, "call_model", lambda *a: pytest.fail("the topic listing called the model"))
     monkeypatch.setattr(ask, "embed_texts", lambda *a, **k: pytest.fail("the topic listing embedded something"))
+    stream = io.StringIO()
 
-    assert article_trial.main(["--topics"]) == 0
-    assert " 1. FIXTURE chapter — 5 passages, pp. 3–11" in capsys.readouterr().out
+    assert write_article.main(["--topics"], stream) == 0
+    assert " 1. FIXTURE chapter — 5 passages, pp. 3–11" in stream.getvalue()
 
 
 def test_no_shell_exposes_drafting_from_chosen_passages():
