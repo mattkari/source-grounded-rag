@@ -13,6 +13,7 @@ reason, and shown.
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -82,7 +83,24 @@ def draft_section(workspace: Workspace, heading: str, brief: str) -> SectionDraf
     return SectionDraft(heading.strip(), brief.strip(), outcome, error)
 
 
-def edit_section(section: SectionDraft) -> SectionDraft:
+EXEMPLAR_WORDS = 300
+
+
+def voice_example(text: str) -> str:
+    """The opening of the researcher's own writing, to whole sentences, as much as the
+    editor is shown: about `EXEMPLAR_WORDS` words. Enough to hear a voice; too little to
+    be a source."""
+    kept, words = [], 0
+    for line in text.split("\n"):
+        for sentence in sentences.split(" ".join(line.split())):
+            if words and words + len(sentence.split()) > EXEMPLAR_WORDS:
+                return " ".join(kept)
+            kept.append(sentence)
+            words += len(sentence.split())
+    return " ".join(kept)
+
+
+def edit_section(section: SectionDraft, exemplar: str = "") -> SectionDraft:
     """The optional editorial pass: one more call, through the same model call and
     the same validation, asking for the validated prose to be rewritten for flow.
 
@@ -95,7 +113,12 @@ def edit_section(section: SectionDraft) -> SectionDraft:
         return section
     original = section.outcome.result["answer"]
     prompt, digest = checks.load_prompt(checks.EDITORIAL_PROMPT)
-    instructions = f"{prompt}\nDRAFT\n=====\n{original}"
+    # The researcher's own prose, if they gave some, is shown for its voice alone (ADR 0010).
+    # What a rewrite may add is still checked against the DRAFT only, so nothing of the
+    # example's content can pass into the section.
+    shown = voice_example(exemplar)
+    example = f"\nVOICE EXAMPLE\n=============\n{shown}\n" if shown else ""
+    instructions = f"{prompt}{example}\nDRAFT\n=====\n{original}"
     outcome, error = _attempt(lambda: ask.draft_from_evidence(section.brief, section.outcome.items, instructions=instructions))
     failures = [f"the pipeline failed: {error}"] if outcome is None else checks.editorial_failures(
         original, outcome.result, outcome.failures)
@@ -109,6 +132,9 @@ def edit_section(section: SectionDraft) -> SectionDraft:
         "system_prompt_sha256_12": outcome.prompt_hash if outcome else None,
         "similarity_to_original": round(difflib.SequenceMatcher(None, original, rewrite, autojunk=False).ratio(), 3)
         if rewrite else None,
+        # The example is the researcher's own text and stays out of this entry: its size and hash only.
+        "voice_example": {"words": len(shown.split()),
+                          "sha256_12": hashlib.sha256(shown.encode("utf-8")).hexdigest()[:12]} if shown else None,
         "voice_before": voice.measure(original),
         "voice_after": voice.measure(rewrite) if rewrite else None,
     }
@@ -225,6 +251,9 @@ class Draft:
     frame_suggestions: dict[str, list[dict]] = field(default_factory=dict)
     frame_plan: dict[str, str] = field(default_factory=dict)
     editorial: bool = False
+    # The researcher's own prose, shown to the editorial pass as an example of voice. Kept
+    # with the plan so an interrupted draft resumes with it; it is theirs, and stays local.
+    voice_exemplar: str = ""
     frame_done: set[str] = field(default_factory=set)   # generated frame steps already made
     complete: bool = True                               # False while steps of the plan remain
 
@@ -232,7 +261,7 @@ class Draft:
 def new_draft(title: str, outline: list[tuple[str, str]], *, topic: str | None = None,
               introduction: str = "none", transitions: str = "none", conclusion: str = "none",
               introduction_text: str = "", transitions_text: list[str] | None = None, conclusion_text: str = "",
-              commentary: bool = False, editorial: bool = False) -> Draft:
+              commentary: bool = False, editorial: bool = False, voice_exemplar: str = "") -> Draft:
     """A plan and nothing else: every section pending, no model called yet. Text the
     researcher wrote is placed at once; it needs no call."""
     check_outline(title, outline)
@@ -244,6 +273,7 @@ def new_draft(title: str, outline: list[tuple[str, str]], *, topic: str | None =
     typed = list(transitions_text or [])[:gaps] + [""] * max(gaps - len(transitions_text or []), 0)
     return Draft(
         title=title.strip(), topic=topic, commentary=commentary, editorial=editorial, frame_plan=plan, complete=False,
+        voice_exemplar=voice_exemplar if editorial else "",
         sections=[SectionDraft(heading.strip(), brief.strip(), pending=True) for heading, brief in outline],
         introduction=written(introduction_text) if introduction == RESEARCHER else None,
         transitions=[written(text) if transitions == RESEARCHER else None for text in typed],
@@ -294,7 +324,7 @@ def run(workspace: Workspace, draft: Draft, out_dir: Path | None = None, referen
     if draft.editorial:
         for index, section in enumerate(draft.sections):
             if usable(section) and section.editorial is None:
-                edit_section(section)
+                edit_section(section, draft.voice_exemplar)
                 done(f"editorial pass {index + 1}: {section.heading}")
     plan = draft.frame_plan
     if plan.get("introduction") == GENERATED and "introduction" not in draft.frame_done:
@@ -799,7 +829,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
         "commentary_switched_on": draft.commentary,
-        "plan": {"frame": draft.frame_plan, "editorial": draft.editorial},
+        "plan": {"frame": draft.frame_plan, "editorial": draft.editorial, "voice_exemplar": draft.voice_exemplar},
         "drafting": {"complete": draft.complete, "frame_steps_done": sorted(draft.frame_done),
                      "model_calls_remaining": planned_calls(draft)["model_calls"]},
         "sections": [section_record(section) for section in draft.sections],
@@ -944,6 +974,7 @@ def load(folder: Path, workspace: Workspace) -> Draft:
         frame_suggestions={kind: list(asked) for kind, asked in record.get("frame_suggestions", {}).items()},
         frame_plan=dict(record.get("plan", {}).get("frame", {})),
         editorial=record.get("plan", {}).get("editorial", False),
+        voice_exemplar=record.get("plan", {}).get("voice_exemplar", ""),
         frame_done=set(record.get("drafting", {}).get("frame_steps_done", [])),
         complete=record.get("drafting", {}).get("complete", True),
     )

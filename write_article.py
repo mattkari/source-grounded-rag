@@ -156,6 +156,9 @@ def main(argv: list[str] | None = None, stream=None) -> int:
     parser.add_argument("--conclusion-file", type=Path, metavar="FILE", help="your own conclusion")
     parser.add_argument("--commentary", action="store_true", help="print the model's commentary (one paragraph a section; needs your verdict)")
     parser.add_argument("--editorial", action="store_true", help="one more call per section to rewrite it for flow; kept only if it preserves")
+    parser.add_argument("--voice-example", type=Path, metavar="FILE",
+                        help="a file of your own published prose, shown to the editorial pass as an example of how "
+                             "you write (its opening, about 300 words). Needs --editorial. It is sent to the model.")
     parser.add_argument("--reference", action="append", default=[], type=Path, metavar="FILE",
                         help="a file of your own published writing, for the voice comparison")
     parser.add_argument("--document", metavar="ID", help="an approved uploaded thesis; default is the built-in one")
@@ -201,6 +204,7 @@ def main(argv: list[str] | None = None, stream=None) -> int:
         return 0
 
     missing = [str(path) for path in [args.outline, args.from_record, args.introduction_file, args.conclusion_file,
+                                      args.voice_example,
                                       *args.reference] if path is not None and not path.exists()]
     if missing:
         print(f"No such file: {', '.join(missing)}", file=stream)
@@ -226,6 +230,7 @@ def main(argv: list[str] | None = None, stream=None) -> int:
             conclusion, conclusion_text = _origin(args.frame, args.conclusion_file)
             draft = pipeline.new_draft(
                 title, outline, commentary=args.commentary, editorial=args.editorial,
+                voice_exemplar=args.voice_example.read_text(encoding="utf-8") if args.voice_example else "",
                 introduction=introduction, introduction_text=introduction_text,
                 transitions=pipeline.GENERATED if args.frame == GENERATE else "none",
                 conclusion=conclusion, conclusion_text=conclusion_text,

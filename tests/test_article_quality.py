@@ -684,16 +684,17 @@ def test_the_prompts_state_the_handle_format_and_their_new_versions_are_what_is_
     assert ask.settings.prompt_path.name == "system_grounded_v3.md"
     assert "One handle per bracket" in system and "`[E1, E2]`" in system and "`[E1, E2]`" not in old
     assert system.replace(system[system.index("7. **One handle per bracket.**"):system.index("# Reference apparatus")], "\n") == old
-    assert (checks.SECTION_PROMPT, checks.EDITORIAL_PROMPT) == ("article_section_v2.md", "article_editorial_v2.md")
+    assert (checks.SECTION_PROMPT, checks.EDITORIAL_PROMPT) == ("article_section_v2.md", "article_editorial_v3.md")
     for name in (checks.SECTION_PROMPT, checks.EDITORIAL_PROMPT):
         text, digest = checks.load_prompt(name)
         assert rule in text
-        assert digest != checks.load_prompt(name.replace("_v2", "_v1"))[1]          # the record shows the change
+        earlier = re.sub(r"_v(\d)", lambda m: f"_v{int(m.group(1)) - 1}", name)
+        assert digest != checks.load_prompt(earlier)[1]                  # the record shows the change
 
     section, _ = edited(workspace, monkeypatch, REWRITE)
     draft = pipeline.Draft("FIXTURE title", [section])
     prompts = pipeline.build_record(workspace, draft, pipeline.render(workspace, draft))["prompts"]
-    assert set(prompts) == {"article_section_v2.md", "article_editorial_v2.md"}
+    assert set(prompts) == {"article_section_v2.md", "article_editorial_v3.md"}
 
 
 def test_em_dashes_in_a_section_are_reported_and_printed_exactly_as_written(workspace, monkeypatch):
@@ -1406,3 +1407,70 @@ def test_the_table_is_capped_recorded_by_id_and_decides_nothing(workspace, monke
     assert article.blocked == [] and pipeline.export_blockers(draft, article) == ["3 of 3 sentences are not judged yet"]
     many = [{"sid": f"{s}.0", "section": s, "sentence": " ".join(f"FIXTURE alpha{n} beta{n}," for n in range(30))} for s in (0, 1)]
     assert len(terms.shared_terms(many)) == terms.SHOWN
+
+
+# =====================================================================================
+# ADR 0010: the researcher's own prose as an example of voice in the editorial pass
+# =====================================================================================
+
+OWN_PROSE = ("FIXTURE I walked the quay at dusk. But the lamps were not yet lit. So I waited by the wall. "
+             "Harland came down at seven, as he always did, and lit them one by one.")
+
+
+def test_the_example_is_shown_between_the_rules_and_the_draft_and_only_when_given(workspace, monkeypatch):
+    prompt, _ = checks.load_prompt(checks.EDITORIAL_PROMPT)
+    plain, model = edited(workspace, monkeypatch, REWRITE)
+    assert model.edits[0][0] == f"{prompt}\nDRAFT\n=====\n{ORIGINAL}"                 # no example: exactly as before
+    assert plain.editorial["voice_example"] is None
+
+    model = Editor(ORIGINAL, payload(REWRITE, cites=["E1", "E2"]))
+    monkeypatch.setattr(ask, "call_model", model)
+    section = pipeline.edit_section(pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0]), OWN_PROSE)
+
+    assert model.edits[0][0] == f"{prompt}\nVOICE EXAMPLE\n=============\n{OWN_PROSE}\n\nDRAFT\n=====\n{ORIGINAL}"
+    assert "Use it for one thing only: how the author writes." in prompt
+    assert section.editorial["accepted"] is True
+    assert section.editorial["voice_example"]["words"] == len(OWN_PROSE.split())
+    assert re.fullmatch(r"[0-9a-f]{12}", section.editorial["voice_example"]["sha256_12"])
+    assert "quay" not in json.dumps(section.editorial)                  # its size and hash, never its words
+
+
+def test_nothing_of_the_examples_content_can_pass_into_the_section(workspace, monkeypatch):
+    borrowed = "FIXTURE the keeper logged lamp oil [E1]. But Harland lit the lamps, and the oil came in winter [E2]."
+    model = Editor(ORIGINAL, payload(borrowed, cites=["E1", "E2"]))
+    monkeypatch.setattr(ask, "call_model", model)
+    section = pipeline.edit_section(pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0]), OWN_PROSE)
+
+    assert section.editorial["accepted"] is False and section.prose is None
+    assert section.editorial["rejected_because"] == ["new_terms: the rewrite adds “Harland”"]
+    first_person = payload("FIXTURE the keeper logged lamp oil [E1]. So I think the oil came in winter [E2].", cites=["E1", "E2"])
+    monkeypatch.setattr(ask, "call_model", Editor(ORIGINAL, first_person))
+    again = pipeline.edit_section(pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0]), OWN_PROSE)
+    assert again.editorial["rejected_because"] == ["new_terms: the rewrite adds “I”"]       # nor its first person
+
+
+def test_the_example_is_cut_to_whole_sentences_of_about_three_hundred_words():
+    long = " ".join(f"FIXTURE sentence number {n} has just eight words." for n in range(100))
+    shown = pipeline.voice_example(long)
+
+    assert len(shown.split()) == 296 and shown.endswith("words.")       # 37 sentences of eight words: under 300, none cut
+    assert pipeline.voice_example("FIXTURE short.\n\nFIXTURE and a second line.") == "FIXTURE short. FIXTURE and a second line."
+    assert pipeline.voice_example("") == ""
+
+
+def test_the_example_travels_with_the_plan_so_a_resumed_draft_still_has_it(workspace, monkeypatch, tmp_path):
+    draft = pipeline.new_draft("FIXTURE harbour title", OUTLINE, editorial=True, voice_exemplar=OWN_PROSE)
+    monkeypatch.setattr(ask, "call_model", Dying(at=5))                 # dies in the second rewrite
+    with pytest.raises(Restart):
+        pipeline.run(workspace, draft, tmp_path / "out")
+    (folder,) = (tmp_path / "out").iterdir()
+
+    seen = []
+    def model(question, items, instructions=None):
+        seen.append(instructions or "")
+        return payload("FIXTURE one thing [E1].", cites=["E1"]), "fixturehash"
+    monkeypatch.setattr(ask, "call_model", model)
+    pipeline.run(workspace, pipeline.load(folder, workspace), tmp_path / "out")
+
+    assert len(seen) == 2 and all("VOICE EXAMPLE\n=============\nFIXTURE I walked the quay" in i for i in seen)
+    assert pipeline.new_draft("FIXTURE t", OUTLINE, voice_exemplar=OWN_PROSE).voice_exemplar == ""     # no editorial pass: not kept

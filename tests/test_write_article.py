@@ -84,7 +84,7 @@ def test_the_command_line_writes_the_same_record_as_the_view(cli):
     assert run.code == 0 and len(run.model.calls) == 3
     assert record["schema_version"] == pipeline.SCHEMA_VERSION and record["status"] == "draft"
     assert record["plan"] == {"frame": {"introduction": "none", "transitions": "none", "conclusion": "none"},
-                              "editorial": False}
+                              "editorial": False, "voice_exemplar": ""}
     assert [s["heading"] for s in record["sections"]] == ["FIXTURE heading 1", "FIXTURE heading 2", "FIXTURE heading 3"]
     assert record["commentary_switched_on"] is False and record["frame"]["introduction"] is None
     assert run.text.count("  saved: section") == 3 and "saved: finished" in run.text
@@ -100,7 +100,7 @@ def test_the_switches_reach_the_plan(cli, tmp_path):
     record = cli.record()
 
     assert record["plan"] == {"frame": {"introduction": "researcher", "transitions": "generated",
-                                        "conclusion": "generated"}, "editorial": True}
+                                        "conclusion": "generated"}, "editorial": True, "voice_exemplar": ""}
     assert record["commentary_switched_on"] is True
     assert record["frame"]["introduction"] == {"origin": "researcher", "text": "FIXTURE my own opening words."}
     assert len(run.model.calls) == 3 + 3 + 2 + 1                        # sections, rewrites, transitions, conclusion
@@ -204,3 +204,13 @@ def test_the_dry_run_prints_the_retrieval_preview_when_asked_and_still_calls_no_
     assert run.model.calls == [] and len(embedded) == 3 and not cli.out.exists()
     assert "RETRIEVAL PREVIEW (embedding only; scores are diagnostics, not confidence)" in run.text
     assert f"  1. {BRIEFS[0]}" in run.text and "p. 3 " in run.text
+
+
+def test_a_voice_example_file_reaches_the_editorial_pass_from_the_command_line(cli, tmp_path):
+    mine = tmp_path / "mine.md"
+    mine.write_text("FIXTURE I walked the quay at dusk. But the lamps were not yet lit.", encoding="utf-8")
+    run = cli.new("--editorial", "--voice-example", str(mine))
+
+    assert cli.record()["plan"]["voice_exemplar"].startswith("FIXTURE I walked the quay")
+    assert sum(1 for i in run.model.instructions if i and "VOICE EXAMPLE" in i) == 3       # each rewrite, and only those
+    assert cli.run("--title", "FIXTURE t", "--outline", str(cli.outline_file), "--voice-example", str(tmp_path / "no.md")).code == 2

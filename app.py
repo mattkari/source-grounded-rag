@@ -767,6 +767,7 @@ def plan_draft(title: str, outline: list[tuple[str, str]], topic: str | None, fr
     origin = {I_WRITE: pipeline.RESEARCHER, GENERATE: pipeline.GENERATED}
     return pipeline.new_draft(
         title, outline, topic=topic, commentary=frame["commentary"], editorial=frame["editorial"],
+        voice_exemplar=st.session_state.get("article_reference", "") if frame.get("voice_example") else "",
         introduction=origin[frame["introduction"]], introduction_text=frame["introduction_text"],
         transitions=origin[frame["transitions"]],
         transitions_text=[line.strip() for line in frame["transitions_text"].splitlines() if line.strip()],
@@ -785,7 +786,7 @@ STEP_OUTLINE, STEP_FRAME, STEP_DRAFT, STEP_REVIEW, STEP_FINISH = range(5)
 PLAN_DEFAULTS = {
     "topic": OWN_TOPIC, "title": "", "outline": "",
     "introduction": I_WRITE, "introduction_text": "", "transitions": I_WRITE, "transitions_text": "",
-    "conclusion": I_WRITE, "conclusion_text": "", "commentary": False, "editorial": False,
+    "conclusion": I_WRITE, "conclusion_text": "", "commentary": False, "editorial": False, "voice_example": False,
 }
 
 
@@ -917,6 +918,13 @@ def render_step_frame() -> None:
                                      key="article_reference_file")
         if reference is not None:
             st.session_state.article_reference = reference.getvalue().decode("utf-8", errors="replace")
+        remembered(
+            "voice_example", st.checkbox,
+            "Show its opening to the editorial pass as an example of how I write",
+            help="About 300 words of it are sent to the model with each section, for its voice only: the "
+                 "length of your sentences and how you join them. A rewrite still may add no name, number "
+                 "or term the section did not have. It needs the editorial pass switched on.",
+        )
     if st.button("Next: check the plan", type="primary"):
         go_to_step(STEP_DRAFT)
 
@@ -933,8 +941,10 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
         f"- {part.capitalize()}: " + ("yours" if plan[f"{part}_text"].strip() else "left out for now")
         for part in ("introduction", "transitions", "conclusion")
     ))
+    voiced = plan["editorial"] and plan["voice_example"] and st.session_state.get("article_reference")
     st.markdown(f"- Commentary: {'on' if plan['commentary'] else 'off'}\n"
-                f"- Editorial pass: {'on' if plan['editorial'] else 'off'}")
+                f"- Editorial pass: {'on' if plan['editorial'] else 'off'}"
+                + (", with your own writing as its example of voice" if voiced else ""))
     st.caption(
         f"Drafting makes {calls['sections']} model call(s) for the sections and up to "
         f"{calls['editorial']} for the editorial pass. Nothing is "
