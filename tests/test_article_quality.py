@@ -1474,3 +1474,100 @@ def test_the_example_travels_with_the_plan_so_a_resumed_draft_still_has_it(works
 
     assert len(seen) == 2 and all("VOICE EXAMPLE\n=============\nFIXTURE I walked the quay" in i for i in seen)
     assert pipeline.new_draft("FIXTURE t", OUTLINE, voice_exemplar=OWN_PROSE).voice_exemplar == ""     # no editorial pass: not kept
+
+
+# =====================================================================================
+# ADR 0011: a second opinion from the model, after the researcher's verdict
+# =====================================================================================
+
+AGREES = payload("FIXTURE the passage says the keeper logged lamp oil [E1].", cites=["E1"])
+PARTLY = payload("FIXTURE the passage says oil was logged [E1].", cites=["E1"], sufficiency="partial",
+                 limitations=["FIXTURE it does not say the oil came by sea."])
+AGAINST = {**REFUSAL, "unsupported_by_evidence": ["FIXTURE the passage gives this to Harland, not to the thesis."]}
+
+
+class Reader(Scripted):
+    """Answers a brief from the script, and a support task with the reading it was given."""
+
+    def __init__(self, reading):
+        super().__init__({**SCRIPT, "lighthouse": payload(TWO, cites=["E1", "E2"])})
+        self.reading, self.readings = reading, []
+
+    def __call__(self, question, items, instructions=None):
+        if instructions and instructions.startswith("SUPPORT TASK"):
+            self.readings.append((question, [(i.handle, i.chunk["chunk_id"]) for i in items], instructions))
+            if isinstance(self.reading, BaseException):
+                raise self.reading
+            return self.reading, "fixturehash"
+        return super().__call__(question, items, instructions)
+
+
+def judged(workspace, monkeypatch, reading, verdict="supports"):
+    model = Reader(reading)
+    monkeypatch.setattr(ask, "call_model", model)
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+    article = pipeline.render(workspace, draft)
+    for pair in article.pairs:
+        pipeline.set_pair_verdict(draft, pair, verdict)
+    return draft, article, model
+
+
+def test_a_second_opinion_is_not_given_before_the_researchers_own_verdict(workspace, monkeypatch):
+    model = Reader(AGREES)
+    monkeypatch.setattr(ask, "call_model", model)
+    draft = pipeline.Draft("FIXTURE title", [pipeline.draft_section(workspace, "FIXTURE heading", BRIEFS[0])])
+    pair = pipeline.render(workspace, draft).pairs[0]
+
+    with pytest.raises(pipeline.ArticleError, match="Give your own verdict on this sentence first"):
+        pipeline.second_opinion(workspace, draft, pair)
+    assert model.readings == [] and draft.second_opinions == {}
+
+
+@pytest.mark.parametrize(("reading", "opinion", "reason"), [
+    (AGREES, "supports", "FIXTURE the passage says the keeper logged lamp oil."),
+    (PARTLY, "partly", "FIXTURE the passage says oil was logged. FIXTURE it does not say the oil came by sea."),
+    (AGAINST, "does not", "FIXTURE the passage gives this to Harland, not to the thesis."),
+])
+def test_the_model_reads_the_one_cited_passage_and_its_reading_changes_no_verdict(workspace, monkeypatch, reading, opinion, reason):
+    draft, article, model = judged(workspace, monkeypatch, reading)
+    embedded, embed = [], ask.embed_texts
+    monkeypatch.setattr(ask, "embed_texts", lambda texts, **kw: embedded.append(texts) or embed(texts, **kw))
+    pair = article.pairs[2]                                             # the second sentence with its second note
+    given = pipeline.second_opinion(workspace, draft, pair)
+    question, items, instructions = model.readings[0]
+    prompt, digest = checks.load_prompt(checks.SUPPORT_PROMPT)
+
+    assert (given["opinion"], given["reason"], given["not_offered_because"]) == (opinion, reason, [])
+    assert items == [("E1", pair["chunk_id"])] and embedded == []       # the one passage, nothing retrieved
+    assert instructions == f"{prompt}\nSENTENCE\n========\nFIXTURE the oil came by sea."     # no marker of the article's
+    assert len(model.readings) == 1 and given["asked_after_verdict"] == "supports"
+    after = pipeline.render(workspace, draft)
+    assert pipeline.pair_verdict(draft, pair)["verdict"] == "supports"  # the researcher's verdict stands
+    assert pipeline.status(draft, after) == "reviewed" and pipeline.export_blockers(draft, after) == []
+    record = pipeline.build_record(workspace, draft, after)
+    assert record["pairs"][2]["second_opinion"]["opinion"] == opinion and record["pairs"][0]["second_opinion"] is None
+    assert record["pairs"][2]["verdict"] == "supports" and record["support"]["supports"] == 3
+    assert record["prompts"][checks.SUPPORT_PROMPT] == digest
+
+
+@pytest.mark.parametrize(("reading", "why"), [
+    (payload("FIXTURE it is supported, see p. 9 [E1].", cites=["E1"]), "validation failed: invented_page_reference"),
+    (payload("FIXTURE it is supported [E2].", cites=["E2"]), "validation failed: citation_hallucination"),
+    (RuntimeError("FIXTURE provider outage"), "the pipeline failed: RuntimeError: FIXTURE provider outage"),
+])
+def test_a_reading_that_fails_is_recorded_and_no_opinion_is_shown(workspace, monkeypatch, reading, why):
+    draft, article, model = judged(workspace, monkeypatch, reading)
+    given = pipeline.second_opinion(workspace, draft, article.pairs[0])
+
+    assert given["opinion"] is None and given["reason"] == "" and given["not_offered_because"][0].startswith(why)
+    assert len(model.readings) == 1                                     # asked once, not again
+
+
+def test_an_opinion_lapses_when_the_sentence_is_edited_and_survives_reopening_otherwise(workspace, monkeypatch, tmp_path):
+    draft, article, _ = judged(workspace, monkeypatch, AGAINST)
+    pipeline.second_opinion(workspace, draft, article.pairs[0])
+    reopened = pipeline.load(pipeline.save(workspace, draft, tmp_path / "out"), workspace)
+    assert pipeline.opinion_on(reopened, pipeline.render(workspace, reopened).pairs[0])["opinion"] == "does not"
+
+    pipeline.edit_sentence(reopened, "0.0", "FIXTURE the keeper kept a ledger of lamp oil [E1].")
+    assert pipeline.opinion_on(reopened, pipeline.render(workspace, reopened).pairs[0]) is None

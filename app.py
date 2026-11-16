@@ -1059,6 +1059,25 @@ def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict
     reason = st.text_input("Reason (optional)", value=recorded.get("reason", ""), key=f"article_reason_{key}")
     if recorded.get("verdict") == "does not":
         st.warning("Judged “does not”. The article stays a draft until this sentence is edited or deleted.")
+    if recorded.get("verdict"):
+        # Offered only once the researcher has judged: it is compared with a verdict, it never makes one.
+        opinion = pipeline.opinion_on(draft, pair)
+        if opinion is None:
+            if st.button("Ask the model for a second opinion (one model call)", key=f"article_opinion_{key}"):
+                with st.spinner("Asking whether the passage supports the sentence…"):
+                    pipeline.second_opinion(workspace, draft, pair)
+                persist(workspace, draft)
+                st.rerun()
+        elif opinion["opinion"] is None:
+            st.caption("A second opinion was asked for and could not be given: "
+                       + "; ".join(opinion["not_offered_because"]) + ".")
+        else:
+            st.info(f"**The model's reading, not a verdict: {opinion['opinion']}.** {opinion['reason']}")
+            if opinion["opinion"] != recorded["verdict"]:
+                st.warning(
+                    f"It differs from your verdict ({recorded['verdict']}). Read the passage again. "
+                    "Your verdict stands until you change it."
+                )
     with st.expander("Edit or delete this sentence", expanded=recorded.get("verdict") == "does not"):
         st.caption(
             "Keep each marker such as [E1] exactly as it is: it ties the sentence to its passage. "

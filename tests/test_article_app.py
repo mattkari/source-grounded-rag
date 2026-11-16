@@ -687,3 +687,24 @@ def test_terms_used_in_more_than_one_section_are_listed_in_the_review(view):
     assert "- *FIXTURE third heading*: FIXTURE the amber beacon warns ships off [4]." in shown
     assert "Nothing here is checked for you." in shown and len(view.model.calls) == 3
 
+
+
+def test_a_second_opinion_is_offered_only_after_a_verdict_and_never_changes_it(view, monkeypatch):
+    draft(view)
+    assert not [b for b in view.button if b.label.startswith("Ask the model for a second opinion")]     # not before a verdict
+
+    judge(view, ["supports"])
+    button(view, "Previous").click()
+    view.run()
+    monkeypatch.setattr(ask, "call_model", lambda question, items, instructions=None: (
+        {"evidence_sufficiency": "insufficient", "answer": None, "limitations": [], "ai_interpretation": [],
+         "unsupported_by_evidence": ["FIXTURE the passage gives this to another scholar."], "citations_used": []},
+        "fixturehash"))
+    button(view, "Ask the model for a second opinion (one model call)").click()
+    view.run()
+    shown, pair = all_text(view), record(view)["pairs"][0]
+
+    assert "**The model's reading, not a verdict: does not.** FIXTURE the passage gives this to another scholar." in shown
+    assert "It differs from your verdict (supports). Read the passage again. Your verdict stands until you change it." in shown
+    assert (pair["verdict"], pair["second_opinion"]["opinion"]) == ("supports", "does not")
+    assert current_verdict(view).value == "supports"

@@ -245,6 +245,9 @@ class Draft:
     # "<sid>|<chunk id>" -> {"verdict", "reason", "judged_at", "judged_text"}: the researcher's
     # verdict on one sentence and one note it carries, and the text it was given on.
     pair_verdicts: dict[str, dict] = field(default_factory=dict)
+    # "<sid>|<chunk id>" -> the model's second opinion on that pair, asked for by the researcher
+    # after their own verdict (ADR 0011). It is never a verdict and changes none.
+    second_opinions: dict[str, dict] = field(default_factory=dict)
     sentence_edits: dict[str, dict] = field(default_factory=dict)
     own_words: dict[str, dict] = field(default_factory=dict)     # sid -> {"kept_at": iso}: unnoted, kept as theirs
     # "introduction" | "conclusion" -> every suggestion asked for, newest last (ADR 0008)
@@ -584,6 +587,55 @@ def pair_flags(workspace: Workspace, pair: dict) -> list[str]:
     return checks.reported_speech_flags(pair["raw"], matches[0].text) if matches else []
 
 
+_OPINIONS = {"sufficient": "supports", "partial": "partly", "insufficient": "does not"}
+
+
+def second_opinion(workspace: Workspace, draft: Draft, pair: dict) -> dict:
+    """Ask the model, once, whether the cited passage supports this sentence.
+
+    Only after the researcher has given their own verdict on the pair: the
+    opinion is there to be compared with a judgement already made, not to make
+    it. It is shown as the model's reading and recorded apart from the verdict.
+    It accepts nothing, rejects nothing and blocks nothing; the researcher's
+    verdict stands until the researcher changes it.
+
+    One call, through the same model call and validation, on the one cited
+    passage: nothing is retrieved. An answer that fails validation is recorded
+    and no opinion is shown.
+    """
+    if pair_verdict(draft, pair) is None:
+        raise ArticleError("Give your own verdict on this sentence first. A second opinion comes after it.")
+    item = ask.EvidenceItem("E1", workspace.by_id[pair["chunk_id"]], 0.0, workspace.document)
+    # The sentence as the model is shown it: its note markers removed, so that none of its
+    # handles is mistaken for the one passage in front of the model.
+    shown = re.sub(r"\s+([.,;:])", r"\1", re.sub(r"\s*\[E\d+\]", "", pair["raw"])).strip()
+    prompt, digest = checks.load_prompt(checks.SUPPORT_PROMPT)
+    outcome, error = _attempt(lambda: ask.draft_from_evidence(
+        "Does the passage support the sentence?", [item], instructions=f"{prompt}\nSENTENCE\n========\n{shown}"))
+    problems = ([f"the pipeline failed: {error}"] if outcome is None
+                else [f"validation failed: {'; '.join(outcome.failures)}"] if outcome.failures else [])
+    result = outcome.result if outcome else {}
+    opinion = None if problems else _OPINIONS.get(result.get("evidence_sufficiency"))
+    if outcome and not problems and opinion is None:
+        problems.append("no_opinion: the model's answer names none of the three")
+    reason = " ".join([result.get("answer") or "", *result.get("limitations", []),
+                       *result.get("unsupported_by_evidence", [])]).strip()
+    given = {
+        "opinion": opinion, "reason": ask.scrub_handles(re.sub(r"\s*\[E1\]", "", reason)) if opinion else "",
+        "not_offered_because": problems, "prompt": checks.SUPPORT_PROMPT, "prompt_sha256_12": digest,
+        "system_prompt_sha256_12": outcome.prompt_hash if outcome else None, "asked_at": _now(),
+        "asked_after_verdict": pair_verdict(draft, pair)["verdict"], "judged_text": pair["raw"],
+    }
+    draft.second_opinions[pair_key(pair)] = given
+    return given
+
+
+def opinion_on(draft: Draft, pair: dict) -> dict | None:
+    """The second opinion asked for on this pair, if the sentence still reads as it did."""
+    given = draft.second_opinions.get(pair_key(pair))
+    return given if given and given["judged_text"] == pair["raw"] else None
+
+
 def pairs_record(draft: Draft, article: assemble.Article, workspace: Workspace | None = None) -> list[dict]:
     """Every sentence-and-note pair the article has, with the researcher's verdict,
     and every pair it had: a sentence deleted after a verdict keeps that verdict here."""
@@ -599,6 +651,8 @@ def pairs_record(draft: Draft, article: assemble.Article, workspace: Workspace |
             # the text the verdict was given on; None for a verdict carried over from a note
             "raw": None if given.get("carried_over") or not given else pair["raw"],
             "raised": pair_flags(workspace, pair) if workspace is not None else [],
+            # The model's reading, asked for after the verdict above. Not a verdict.
+            "second_opinion": opinion_on(draft, pair),
         })
     for key, given in draft.pair_verdicts.items():
         sid, chunk_id = key.split("|", 1)
@@ -825,6 +879,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             **({checks.EDITORIAL_PROMPT: checks.load_prompt(checks.EDITORIAL_PROMPT)[1]}
                if any(section.editorial for section in draft.sections) else {}),
             **({checks.FRAME_PROMPT: checks.load_prompt(checks.FRAME_PROMPT)[1]} if draft.frame_suggestions else {}),
+            **({checks.SUPPORT_PROMPT: checks.load_prompt(checks.SUPPORT_PROMPT)[1]} if draft.second_opinions else {}),
         },
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
@@ -971,6 +1026,10 @@ def load(folder: Path, workspace: Workspace) -> Draft:
         },
         article_id=record["article_id"],
         created=record["created"],
+        second_opinions={
+            f"{row['sid']}|{row['chunk_id']}": row["second_opinion"]
+            for row in record.get("pairs", []) if row.get("second_opinion")
+        },
         frame_suggestions={kind: list(asked) for kind, asked in record.get("frame_suggestions", {}).items()},
         frame_plan=dict(record.get("plan", {}).get("frame", {})),
         editorial=record.get("plan", {}).get("editorial", False),

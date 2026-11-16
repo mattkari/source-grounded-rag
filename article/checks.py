@@ -19,6 +19,7 @@ PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
 SECTION_PROMPT = "article_section_v2.md"
 EDITORIAL_PROMPT = "article_editorial_v3.md"
 FRAME_PROMPT = "article_frame_v1.md"
+SUPPORT_PROMPT = "article_support_v1.md"
 
 _HANDLE = r"\[E\d+\]"
 _HANDLES = rf"{_HANDLE}(?:\s*(?:,|and|&)?\s*{_HANDLE})*"
