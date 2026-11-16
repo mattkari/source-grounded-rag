@@ -38,7 +38,8 @@ import ask
 import audit
 import runs
 import upload
-from article import assemble, pipeline, sources as article_sources, topics as article_topics, voice
+from article import assemble, pipeline, sentences as article_sentences, sources as article_sources
+from article import topics as article_topics, voice
 from config import settings
 from documents import Document, default_document
 
@@ -90,6 +91,7 @@ PAGE_STYLE = """
   [data-testid="stMain"], [data-testid="stAppScrollToBottomContainer"] {scroll-padding-top: 5rem;}
   .st-key-backtotop a {display: inline-block; min-height: 44px; padding: 0.6rem 0;}
   .sgrag-copy {display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;}
+  .sgrag-copy-button[disabled] {opacity: 0.45; cursor: not-allowed;}
   .sgrag-copy-button {min-height: 44px; padding: 0.4rem 0.9rem; border-radius: 0.5rem; cursor: pointer; font: inherit;
     color: inherit; background: transparent; border: 1px solid rgba(128, 128, 128, 0.6);}
 
@@ -244,27 +246,42 @@ def render_diagnostics(outcome: ask.QueryOutcome) -> None:
 
 COPY_SCRIPT = """
 <div class="sgrag-copy">
-  <button type="button" id="copy-__ID__" class="sgrag-copy-button">__LABEL__</button>
+  <button type="button" id="copy-__ID__" class="sgrag-copy-button" __DISABLED__>__LABEL__</button>
   <span id="copy-status-__ID__" class="sgrag-copy-status" role="status" aria-live="polite"></span>
 </div>
 <script>
 (() => {
   const text = __TEXT__;
+  const rich = __HTML__;
   const button = document.getElementById("copy-__ID__");
   const status = document.getElementById("copy-status-__ID__");
   const label = button.textContent;
   button.addEventListener("click", async () => {
     let copied = false;
     try {
-      if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); copied = true; }
+      if (navigator.clipboard && window.isSecureContext) {
+        if (rich && window.ClipboardItem) {
+          await navigator.clipboard.write([new ClipboardItem({
+            "text/html": new Blob([rich], {type: "text/html"}), "text/plain": new Blob([text], {type: "text/plain"})})]);
+        } else { await navigator.clipboard.writeText(text); }
+        copied = true;
+      }
     } catch (error) {}
     if (!copied) {
       // The page is served over plain http, where browsers withhold the clipboard API.
-      const area = document.createElement("textarea");
-      area.value = text; area.setAttribute("readonly", ""); area.style.position = "fixed"; area.style.opacity = "0";
-      document.body.appendChild(area); area.select();
+      // Formatted text is copied by selecting it as rendered; plain text from a text box.
+      const holder = document.createElement(rich ? "div" : "textarea");
+      if (rich) { holder.innerHTML = rich; holder.setAttribute("contenteditable", "true"); }
+      else { holder.value = text; holder.setAttribute("readonly", ""); }
+      holder.style.position = "fixed"; holder.style.left = "-9999px"; holder.style.opacity = "0";
+      document.body.appendChild(holder);
+      if (rich) {
+        const range = document.createRange(); range.selectNodeContents(holder);
+        const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      } else { holder.select(); }
       try { copied = document.execCommand("copy"); } catch (error) {}
-      area.remove();
+      if (rich) { window.getSelection().removeAllRanges(); }
+      holder.remove();
     }
     button.textContent = copied ? "Copied" : label;
     status.textContent = copied ? "Copied to the clipboard." : "Could not copy. Select the text and copy it by hand.";
@@ -304,15 +321,21 @@ def copy_text(outcome: ask.QueryOutcome) -> str:
     return "\n".join(lines)
 
 
-def copy_button(text: str, label: str, key: str) -> None:
+def copy_button(text: str, label: str, key: str, rich: str | None = None, disabled: bool = False) -> None:
     """One tap copies `text`. The label changes to "Copied" and the result is
     announced to a screen reader (WCAG 4.1.3). It falls back to the older copy
     command, because the app is served over plain http, where the clipboard API
-    is not available."""
+    is not available. With `rich`, formatted HTML is copied, so that an editor
+    keeps headings and lists on paste, with `text` as the plain form."""
     identity = re.sub(r"[^a-zA-Z0-9]", "-", key)
+
+    def literal(value: str | None) -> str:
+        return "null" if value is None else json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
+
     st.html(
         COPY_SCRIPT.replace("__ID__", identity).replace("__LABEL__", html.escape(label))
-        .replace("__TEXT__", json.dumps(text, ensure_ascii=False).replace("</", "<\\/")),
+        .replace("__DISABLED__", "disabled" if disabled else "")
+        .replace("__TEXT__", literal(text)).replace("__HTML__", literal(rich)),
         unsafe_allow_javascript=True,
     )
 
@@ -729,11 +752,10 @@ def parse_outline(text: str) -> list[tuple[str, str]]:
     return outline
 
 
-def outline_from(topic: article_topics.Topic) -> str:
-    ranked = sorted(topic.sections, key=lambda s: -s.passages)[: pipeline.MIN_SECTIONS]
-    chosen = [section for section in topic.sections if section in ranked]
-    briefs = article_topics.default_briefs(topic, pipeline.MIN_SECTIONS)
-    return "\n".join(f"{section.title} | {brief}" for section, brief in zip(chosen, briefs))
+def outline_from(topic: article_topics.Topic, kind: str = article_topics.SUMMARY) -> str:
+    """An outline to edit, from the chapter's own section titles. No model is involved."""
+    return "\n".join(f"{heading} | {brief}"
+                     for heading, brief in article_topics.outline(topic, kind, pipeline.MIN_SECTIONS))
 
 
 def persist(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
@@ -805,8 +827,7 @@ def planned(plan: dict) -> tuple[list[tuple[str, str]], dict]:
     return outline, {
         "sections": len(outline),
         "editorial": len(outline) if plan["editorial"] else 0,
-        "frame": sum(plan[part] == GENERATE for part in ("introduction", "conclusion"))
-        + (max(len(outline) - 1, 0) if plan["transitions"] == GENERATE else 0),
+        "frame": 0,                                     # the frame is yours, or a suggestion asked for later
     }
 
 
@@ -845,8 +866,14 @@ def render_step_outline(workspace: pipeline.Workspace, document: Document) -> No
     topic = listed[labels.index(choice)] if choice != OWN_TOPIC else None
     if topic is not None:
         st.caption("Sections: " + "; ".join(f"{s.title} ({s.passages})" for s in topic.sections))
+        kind = st.selectbox(
+            "What each section should do", article_topics.OUTLINE_KINDS, key="article_outline_kind",
+            help="“What it says” asks for a summary of each section. The others ask for a step in an "
+                 "argument: a definition, how something works, a comparison, what follows, what is left open. "
+                 "The questions are built from the thesis's own section titles, with no model. Edit them freely.",
+        )
         if st.button("Fill the outline from this chapter's sections"):
-            plan["outline"] = st.session_state.article_outline = outline_from(topic)
+            plan["outline"] = st.session_state.article_outline = outline_from(topic, kind)
             st.rerun()
     remembered("title", st.text_input, "Title (yours to write)")
     remembered(
@@ -869,13 +896,12 @@ def render_step_frame() -> None:
     step_header(STEP_FRAME)
     st.caption(
         "The introduction, transitions and conclusion are not on a page of the thesis, so none can be "
-        "cited. Write them yourself, or have them generated from the passages the sections cite. "
-        "Generated text is marked in the article as commentary. A box left empty leaves that part out."
+        "cited. Write them here if you have them. A box left empty leaves that part out. After drafting "
+        "you can ask for a suggested introduction and conclusion, written from the article's own text, "
+        "and edit it before it is used."
     )
     for part, hint in (("introduction", ""), ("transitions", " — one per line, in order"), ("conclusion", "")):
-        origin = remembered(part, st.radio, part.capitalize(), [I_WRITE, GENERATE], horizontal=True)
-        if origin == I_WRITE:
-            remembered(f"{part}_text", st.text_area, f"Your {part}{hint}", height=90)
+        remembered(f"{part}_text", st.text_area, f"Your {part}{hint} (optional)", height=90)
     remembered(
         "commentary", st.checkbox, "Include the model's own commentary (one paragraph per section at most)",
         help="Commentary is the model's inference, not the author's position. It is marked as such, "
@@ -904,18 +930,28 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
     st.markdown(f"**{plan['title'] or '(no title yet)'}**")
     st.markdown("\n".join(f"{n}. **{heading}** — {brief}" for n, (heading, brief) in enumerate(outline, start=1)))
     st.markdown("\n".join(
-        f"- {part.capitalize()}: " + ("generated as labelled commentary" if plan[part] == GENERATE
-                                      else "yours" if plan[f"{part}_text"].strip() else "left out")
+        f"- {part.capitalize()}: " + ("yours" if plan[f"{part}_text"].strip() else "left out for now")
         for part in ("introduction", "transitions", "conclusion")
     ))
     st.markdown(f"- Commentary: {'on' if plan['commentary'] else 'off'}\n"
                 f"- Editorial pass: {'on' if plan['editorial'] else 'off'}")
     st.caption(
         f"Drafting makes {calls['sections']} model call(s) for the sections and up to "
-        f"{calls['frame'] + calls['editorial']} for generated frame text and the editorial pass. Nothing is "
+        f"{calls['editorial']} for the editorial pass. Nothing is "
         "retried. Each finished step is saved, so an interrupted draft can be resumed."
     )
+    if st.button("Preview what each section would draw on (no model call)"):
+        with st.spinner("Finding the passages each question would draw on…"):
+            st.session_state.article_preview = pipeline.format_preview(
+                [pipeline.preview(workspace, brief) for _, brief in outline])
+    if st.session_state.get("article_preview"):
+        st.code(st.session_state.article_preview, language="text")
+        st.caption(
+            "One embedding call per section, nothing generated. A low score is a reason to look at the "
+            "question again; it is a diagnostic, not a measure of confidence."
+        )
     if st.button("Draft the article", type="primary"):
+        st.session_state.pop("article_preview", None)
         topic = None if plan["topic"] == OWN_TOPIC else plan["topic"].split(" — ")[0]
         try:
             draft = plan_draft(plan["title"], outline, topic, plan)
@@ -968,48 +1004,100 @@ def render_section_choices(workspace: pipeline.Workspace, draft: pipeline.Draft)
 def review_items(article: assemble.Article) -> list[tuple[str, dict]]:
     """Everything that needs the researcher's verdict, in reading order: the notes,
     then each commentary paragraph that is printed."""
-    return [("note", note) for note in article.notes] + [
+    return [("held", held) for held in article.held_back] + [("pair", pair) for pair in article.pairs] + [
         ("commentary", entry) for entry in article.commentary if entry["printed"]]
 
 
 def is_judged(draft: pipeline.Draft, kind: str, item: dict) -> bool:
-    if kind == "note":
-        return bool(draft.verdicts.get(item["chunk_id"], {}).get("verdict"))
+    if kind == "held":
+        return False                                    # it leaves the list once deleted or kept
+    if kind == "pair":
+        return pipeline.pair_verdict(draft, item) is not None
     return bool(draft.commentary_verdicts.get(item["section"], {}).get("verdict"))
 
 
-def render_note(workspace: pipeline.Workspace, draft: pipeline.Draft, article: assemble.Article, note: dict):
-    chunk = workspace.by_id[note["chunk_id"]]
-    recorded = draft.verdicts.get(note["chunk_id"], {})
-    st.markdown(f"**Note [{note['n']}]** — {ask.page_phrase(chunk)}")
+def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict):
+    """One sentence and one note it carries, beside the sentences of the cited passage
+    that share most of its words. The matching only chooses what to show: the verdict
+    is the researcher's, on reading."""
+    chunk = workspace.by_id[pair["chunk_id"]]
+    recorded = pipeline.pair_verdict(draft, pair) or {}
+    st.markdown(f"**Sentence with note [{pair['n']}]**, in “{pair['heading']}” — {ask.page_phrase(chunk)}")
     left, right = st.columns(2)
     with left:
-        st.caption("The article says")
-        for sentence in article.carriers.get(note["n"], []):
-            st.markdown(f"> {sentence}")
+        st.caption("The article says" + (" (edited by you)" if pair["edited"] else ""))
+        st.markdown(f"> {pair['sentence']}")
     with right:
-        st.caption("The passage it cites" + (" (footnote text removed)"
-                                            if note["chunk_id"] in workspace.sources.removed else ""))
-        # Reflowed: the index keeps the PDF's line breaks, which read as ragged
-        # short lines. No inner scroll box: a keyboard cannot scroll one.
+        matches = article_sentences.best_matches(pair["raw"], chunk["text"])
+        st.caption("Closest sentences in the passage it cites, shared words in bold"
+                   + (" (footnote text removed)" if pair["chunk_id"] in workspace.sources.removed else ""))
+        if not matches:
+            st.warning("No sentence of the cited passage shares a word of substance with this one. Read the whole passage.")
+        for match in matches:
+            st.markdown(f"- {article_sentences.highlight(match.text, match.shared)}")
+    for flag in pipeline.pair_flags(workspace, pair):
+        st.warning(f"Check the attribution: {flag}.")
+    with st.expander("The whole passage"):
+        # Reflowed: the index keeps the PDF's line breaks, which read as ragged short lines.
         st.text(" ".join(chunk["text"].split()))
+    if recorded.get("carried_over"):
+        st.caption("Carried over: this verdict was given to the whole note, before sentences were judged one by one.")
     options = [NOT_JUDGED, *assemble.VERDICTS]
-    verdict = st.radio("Does the passage support it?", options, horizontal=True,
-                       index=options.index(recorded.get("verdict", NOT_JUDGED)),
-                       key=f"article_verdict_{note['chunk_id']}")
-    reason = st.text_input("Reason (optional)", value=recorded.get("reason", ""),
-                           key=f"article_reason_{note['chunk_id']}")
+    key = pipeline.pair_key(pair).replace("|", "_")
+    verdict = st.radio("Does the passage support this sentence?", options, horizontal=True,
+                       index=options.index(recorded.get("verdict", NOT_JUDGED)), key=f"article_verdict_{key}")
+    reason = st.text_input("Reason (optional)", value=recorded.get("reason", ""), key=f"article_reason_{key}")
     if recorded.get("verdict") == "does not":
-        st.warning("Judged “does not”. The article stays a draft until these sentences are removed.")
-        if st.button("Remove the sentences that carry this note", key=f"article_remove_{note['chunk_id']}"):
-            pipeline.remove_sentences(draft, note["chunk_id"])
-            persist(workspace, draft)
-            st.rerun()
+        st.warning("Judged “does not”. The article stays a draft until this sentence is edited or deleted.")
+    with st.expander("Edit or delete this sentence", expanded=recorded.get("verdict") == "does not"):
+        st.caption(
+            "Keep each marker such as [E1] exactly as it is: it ties the sentence to its passage. "
+            "An edited sentence needs a fresh verdict."
+        )
+        wording = st.text_area("The sentence", value=pair["raw"], key=f"article_edit_{key}", height=110)
+        save_edit, delete = st.columns(2)
+        with save_edit:
+            if st.button("Save my edit", key=f"article_save_edit_{key}", use_container_width=True):
+                try:
+                    pipeline.edit_sentence(draft, pair["sid"], wording)
+                    persist(workspace, draft)
+                    st.rerun()
+                except pipeline.ArticleError as exc:
+                    st.error(str(exc))
+        with delete:
+            if st.button("Delete this sentence", key=f"article_delete_{key}", use_container_width=True):
+                pipeline.delete_sentence(draft, pair["sid"])
+                persist(workspace, draft)
+                st.rerun()
 
     def save() -> None:
-        if verdict != NOT_JUDGED and (verdict, reason.strip()) != (recorded.get("verdict"), recorded.get("reason")):
-            pipeline.set_verdict(draft, note["chunk_id"], verdict, reason)
+        changed = (verdict, reason.strip()) != (recorded.get("verdict"), recorded.get("reason", ""))
+        if verdict != NOT_JUDGED and (changed or recorded.get("carried_over")):
+            pipeline.set_pair_verdict(draft, pair, verdict, reason)
     return save
+
+
+def render_held_back(workspace: pipeline.Workspace, draft: pipeline.Draft, held: dict):
+    """A sentence of section prose with no note. It is not printed until the researcher
+    decides: nothing here may pass as sourced that is not."""
+    st.markdown(f"**A sentence with no note**, in “{held['heading']}”")
+    st.markdown(f"> {held['text']}")
+    st.warning(
+        "This sentence cites no passage, so it is not printed. Delete it, or keep it as your own "
+        "words: it is then printed without a note and recorded as yours, not as the thesis's."
+    )
+    keep, drop = st.columns(2)
+    with keep:
+        if st.button("Keep it as my own words", key=f"article_keep_own_{held['sid']}", use_container_width=True):
+            pipeline.keep_as_own_words(draft, held["sid"])
+            persist(workspace, draft)
+            st.rerun()
+    with drop:
+        if st.button("Delete this sentence", key=f"article_delete_{held['sid']}", use_container_width=True):
+            pipeline.delete_sentence(draft, held["sid"])
+            persist(workspace, draft)
+            st.rerun()
+    return lambda: None
 
 
 def render_commentary(draft: pipeline.Draft, entry: dict):
@@ -1046,11 +1134,14 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
     kind, item = items[index]
     st.caption(
         "The checks so far show that each note points at a real passage. Only reading shows whether "
-        "the passage supports the sentence. The article stays a draft until every one is judged."
+        "the passage supports the sentence. Each sentence is judged with each note it carries; the "
+        "article stays a draft until every one is judged."
     )
     st.markdown(f"**{index + 1} of {len(items)}** · judged so far: {judged} of {len(items)}")
     with st.container(border=True):
-        save = render_note(workspace, draft, article, item) if kind == "note" else render_commentary(draft, item)
+        save = (render_held_back(workspace, draft, item) if kind == "held"
+                else render_pair(workspace, draft, item) if kind == "pair"
+                else render_commentary(draft, item))
     back, forward = st.columns(2)
     with back:
         if st.button("Previous", disabled=index == 0, use_container_width=True):
@@ -1110,13 +1201,49 @@ def render_step_review(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
         go_to_step(STEP_FINISH)
 
 
+def render_frame_part(workspace: pipeline.Workspace, draft: pipeline.Draft, kind: str) -> None:
+    """The introduction or the conclusion: the researcher's to write, with a suggestion
+    on request. A suggestion is drawn from the article's own text and is only a text to
+    edit: nothing is printed until the researcher says "use this"."""
+    current = getattr(draft, kind)
+    latest = (draft.frame_suggestions.get(kind) or [None])[-1]
+    key = f"article_frame_{kind}"
+    if f"{key}_incoming" in st.session_state:               # a new suggestion, put in before the box is drawn
+        st.session_state[key] = st.session_state.pop(f"{key}_incoming")
+    elif key not in st.session_state:
+        st.session_state[key] = current.text if current is not None and current.origin != pipeline.GENERATED else ""
+    st.markdown(f"**{kind.capitalize()}**")
+    if latest and latest["rejected_because"]:
+        st.warning("The suggestion asked for was not offered: " + "; ".join(latest["rejected_because"]) + ".")
+    text = st.text_area(f"The {kind} (yours to write or edit)", key=key, height=150)
+    ask_for, use = st.columns(2)
+    with ask_for:
+        article_word = "an introduction" if kind == "introduction" else "a conclusion"
+        if st.button(f"Suggest {article_word} (one model call)", key=f"{key}_suggest", use_container_width=True):
+            with st.spinner("Asking for a suggestion from the article's own text…"):
+                suggestion = pipeline.suggest_frame(workspace, draft, kind)
+            if not suggestion["rejected_because"]:
+                st.session_state[f"{key}_incoming"] = suggestion["text"]
+            persist(workspace, draft)
+            st.rerun()
+    with use:
+        if st.button(f"Use this {kind}", key=f"{key}_use", type="primary", use_container_width=True):
+            pipeline.set_frame(draft, kind, text)
+            persist(workspace, draft)
+            st.rerun()
+    if current is not None and current.origin != pipeline.GENERATED:
+        st.caption(f"In the article now, recorded as: {current.origin}.")
+    elif current is not None:
+        st.caption("In the article now as labelled commentary, from an earlier version. Using a text here replaces it.")
+
+
 def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
     if st.button("Back to the review"):
         go_to_step(STEP_REVIEW)
     step_header(STEP_FINISH)
     article = pipeline.render(workspace, draft)
     state = pipeline.status(draft, article)
-    counts = assemble.support_rate(pipeline.notes_record(draft, article))
+    counts = assemble.support_rate(pipeline.pairs_record(draft, article))
 
     if state == pipeline.REVIEWED:
         st.success("Reviewed: every note has your verdict.")
@@ -1124,11 +1251,34 @@ def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
         st.info("Draft: not every note has been judged, a note judged “does not” is still in the article, "
                 "or a commentary paragraph is waiting for your verdict.")
     st.markdown(
-        f"**Notes:** {counts['notes']} — supports {counts['supports']}, partly {counts['partly']}, "
+        f"**Sentences to judge:** {counts['pairs']} — supports {counts['supports']}, partly {counts['partly']}, "
         f"does not {counts['does not']}, not judged {counts['not judged']}"
     )
-    copy_button(article.markdown, "Copy the article", key="article")
-    st.download_button("Download article.md", article.markdown, file_name="article.md", mime="text/markdown")
+    with st.expander("Introduction and conclusion", expanded=draft.introduction is None and draft.conclusion is None):
+        st.caption(
+            "Neither is on a page of the thesis, so neither carries a note. Write them, or ask for a "
+            "suggestion drawn only from the sections above, and edit it. What you use is printed as "
+            "the article's own text and recorded as yours or as suggested by the model and accepted by you."
+        )
+        render_frame_part(workspace, draft, "introduction")
+        render_frame_part(workspace, draft, "conclusion")
+        article = pipeline.render(workspace, draft)
+
+    # What leaves the app is what the record shows as reviewed (ADR 0008): the export is
+    # locked until then, and the working draft on disk keeps its DRAFT line.
+    blockers = pipeline.export_blockers(draft, article)
+    exported = None if blockers else pipeline.export(workspace, draft)
+    if blockers:
+        st.warning("**Export is locked** until: " + "; ".join(blockers) + ".")
+    else:
+        st.caption(
+            "The export opens with the AI disclosure and names the source, drops the draft line, and "
+            "lists compact sources. It is exactly the article as you reviewed it."
+        )
+    copy_button(exported["markdown"] if exported else "", "Copy for Medium", key="medium",
+                rich=exported["html"] if exported else None, disabled=bool(blockers))
+    st.download_button("Download Markdown", exported["markdown"] if exported else "", file_name="article.md",
+                       mime="text/markdown", disabled=bool(blockers))
     st.caption(f"Saved in `output/articles/{draft.article_id}/` with its record.")
     with st.container(border=True):
         # Shown two heading levels down so the page keeps one title and an unbroken

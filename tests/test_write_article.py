@@ -171,3 +171,36 @@ def test_a_combined_handle_is_reported_as_a_blocked_section_on_the_command_line(
 
     assert run.code == 1 and "section: FIXTURE heading 2: validation failed: malformed_handle" in run.text
     assert "[E" not in article.read_text(encoding="utf-8")
+
+
+def test_the_command_line_exports_a_reviewed_article_and_refuses_an_unreviewed_one(cli):
+    cli.new()
+    article_id = cli.record()["article_id"]
+    refused = cli.run("--export", article_id)
+    assert refused.code == 1 and "cannot be exported yet: 3 of 3 sentences are not judged yet" in refused.text
+    assert not list(cli.out.glob("*/medium.md"))
+
+    workspace = pipeline.open_workspace()
+    draft = pipeline.load(cli.out / article_id, workspace)
+    for pair in pipeline.render(workspace, draft).pairs:
+        pipeline.set_pair_verdict(draft, pair, "supports")
+    pipeline.save(workspace, draft, cli.out)
+
+    done = cli.run("--export", article_id)
+    exported = (cli.out / article_id / "medium.md").read_text(encoding="utf-8")
+    assert done.code == 0 and done.model.calls == []                    # no model call to export
+    assert exported.splitlines()[2].startswith("This article was drafted with an AI system") and "DRAFT" not in exported
+    assert (cli.out / article_id / "medium.html").read_text(encoding="utf-8").startswith("<h1>FIXTURE harbour title</h1>")
+    assert cli.run("--export", "no-such-article").code == 2
+
+
+def test_the_dry_run_prints_the_retrieval_preview_when_asked_and_still_calls_no_model(cli, monkeypatch):
+    embedded, embed = [], ask.embed_texts
+    monkeypatch.setattr(ask, "embed_texts", lambda texts, **kw: embedded.append(texts) or embed(texts, **kw))
+    plain = cli.new("--dry-run")
+    assert embedded == [] and "RETRIEVAL PREVIEW" not in plain.text      # a plain dry run still sends nothing
+
+    run = cli.new("--dry-run", "--preview")
+    assert run.model.calls == [] and len(embedded) == 3 and not cli.out.exists()
+    assert "RETRIEVAL PREVIEW (embedding only; scores are diagnostics, not confidence)" in run.text
+    assert f"  1. {BRIEFS[0]}" in run.text and "p. 3 " in run.text

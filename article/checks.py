@@ -18,6 +18,7 @@ from pathlib import Path
 PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
 SECTION_PROMPT = "article_section_v2.md"
 EDITORIAL_PROMPT = "article_editorial_v2.md"
+FRAME_PROMPT = "article_frame_v1.md"
 
 _HANDLE = r"\[E\d+\]"
 _HANDLES = rf"{_HANDLE}(?:\s*(?:,|and|&)?\s*{_HANDLE})*"
@@ -233,3 +234,43 @@ def editorial_failures(original: str, result: dict, validation: list[str]) -> li
     if _DASH.search(rewrite):
         failures.append("em_dash: the rewrite uses an em dash")
     return failures
+
+
+# ---------------------------------------------------------------------------
+# Reported speech — a prompt to read, never a verdict (ADR 0008, hard rule 12)
+# ---------------------------------------------------------------------------
+
+_SAYING = (
+    "argues?|claims?|states?|notes?|maintains?|suggests?|observes?|writes?|holds|contends?|asserts?|explains?|"
+    "emphasi[sz]es?|points\\s+out|believes?|says?|concludes?|proposes?|remarks?|insists?|reports?"
+)
+_PERSON = r"(?P<name>(?:al-)?[A-Z][\w’'ʿʾ-]*(?:\s+(?:al-|ibn\s+|b\.\s+)?[A-Z][\w’'ʿʾ-]*)*)"
+_ATTRIBUTIONS = (
+    re.compile(rf"\b{_PERSON}\s+(?:(?:also|further|rightly|thus|then)\s+)?(?:{_SAYING})\b"),
+    re.compile(rf"\b[Aa]ccording\s+to\s+{_PERSON}"),
+    re.compile(rf"\b[Ii]n\s+{_PERSON}(?:’s|'s)\s+(?:view|words|opinion|account|reading)\b"),
+)
+_NOT_PEOPLE = _NOT_NAMES | {"One", "Some", "Many", "Others", "Scholars", "We", "I", "Here", "There", "Each", "Both",
+                            "Commenting", "According", "However", "Thus", "Moreover", "Chapter", "Section"}
+
+
+def reported_speech_flags(sentence: str, passage_sentence: str) -> list[str]:
+    """Raised when the passage sentence gives a claim to a named person and the drafted
+    sentence does not name that person: the claim may have been made the thesis's own.
+    A pattern over names and verbs of saying. It raises; it never blocks, and a clean
+    result proves nothing."""
+    drafted = ask_free(sentence).lower()
+    flags = []
+    for pattern in _ATTRIBUTIONS:
+        for match in pattern.finditer(passage_sentence):
+            words = match.group("name").split()
+            while words and words[0] in _NOT_PEOPLE:
+                words = words[1:]
+            name = " ".join(words)
+            if not name or any(word.lower() in drafted for word in words if len(word) > 2):
+                continue
+            flag = (f"the passage gives this to {name} (“{' '.join(match.group(0).split())}”); "
+                    f"the sentence does not name {name}")
+            if flag not in flags:
+                flags.append(flag)
+    return flags

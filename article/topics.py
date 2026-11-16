@@ -88,6 +88,56 @@ def default_briefs(topic: Topic, count: int = 3) -> list[str]:
     return [f"What does the thesis say about “{section.title}”?" for section in chosen]
 
 
+# ---------------------------------------------------------------------------
+# Briefs by rhetorical move — no model (ADR 0008)
+# ---------------------------------------------------------------------------
+
+# "What does the thesis say about X?" yields a summary of X. A brief that asks for a
+# move yields a step in an argument. Each template is filled with one of the thesis's
+# own section titles; `compare` takes two. The researcher edits the result.
+SUMMARY = "what it says"
+MOVES = {
+    SUMMARY: "What does the thesis say about “{a}”?",
+    "define": "How does the thesis define {a}?",
+    "explain how": "How, according to the thesis, does {a} work?",
+    "compare": "How does the thesis compare {a} with {b}?",
+    "consequences": "What, according to the thesis, follows from {a}?",
+    "what is not covered": "What does the thesis leave open about {a}?",
+}
+ARGUMENT = "an argument: define, explain how, consequences"
+OUTLINE_KINDS = (SUMMARY, ARGUMENT, "define", "explain how", "compare", "consequences", "what is not covered")
+_NUMBERING = __import__("re").compile(r"^\s*\d+(?:\.\d+)*[.)]?\s+")
+
+
+def plain_title(title: str) -> str:
+    """A section title as it can sit in a sentence: its numbering dropped, and a title
+    printed in capitals put in lower case. Nothing is added or reworded."""
+    text = _NUMBERING.sub("", title).strip()
+    return text.lower() if text.isupper() else text
+
+
+def heading(title: str) -> str:
+    text = plain_title(title)
+    return text[:1].upper() + text[1:]
+
+
+def outline(topic: Topic, kind: str = SUMMARY, count: int = 3) -> list[tuple[str, str]]:
+    """An outline to edit: `count` (heading, brief) pairs from the chapter's richest
+    sections, in document order, each brief asking for the move `kind` names."""
+    if kind not in OUTLINE_KINDS:
+        raise ValueError(f"an outline is one of: {', '.join(OUTLINE_KINDS)}")
+    richest = sorted(topic.sections, key=lambda s: -s.passages)[:count]
+    chosen = [section for section in topic.sections if section in richest]
+    moves = (["define", "explain how", "consequences"] * count)[:len(chosen)] if kind == ARGUMENT else [kind] * len(chosen)
+    pairs = []
+    for position, (section, move) in enumerate(zip(chosen, moves)):
+        other = chosen[(position + 1) % len(chosen)]
+        title = section.title if move == SUMMARY else plain_title(section.title)
+        pairs.append((heading(section.title) if move != SUMMARY else section.title,
+                      MOVES[move].format(a=title, b=plain_title(other.title))))
+    return pairs
+
+
 def count(passages: int) -> str:
     return "1 passage" if passages == 1 else f"{passages} passages"
 

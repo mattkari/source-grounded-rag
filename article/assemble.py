@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass, field
 
 import ask
-from article import checks
+from article import checks, sentences as sentence_units
 
 COMMENTARY_LABEL = "Commentary (the article's own reading, not the author's):"
 DRAFT_LINE = "DRAFT — the notes in this article have not yet been checked by the researcher."
@@ -37,6 +37,9 @@ NOT_COVERED_HEADING = "What this article does not cover"
 LIMIT_OPENING = "the thesis does not"      # a line a reader can follow opens like this
 LIMIT_MAX_WORDS = 30
 RESEARCHER, GENERATED = "researcher", "generated"
+# An introduction or conclusion the model suggested from the article's own text and the
+# researcher accepted, perhaps after editing it (ADR 0008). It is printed as the article's.
+SUGGESTED = "suggested by model, accepted by researcher"
 # A sentence, with any closing quotation marks and note markers that trail its full stop.
 _SENTENCE = re.compile(r".+?(?:[.!?][\"'’”)]*(?:\s?\[E\d+\])*(?=\s|$)|$)", re.DOTALL)
 _TABLE_LINE = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
@@ -65,6 +68,7 @@ class FrameElement:
     brief: str = ""                            # generated: what the model was asked
     outcome: ask.QueryOutcome | None = None
     error: str | None = None
+    suggestion: str = ""                       # SUGGESTED: what the model proposed, before any edit
 
 
 @dataclass
@@ -82,6 +86,18 @@ class Article:
     # One entry per section the model gave commentary for (ADR 0005):
     # {section, heading, text, printed, flags, held_back}. `text` is as printed.
     commentary: list[dict] = field(default_factory=list)
+    # Sentences of section prose that carry no note. They are not printed as sourced
+    # prose (ADR 0008): {sid, section, heading, text}. The researcher deletes each or
+    # keeps it as their own words.
+    held_back: list[dict] = field(default_factory=list)
+    # What there is to judge: one entry per sentence and note it carries.
+    # {sid, section, heading, chunk_id, n, sentence, raw, edited}
+    pairs: list[dict] = field(default_factory=list)
+    own_words: list[dict] = field(default_factory=list)  # {sid, section, text}: unnoted, kept by the researcher
+    # The article as parts, in order, for the export (ADR 0008): ("title" | "frame" |
+    # "heading" | "paragraph" | "commentary" | "limit", text). Notes are already [n].
+    blocks: list[tuple[str, str]] = field(default_factory=list)
+    sources: list[dict] = field(default_factory=list)    # {n, chunk, document}: what each note resolves to
 
 
 def block_reason(outcome: ask.QueryOutcome | None, error: str | None = None) -> str | None:
@@ -109,7 +125,7 @@ def block_reason(outcome: ask.QueryOutcome | None, error: str | None = None) -> 
 
 
 def split_sentences(text: str) -> list[str]:
-    return [match.group(0).strip() for match in _SENTENCE.finditer(text) if match.group(0).strip()]
+    return sentence_units.split(text)
 
 
 class _Notes:
@@ -157,10 +173,45 @@ def _cited_passages(text: str, items: list[ask.EvidenceItem]) -> list[str]:
     return [item.chunk["text"] for item in items if item.handle in cited] or [item.chunk["text"] for item in items]
 
 
-def _section_body(section: SectionDraft, notes: _Notes) -> list[str]:
+def base_text(section: SectionDraft) -> str:
+    """The prose a section's sentences are counted in: the accepted rewrite, or the answer."""
     rewrite = section.prose if section.prose and not ask.malformed_handles(section.prose) else None
-    body = notes.renumber(rewrite or section.outcome.result["answer"], section.outcome.items)
-    return [body] if body else []
+    return rewrite or section.outcome.result["answer"]
+
+
+def _section_body(index: int, section: SectionDraft, notes: _Notes, article: "Article",
+                  edits: dict, own_words: set[str]) -> list[str]:
+    """A section's paragraphs, sentence by sentence.
+
+    A sentence with no note is never printed as sourced prose: it is held back
+    until the researcher deletes it or keeps it as their own words. A sentence
+    the researcher edited is printed as edited; one they deleted is left out.
+    """
+    by_handle = {item.handle: item for item in section.outcome.items}
+    paragraphs: dict[int, list[str]] = {}
+    for unit in sentence_units.units(index, base_text(section)):
+        edit = edits.get(unit.sid)
+        text = unit.text if edit is None else edit["text"]
+        if text is None:
+            continue                                         # deleted by the researcher
+        cited = [handle for handle in sentence_units.handles(text) if handle in by_handle]
+        if not cited:
+            if unit.sid in own_words:
+                article.own_words.append({"sid": unit.sid, "section": index, "text": text})
+                paragraphs.setdefault(unit.paragraph, []).append(text)
+            else:
+                article.held_back.append({"sid": unit.sid, "section": index, "heading": section.heading, "text": text})
+            continue
+        chunk_ids = [by_handle[handle].chunk["chunk_id"] for handle in cited]
+        if any(chunk_id in notes.removed for chunk_id in chunk_ids):
+            continue                                         # removed under a per-note verdict, before ADR 0008
+        printed = notes.renumber(text, section.outcome.items)
+        for chunk_id in chunk_ids:
+            article.pairs.append({"sid": unit.sid, "section": index, "heading": section.heading, "chunk_id": chunk_id,
+                                  "n": notes.numbers[chunk_id], "sentence": printed, "raw": text,
+                                  "edited": edit is not None})
+        paragraphs.setdefault(unit.paragraph, []).append(printed)
+    return [" ".join(parts) for _, parts in sorted(paragraphs.items())]
 
 
 def _commentary(index: int, section: SectionDraft, notes: _Notes, show: bool) -> dict | None:
@@ -191,7 +242,7 @@ def reader_limit(result: dict) -> str | None:
 def _frame_text(element: FrameElement | None, what: str, notes: _Notes, article: "Article") -> str | None:
     if element is None:
         return None
-    if element.origin == RESEARCHER:
+    if element.origin in (RESEARCHER, SUGGESTED):
         return element.text.strip() or None
     reason = block_reason(element.outcome, element.error)
     if reason:
@@ -218,6 +269,8 @@ def assemble(
     removed: set[str] | None = None,
     commentary: bool = False,
     commentary_rejected: set[int] | None = None,
+    edits: dict | None = None,
+    own_words: set[str] | None = None,
 ) -> Article:
     """`removed` holds the passages whose sentences the researcher took out after
     judging that the passage does not support them (§9)."""
@@ -227,11 +280,13 @@ def assemble(
     if not reviewed:
         out += [f"*{DRAFT_LINE}*", ""]
     out += [f"# {title.strip()}", ""]
+    article.blocks.append(("title", title.strip()))
     out += [f"*Drawn from {document.author} ({document.year}), {document.title}.*", ""]
 
     intro = _frame_text(introduction, "introduction", notes, article)
     if intro:
         out += [intro, ""]
+        article.blocks.append(("frame", intro))
 
     # What will be printed for each section: its paragraphs, or the gap line.
     printed: list[tuple[SectionDraft, bool]] = []          # (section, is a real drafted section)
@@ -250,7 +305,8 @@ def assemble(
     previous: SectionDraft | None = None
     shown: list[SectionDraft] = []                           # drafted sections that reached the page
     for section, drafted in printed:
-        body = _section_body(section, notes) if drafted else [NOT_COVERED_LINE]
+        body = (_section_body(sections.index(section), section, notes, article, edits or {}, own_words or set())
+                if drafted else [NOT_COVERED_LINE])
         if not body:
             continue                                         # every sentence of it was removed
         if drafted:
@@ -262,9 +318,12 @@ def assemble(
             text = _frame_text(bridge, f"transition before: {section.heading}", notes, article)
             if text:
                 out += [text, ""]
+                article.blocks.append(("frame", text))
         out += [f"## {section.heading}", ""]
+        article.blocks.append(("heading", section.heading))
         for paragraph in body:
             out += [paragraph, ""]
+            article.blocks.append(("paragraph", paragraph))
         if drafted:
             index = sections.index(section)
             entry = _commentary(index, section, notes, commentary and index not in (commentary_rejected or ()))
@@ -272,11 +331,13 @@ def assemble(
                 article.commentary.append(entry)
                 if entry["printed"]:
                     out += [f"{COMMENTARY_LABEL} {entry['text']}", ""]
+                    article.blocks.append(("commentary", f"{COMMENTARY_LABEL} {entry['text']}"))
         previous = section if drafted else None
 
     ending = _frame_text(conclusion, "conclusion", notes, article)
     if ending:
         out += [ending, ""]
+        article.blocks.append(("frame", ending))
 
     # Limits, gathered. A section whose every sentence was removed states none.
     for section in shown:
@@ -284,11 +345,18 @@ def assemble(
         line = notes.renumber(chosen, section.outcome.items) if chosen else ""
         if line:
             article.limits_printed[section.heading] = line
+            by_handle = {item.handle: item for item in section.outcome.items}
+            for handle in sentence_units.handles(chosen):
+                chunk_id = by_handle[handle].chunk["chunk_id"]
+                article.pairs.append({"sid": f"{sections.index(section)}.L", "section": sections.index(section),
+                                      "heading": NOT_COVERED_HEADING, "chunk_id": chunk_id, "n": notes.numbers[chunk_id],
+                                      "sentence": line, "raw": chosen, "edited": False})
         article.limits_held_back += len(section.outcome.result.get("limitations", [])) - bool(line)
     if article.limits_printed:
         out += [f"## {NOT_COVERED_HEADING}", ""]
         out += [f"- {line}" for line in article.limits_printed.values()]
         out.append("")
+        article.blocks += [("limit", line) for line in article.limits_printed.values()]
 
     if notes.items:
         out += ["## Sources", ""]
@@ -302,6 +370,9 @@ def assemble(
     article.markdown = ask.scrub_handles("\n".join(out))
     article.notes = [{"n": n, "chunk_id": notes.items[n].chunk["chunk_id"], "verdict": None} for n in sorted(notes.items)]
     article.carriers = notes.carriers
+    article.sources = [{"n": n, "chunk": notes.items[n].chunk, "document": notes.items[n].document}
+                       for n in sorted(notes.items)]
+    article.blocks = [(kind, ask.scrub_handles(text)) for kind, text in article.blocks]
     return article
 
 
@@ -317,5 +388,5 @@ def support_rate(notes: list[dict]) -> dict:
     not judged — never as supported."""
     counts = {verdict: sum(1 for note in notes if note.get("verdict") == verdict) for verdict in VERDICTS}
     counts["not judged"] = sum(1 for note in notes if note.get("verdict") not in VERDICTS)
-    counts["notes"] = len(notes)
+    counts["notes"] = counts["pairs"] = len(notes)       # "notes" is the name older records and readers use
     return counts

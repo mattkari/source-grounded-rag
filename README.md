@@ -287,13 +287,25 @@ decide and publish. Nothing is posted anywhere.
 article is made in five steps, one on screen at a time, and Back keeps what you typed:
 
 1. **Outline**: pick a topic from the chapters the thesis prints (or your own), write the title and
-   three to six sections.
-2. **Frame and options**: for the introduction, transitions and conclusion, write them or have them
-   generated as labelled commentary; switch commentary and the editorial pass on or off.
-3. **Draft**: read the plan and the number of model calls it will make, then draft.
-4. **Review**: judge one note at a time, with its sentence and the cited passage side by side. Each
-   verdict is saved as you give it.
-5. **Finish**: read the article, copy it with one tap, or download `article.md`.
+   three to six sections. The outline can be filled from the chapter's own section titles, as
+   summaries or as steps in an argument (define, explain how, compare, consequences, what is not
+   covered). No model is involved.
+2. **Frame and options**: your own introduction, transitions and conclusion if you have them;
+   commentary and the editorial pass on or off.
+3. **Draft**: read the plan and the number of model calls it will make. **Preview** shows which
+   pages each section's question would draw on, with their scores, before anything is paid for.
+4. **Review**: one sentence at a time, with each note it carries, beside the sentences of the cited
+   passage that share most of its words. Judge it *supports*, *partly* or *does not*; **edit or
+   delete** it there. A sentence with no note is held back until you delete it or keep it as your
+   own words. A claim the passage gives to a named person is flagged when the sentence drops the name.
+5. **Finish**: ask for a suggested introduction or conclusion, drawn only from the article's own
+   text, and edit it; then **Copy for Medium** or **Download Markdown**.
+
+**Export is locked until the article is reviewed**: every sentence judged, none judged *does not*,
+no sentence without a note left undecided. The export opens with the AI disclosure and names the
+source, has no draft line, and lists compact sources. What leaves the app is what the record shows
+([ADR 0008](docs/decisions/0008-checkable-articles.md)). Set `OWNER_NAME` so the disclosure says
+whether the source is your own work or another author's.
 
 The article and its record are saved after every step and a saved article can be reopened. With
 Docker, `compose.yaml` mounts `./output` so drafts outlive the container. Every answer in **Ask**
@@ -307,8 +319,10 @@ python write_article.py --topics                       # what the thesis covers;
 python write_article.py --title "<your title>" --outline outline.txt --dry-run
 python write_article.py --title "<your title>" --outline outline.txt
 python write_article.py --title "<your title>" --outline outline.txt --editorial --frame generate
+python write_article.py --title "<your title>" --outline outline.txt --dry-run --preview   # pages and scores per section
 python write_article.py --list                         # saved articles, and which are unfinished
 python write_article.py --resume <article-id>          # finish an interrupted draft
+python write_article.py --export <article-id>          # medium.md and medium.html, once reviewed; no model call
 ```
 
 `outline.txt` has one section per line, `Heading | the question the section must answer`, three to
@@ -485,6 +499,7 @@ implemented and approved — existing rows are never removed or reordered.
 | 2026-11-15 | — (Article quality) | Seven changes after the first real draft read badly as an article, with the research behind them in `docs/decisions/0005-article-quality.md`. (1) A note marker closes its clause and is never a word of the sentence; "[5] states" blocks the section. The article path sends a hashed prompt of rules of form through a new `instructions` argument on the one pipeline; questions and evaluation runs never pass it and are sent exactly as before. (2) Limits are gathered into one closing list, one reader-facing line per section at most; all of them stay in the record. (3) Commentary is off by default, one paragraph per section at most, and needs the researcher's own verdict; a pattern check raises sentences that give an act to someone the cited passage does not show acting. (4) A direct quotation is at most 25 words and quotation at most a fifth of a section. (5) An optional editorial pass rewrites a section for flow and is kept only if each paragraph carries the same notes, no name, number or transliterated term is added and there is no em dash; otherwise the original stands. (6) The record is saved after every step and an unfinished article is resumed without sending finished sections again. (7) `write_article.py` is a command-line shell over the same pipeline, with a dry run that never assumes a price. All tests offline, each change shown red under named deliberate breaks. **Not verified: no live draft has been made with these changes.** | Implemented; awaiting approval | `article/`, `prompts/article_section_v1.md`, `prompts/article_editorial_v1.md`, `ask.py`, `app.py`, `write_article.py`, `config.py`, `.env.example`, `tests/`, `docs/decisions/0005-article-quality.md`, `docs/plans/PLAN_V6.md`, `README.md` |
 | 2026-11-15 | — (Handle fix) | Fix a grounding bug found in the first two real drafts: the model joined two passages in one bracket ("[E1, E2]"), the handle pattern did not match it, `citations_used` listed the parts, so validation passed and the bracket was printed raw on a sentence with no resolved note. A bracket that opens like a handle and is not exactly one `[En]` is now a `malformed_handle` validation failure, in answers and in articles; it is never split or repaired. The renderers add a last guard: any bracket that still looks like a handle, joined or unknown, is shown as `[unresolved note]`, and an article re-runs the check on reopening, so drafts recorded before the fix are blocked, not printed. The handle format is stated in new prompt versions (`system_grounded_v3.md`, `article_section_v2.md`, `article_editorial_v2.md`); earlier versions are kept. Em dashes in a section's prose are reported per section and left as written. Decisions in `docs/decisions/0006-one-handle-per-bracket.md`. Tests written first: 28 failed on the unchanged code. **Not verified: no live call; the question prompt, which the evaluation also uses, changed before any evaluation run was recorded.** | Implemented; awaiting approval | `ask.py`, `config.py`, `article/`, `app.py`, `write_article.py`, `prompts/`, `tests/`, `docs/decisions/0006-one-handle-per-bracket.md`, `README.md` |
 | 2026-11-15 | — (UI: steps, navigation, copy) | Make the app easier to use after the researcher reported that Copy did not copy, switching view meant scrolling to the top, and the article page was heavy. Copy was a box of text whose copy icon needs the browser clipboard API, which is absent on plain http; a **Copy the answer** / **Copy the article** button now copies in one tap, with a fallback that works on plain http, a "Copied" label and a status announcement, and a copied answer carries its question, limits and sources. The three views sit in one slim bar pinned to the top. "Write an article" is five steps, one on screen at a time (Outline, Frame and options, Draft, Review, Finish), with Back keeping what was typed; review shows one note at a time and saves each verdict as it is given. Research and decisions in `docs/decisions/0007-steps-navigation-copy.md`. Walked in a browser at laptop, phone and dark-phone sizes and audited with axe-core; all tests offline. **Not verified: a real phone, Safari, a screen reader.** | Implemented; awaiting approval | `app.py`, `tests/test_article_app.py`, `tests/test_app.py`, `docs/decisions/0007-steps-navigation-copy.md`, `README.md` |
+| 2026-11-15 | — (Checkable articles) | Make a drafted article checkable sentence by sentence and publishable as recorded, after the author's check of the first published article found six errors that every automatic check had passed. Research in `docs/decisions/0008-checkable-articles.md`. (1) Every sentence of section prose carries its own note; one without is held back until the researcher deletes it or keeps it as their own words. (2) The verdict is given per sentence and note, beside the one to three passage sentences that share most of its words; a per-note verdict from an earlier record is carried over and marked. (3) A claim the passage gives to a named person is flagged when the sentence drops the name; it raises and never blocks. (4) A sentence is edited or deleted in the view; the record keeps both wordings and an edit needs a fresh verdict. (5) Export is locked until the article is reviewed, and opens with the AI disclosure, names the source and lists compact sources (`OWNER_NAME`). (6) An introduction or conclusion is a suggestion from the article's own text, printed without a label once the researcher uses it. (7) A retrieval preview shows pages and scores per brief from the embedding step alone (`PREVIEW_MIN_SCORE`). (8) Outline briefs by rhetorical move, from the thesis's own titles, with no model. It remains a workflow: no loop, no retry, no automatic verdict. All tests offline, each change shown red under named deliberate breaks. **Not verified: no live model call; Medium's rules in Medium's own words; a retrieval threshold for the real embedding model.** | Implemented; awaiting approval | `article/`, `ask.py`, `app.py`, `write_article.py`, `config.py`, `.env.example`, `prompts/article_frame_v1.md`, `tests/`, `docs/decisions/0008-checkable-articles.md`, `docs/plans/PLAN_V6.md`, `README.md` |
 
 ## Companion: Work Brain template
 

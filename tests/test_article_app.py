@@ -50,6 +50,9 @@ class Scripted:
 
     def __call__(self, question, items, instructions=None):
         self.calls.append(question)
+        if instructions and instructions.startswith("FRAME TASK"):
+            self.frames = getattr(self, "frames", []) + [(question, list(items), instructions)]
+            return self.script["FRAME"], "fixturehash"
         if instructions and instructions.startswith("EDITORIAL TASK"):
             self.edits = getattr(self, "edits", 0) + 1
             key = next(key for key in self.script if key in question)
@@ -201,8 +204,9 @@ def test_a_topic_becomes_a_saved_reviewed_article_with_no_file_edited_by_hand(vi
     finish(view)
 
     assert saved["status"] == "reviewed"
-    assert saved["support"] == {"supports": 3, "partly": 1, "does not": 0, "not judged": 0, "notes": 4}
-    assert all(note["judged_by"] == "researcher" and note["judged_at"] for note in saved["notes"])
+    assert saved["support"] == {"supports": 3, "partly": 1, "does not": 0, "not judged": 0, "notes": 4, "pairs": 4}
+    assert all(pair["judged_by"] == "researcher" and pair["judged_at"] for pair in saved["pairs"])
+    assert not any(pair["carried_over"] for pair in saved["pairs"])      # each given on its own sentence
     assert assemble.DRAFT_LINE not in article_file(view)
     assert article_file(view).rstrip().endswith(f"*{assemble.CLOSING_LINE_REVIEWED}*")
     assert "Reviewed: every note has your verdict." in all_text(view)
@@ -220,33 +224,64 @@ def test_a_note_judged_does_not_keeps_the_draft_until_its_sentences_are_removed(
     button(view, "Previous").click()
     view.run()                                                          # back on the note judged "does not"
     assert "**2 of 4**" in all_text(view) and current_verdict(view).value == "does not"
-    assert "The article stays a draft until these sentences are removed." in all_text(view)
+    assert "The article stays a draft until this sentence is edited or deleted." in all_text(view)
 
-    button(view, "Remove the sentences that carry this note").click()
+    button(view, "Delete this sentence").click()
     view.run()
     saved = record(view)
 
     assert "FIXTURE and it says another" not in article_file(view)
     assert "FIXTURE the calendar lists rootstock [2]." in article_file(view)       # renumbered, no gap
     assert saved["status"] == "reviewed"
-    assert saved["support"] == {"supports": 3, "partly": 0, "does not": 1, "not judged": 0, "notes": 4}
-    removed = [note for note in saved["notes"] if note["sentences_removed"]]
-    assert [(note["n"], note["verdict"]) for note in removed] == [(None, "does not")]
+    assert saved["support"] == {"supports": 3, "partly": 0, "does not": 1, "not judged": 0, "notes": 4, "pairs": 4}
+    deleted = [pair for pair in saved["pairs"] if not pair["in_article"]]
+    assert [(pair["n"], pair["verdict"], pair["sentence_deleted"]) for pair in deleted] == [(None, "does not", True)]
+    assert saved["sentences"]["edits"]["0.1"]["original"] == "FIXTURE and it says another [E2]."     # what it said is kept
 
 
-def test_generated_frame_text_is_marked_as_commentary_and_costs_one_call_each(view):
-    def generate(at):
-        for part in ("introduction", "transitions", "conclusion"):
-            at.radio(key=f"article_{part}").set_value("Generate as labelled commentary")
+def test_an_introduction_is_suggested_from_the_articles_own_text_and_printed_only_when_used(view):
+    view.model.script["FRAME"] = payload("FIXTURE the ledger and the calendar together tell of the timetable.", [])
+    draft(view)
+    judge(view, ["supports"] * 4)
+    finish(view)
+    assert len(view.model.calls) == 3 and assemble.COMMENTARY_LABEL not in article_file(view)
 
-    draft(view, options=generate)
-    text = article_file(view)
+    button(view, "Suggest an introduction (one model call)").click()
+    view.run()
+    question, items, instructions = view.model.frames[0]
+    assert len(view.model.calls) == 4 and items == []                   # one call, and it is shown no passage
+    assert "FIXTURE the ledger says one thing." in instructions and "[E" not in instructions and "[1]" not in instructions
+    assert view.text_area(key="article_frame_introduction").value == "FIXTURE the ledger and the calendar together tell of the timetable."
+    assert "together tell of the timetable" not in article_file(view)   # a suggestion prints nothing by itself
 
-    assert len(view.model.calls) == 3 + 1 + 2 + 1
-    assert text.count(assemble.COMMENTARY_LABEL) == 4
-    assert f"{assemble.COMMENTARY_LABEL} FIXTURE a generated opening [1]." in text
-    assert record(view)["frame"]["conclusion"]["origin"] == "generated"
-    assert record(view)["support"]["notes"] == 4                        # the frame added no note of its own
+    view.text_area(key="article_frame_introduction").set_value("FIXTURE the ledger and the calendar tell of the timetable.")
+    view.run()
+    button(view, "Use this introduction").click()
+    view.run()
+    text, saved = article_file(view), record(view)
+
+    assert "FIXTURE the ledger and the calendar tell of the timetable." in text
+    assert assemble.COMMENTARY_LABEL not in text                        # printed as the article's own text
+    assert saved["frame"]["introduction"] == {
+        "origin": "suggested by model, accepted by researcher",
+        "text": "FIXTURE the ledger and the calendar tell of the timetable.",
+        "suggestion": "FIXTURE the ledger and the calendar together tell of the timetable.",
+        "edited_by_researcher": True}
+    assert saved["status"] == "reviewed" and saved["support"]["pairs"] == 4      # it adds nothing to judge
+    assert "suggested by model, accepted by researcher" in all_text(view)
+
+
+def test_a_suggestion_that_adds_a_name_is_not_offered_and_the_reason_is_shown(view):
+    view.model.script["FRAME"] = payload("FIXTURE Harland kept the ledger in 1923.", [])
+    draft(view)
+    finish(view)
+    button(view, "Suggest a conclusion (one model call)").click()
+    view.run()
+
+    assert view.text_area(key="article_frame_conclusion").value == ""
+    assert "The suggestion asked for was not offered: new_terms: the suggestion adds “1923”, “Harland”." in all_text(view)
+    assert record(view)["frame_suggestions"]["conclusion"][0]["rejected_because"] != []
+    assert record(view)["frame"]["conclusion"] is None and len(view.model.calls) == 4      # asked once, not again
 
 
 def test_a_blocked_section_is_shown_with_its_reason_and_a_refused_one_can_be_stated(view):
@@ -479,7 +514,7 @@ def test_the_plan_is_made_one_step_at_a_time_and_going_back_loses_nothing(view):
     plan = all_text(view)
     assert "Step 3 of 5" in plan and "**FIXTURE harbour title**" in plan
     assert "1. **FIXTURE first heading** — FIXTURE-A what does the harbour ledger say?" in plan
-    assert "- Introduction: left out" in plan and "- Conclusion: yours" in plan and "- Commentary: on" in plan
+    assert "- Introduction: left out for now" in plan and "- Conclusion: yours" in plan and "- Commentary: on" in plan
     assert "Drafting makes 3 model call(s) for the sections and up to 0" in plan
 
     button(view, "Back to frame and options").click()
@@ -506,24 +541,37 @@ def test_review_shows_one_note_at_a_time_and_saves_each_verdict_as_it_is_given(v
     assert "Step 4 of 5" in all_text(view) and button(view, "Previous").disabled
 
     judge(view, ["partly"])
-    assert [note["verdict"] for note in record(view)["notes"]] == ["partly", None, None, None]     # saved at once
+    assert [pair["verdict"] for pair in record(view)["pairs"]] == ["partly", None, None, None]     # saved at once
     assert "**2 of 4** · judged so far: 1 of 4" in all_text(view)
 
     button(view, "Save and next").click()                               # moving on without choosing judges nothing
     view.run()
-    assert [note["verdict"] for note in record(view)["notes"]] == ["partly", None, None, None]
+    assert [pair["verdict"] for pair in record(view)["pairs"]] == ["partly", None, None, None]
     assert "**3 of 4** · judged so far: 1 of 4" in all_text(view)
 
 
 def test_an_answer_and_an_article_each_have_a_button_that_copies_them(view, monkeypatch):
     draft(view)
     finish(view)
-    (block,) = [b for b in html_blocks(view) if "sgrag-copy-button" in b]
+    (locked,) = [b for b in html_blocks(view) if "sgrag-copy-button" in b]
+    assert 'class="sgrag-copy-button" disabled>Copy for Medium</button>' in locked      # nothing leaves before review
+    assert "**Export is locked** until: 4 of 4 sentences are not judged yet." in all_text(view)
+    assert next(d for d in view.get("download_button") if d.label == "Download Markdown").disabled
+    assert "FIXTURE the ledger" not in locked                             # and nothing is waiting in the page to be copied
 
-    assert ">Copy the article</button>" in block and 'role="status"' in block and 'aria-live="polite"' in block
-    assert json.dumps(article_file(view), ensure_ascii=False).replace("</", "<\\/") in block     # the article itself, whole
-    assert "document.execCommand(\"copy\")" in block                 # the fallback for a page served over plain http
-    assert "navigator.clipboard" in block
+    button(view, "Back to the review").click()
+    view.run()
+    judge(view, ["supports"] * 4)
+    finish(view)
+    (block,) = [b for b in html_blocks(view) if "sgrag-copy-button" in b]
+    exported = pipeline.export(pipeline.open_workspace(), pipeline.load(next(view.out.glob("*")), pipeline.open_workspace()))
+
+    assert 'class="sgrag-copy-button" >Copy for Medium</button>' in block and "Export is locked" not in all_text(view)
+    assert 'role="status"' in block and 'aria-live="polite"' in block
+    assert json.dumps(exported["markdown"], ensure_ascii=False).replace("</", "<\\/") in block      # the plain form
+    assert json.dumps(exported["html"], ensure_ascii=False).replace("</", "<\\/") in block          # and the formatted one
+    assert "document.execCommand(\"copy\")" in block and "navigator.clipboard" in block      # plain http, and https
+    assert not next(d for d in view.get("download_button") if d.label == "Download Markdown").disabled
 
     view.radio(key="view").set_value("Ask questions")
     view.run()
@@ -554,3 +602,74 @@ def test_starting_another_article_begins_from_a_clean_plan(view):
 
     assert view.text_area(key="article_conclusion_text").value == ""    # nothing carried over from the last article
     assert view.checkbox(key="article_editorial").value is False
+
+
+# --- ADR 0008: sentence by sentence --------------------------------------------------------------
+
+
+def test_a_sentence_with_no_note_is_put_to_the_researcher_before_anything_else(view):
+    view.model.script["FIXTURE-C"] = payload("FIXTURE the timetable changed [E4]. FIXTURE this shaped the town.", ["E4"])
+    draft(view)
+
+    assert "FIXTURE this shaped the town" not in article_file(view)
+    assert "**A sentence with no note**, in “FIXTURE third heading”" in all_text(view)
+    assert "it is not printed" in all_text(view) and "**1 of 5**" in all_text(view)
+    button(view, "Keep it as my own words").click()
+    view.run()
+
+    assert "FIXTURE the timetable changed [4]. FIXTURE this shaped the town." in article_file(view)
+    assert record(view)["sentences"]["kept_as_own_words"][0]["origin"] == "researcher"
+    assert "**1 of 4**" in all_text(view)                               # only the notes are left to judge
+
+
+def test_review_puts_one_sentence_beside_its_passage_and_judges_the_pair(view):
+    draft(view)
+    shown = all_text(view)
+
+    assert "**Sentence with note [1]**, in “FIXTURE first heading”" in shown
+    assert "Closest sentences in the passage it cites, shared words in bold" in shown
+    assert any(e.label == "The whole passage" for e in view.expander) and len(view.text) == 1
+    assert "Does the passage support this sentence?" == current_verdict(view).label
+    judge(view, ["supports"])
+    pair = record(view)["pairs"][0]
+    assert (pair["sid"], pair["verdict"], pair["carried_over"], pair["raw"]) == (
+        "0.0", "supports", False, "FIXTURE the ledger says one thing [E1].")
+
+
+def test_a_sentence_is_edited_in_the_view_and_a_bad_edit_is_refused_there(view):
+    draft(view)
+    key = "0.0_" + record(view)["pairs"][0]["chunk_id"]
+
+    view.text_area(key=f"article_edit_{key}").set_value("FIXTURE the ledger says one thing, on p. 9 [E1].")
+    view.run()
+    view.button(key=f"article_save_edit_{key}").click()
+    view.run()
+    assert "This edit was not saved: no page number: pages come from the notes." in all_text(view)
+    assert "FIXTURE the ledger says one thing [1]." in article_file(view)
+
+    view.text_area(key=f"article_edit_{key}").set_value("FIXTURE the ledger records one thing [E1].")
+    view.run()
+    view.button(key=f"article_save_edit_{key}").click()
+    view.run()
+    saved = record(view)
+
+    assert "FIXTURE the ledger records one thing [1]." in article_file(view)
+    assert saved["sentences"]["edits"]["0.0"]["original"] == "FIXTURE the ledger says one thing [E1]."
+    assert "The article says (edited by you)" in all_text(view)
+    assert saved["pairs"][0]["verdict"] is None and len(view.model.calls) == 3     # no model call to edit
+
+
+def test_an_outline_can_ask_for_an_argument_and_no_model_is_called(view):
+    from article import topics
+    view.selectbox(key="article_topic").set_value(view.selectbox(key="article_topic").options[8])
+    view.run()
+    assert view.selectbox(key="article_outline_kind").options == list(topics.OUTLINE_KINDS)
+    view.selectbox(key="article_outline_kind").set_value(topics.ARGUMENT)
+    view.run()
+    button(view, "Fill the outline from this chapter's sections").click()
+    view.run()
+    briefs = [line.split(" | ")[1] for line in view.text_area(key="article_outline").value.splitlines()]
+
+    assert [brief.split(" ")[0] for brief in briefs] == ["How", "How,", "What,"]      # define, explain how, consequences
+    assert briefs[0].startswith("How does the thesis define ") and "What does the thesis say about" not in "".join(briefs)
+    assert view.model.calls == []

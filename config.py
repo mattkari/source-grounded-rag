@@ -145,6 +145,18 @@ class Settings:
     llm_provider: str = os.environ.get("LLM_PROVIDER", "anthropic")
     llm_model: str = os.environ.get("LLM_MODEL", "claude-haiku-4-5")
     llm_max_tokens: int = 16000
+    # Optional (ADR 0008). The retrieval preview warns when the best passage found for
+    # a section's question scores below this. A similarity score is a diagnostic, never
+    # a confidence (hard rule 4): the warning says "look", and refuses nothing. No value
+    # is shipped, because the right one depends on the embedding model and has to be
+    # read off real questions; unset, the preview shows scores and no warning.
+    preview_min_score: float | None = (
+        float(os.environ["PREVIEW_MIN_SCORE"]) if os.environ.get("PREVIEW_MIN_SCORE") else None
+    )
+    # Optional (ADR 0008). The name of the person who publishes articles from this
+    # app. An exported article says plainly when its source is another author's work;
+    # with no owner set it names the source and claims nothing about whose it is.
+    owner_name: str | None = os.environ.get("OWNER_NAME") or None
     # Optional, for the cost shown by `write_article.py --dry-run` (ADR 0005). US
     # dollars per million tokens for the configured generation model, input and
     # output. Left unset, the dry run shows calls and tokens only: a price is

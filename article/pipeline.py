@@ -20,13 +20,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ask
-from article import assemble, checks, sources, topics, voice
-from article.assemble import GENERATED, RESEARCHER, VERDICTS, FrameElement, SectionDraft
+from article import assemble, checks, export as article_export, sentences, sources, topics, voice
+from article.assemble import GENERATED, RESEARCHER, SUGGESTED, VERDICTS, FrameElement, SectionDraft
 from documents import Document, default_document
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "output" / "articles"
-SCHEMA_VERSION = 3
-READABLE_SCHEMAS = (2, 3)      # 2: before plans and step-by-step saving; read as finished
+SCHEMA_VERSION = 4
+READABLE_SCHEMAS = (2, 3, 4)      # 2: before plans and step-by-step saving; read as finished
 MIN_SECTIONS, MAX_SECTIONS = 3, 6
 DRAFTING, DRAFT, REVIEWED = "drafting", "draft", "reviewed"
 FRAME_ORIGINS = (RESEARCHER, GENERATED, "none")
@@ -214,6 +214,15 @@ class Draft:
     # The plan, fixed before the first call, so an interrupted draft can be resumed
     # from its record (ADR 0005). `frame_plan` maps introduction / transitions /
     # conclusion to "researcher", "generated" or "none".
+    # Sentence by sentence (ADR 0008). An edit is {"text": str | None, "original": str,
+    # "edited_at": iso}; text None means the researcher deleted the sentence.
+    # "<sid>|<chunk id>" -> {"verdict", "reason", "judged_at", "judged_text"}: the researcher's
+    # verdict on one sentence and one note it carries, and the text it was given on.
+    pair_verdicts: dict[str, dict] = field(default_factory=dict)
+    sentence_edits: dict[str, dict] = field(default_factory=dict)
+    own_words: dict[str, dict] = field(default_factory=dict)     # sid -> {"kept_at": iso}: unnoted, kept as theirs
+    # "introduction" | "conclusion" -> every suggestion asked for, newest last (ADR 0008)
+    frame_suggestions: dict[str, list[dict]] = field(default_factory=dict)
     frame_plan: dict[str, str] = field(default_factory=dict)
     editorial: bool = False
     frame_done: set[str] = field(default_factory=set)   # generated frame steps already made
@@ -309,6 +318,10 @@ def run(workspace: Workspace, draft: Draft, out_dir: Path | None = None, referen
     return draft
 
 
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
 def check_outline(title: str, outline: list[tuple[str, str]]) -> None:
     if not title.strip():
         raise ArticleError("Give the article a title. The title is yours to write.")
@@ -329,6 +342,7 @@ def render(workspace: Workspace, draft: Draft) -> assemble.Article:
             introduction=draft.introduction, transitions=draft.transitions, conclusion=draft.conclusion,
             reviewed=reviewed, removed=draft.removed, commentary=draft.commentary,
             commentary_rejected={i for i, v in draft.commentary_verdicts.items() if v["verdict"] == "reject"},
+            edits=draft.sentence_edits, own_words=set(draft.own_words),
         )
 
     article = build(False)
@@ -341,13 +355,235 @@ def status(draft: Draft, article: assemble.Article) -> str:
     While steps of the plan remain it is still being drafted."""
     if not draft.complete:
         return DRAFTING
-    if not article.notes:
-        return DRAFT
+    if not article.pairs or article.held_back:
+        return DRAFT                                      # a sentence with no note is still waiting for a decision
     for entry in article.commentary:
         if entry["printed"] and draft.commentary_verdicts.get(entry["section"], {}).get("verdict") != "accept":
             return DRAFT
-    given = [draft.verdicts.get(note["chunk_id"], {}).get("verdict") for note in article.notes]
+    given = [(pair_verdict(draft, pair) or {}).get("verdict") for pair in article.pairs]
     return REVIEWED if all(v in VERDICTS and v != "does not" for v in given) else DRAFT
+
+
+PREVIEW_PASSAGES = 3
+
+
+def preview(workspace: Workspace, brief: str) -> dict:
+    """What a section's question would draw on, from the embedding step alone: no
+    generation, nothing paid for but one embedding. Pages come from stored provenance.
+
+    The score is the retrieval similarity. It is a diagnostic, never a confidence
+    (hard rule 4): a low best score is a reason to look at the question, and refuses
+    nothing. `below_threshold` is None when no threshold is configured.
+    """
+    found = ask.retrieve(brief, workspace.sources.vectors, workspace.sources.chunks,
+                         PREVIEW_PASSAGES, workspace.document)
+    threshold = ask.settings.preview_min_score
+    best = max((item.score for item in found), default=0.0)
+    return {
+        "brief": brief,
+        "passages": [{"chunk_id": item.chunk["chunk_id"], "pages": ask.page_phrase(item.chunk),
+                      "where": item.chunk.get("section") or item.chunk.get("chapter") or "",
+                      "score": round(item.score, 3)} for item in found],
+        "best_score": round(best, 3),
+        "threshold": threshold,
+        "below_threshold": None if threshold is None else best < threshold,
+    }
+
+
+def format_preview(previews: list[dict]) -> str:
+    """The previews as plain text, for the command line and the view alike."""
+    lines = ["RETRIEVAL PREVIEW (embedding only; scores are diagnostics, not confidence)"]
+    for number, shown in enumerate(previews, start=1):
+        lines.append(f"  {number}. {shown['brief']}")
+        for passage in shown["passages"]:
+            lines.append(f"       {passage['score']:.3f}  {passage['pages']:<14} {passage['where'][:60]}")
+        if shown["below_threshold"]:
+            lines.append(f"       LOOK: the best score, {shown['best_score']:.3f}, is below {shown['threshold']:.3f}. "
+                         "The thesis may not cover this question.")
+    if previews and previews[0]["threshold"] is None:
+        lines.append("  No threshold is set (PREVIEW_MIN_SCORE), so no question is flagged.")
+    return "\n".join(lines)
+
+
+FRAME_KINDS = {"introduction": "an introduction to", "conclusion": "a conclusion for"}
+_BRACKET = re.compile(r"\[[^\]]*\]")
+
+
+def section_text(article: assemble.Article) -> str:
+    """The article's own section prose, without its note markers: all that a frame
+    suggestion is given, and all it may draw on."""
+    parts = [text for kind, text in article.blocks if kind in ("heading", "paragraph")]
+    return re.sub(r"\s+([.,;:])", r"\1", _BRACKET.sub("", "\n\n".join(parts)))
+
+
+def suggest_frame(workspace: Workspace, draft: Draft, kind: str) -> dict:
+    """Ask once for an introduction or a conclusion, from the article's own text.
+
+    One model call, made when the researcher asks for it. Nothing is retrieved
+    and no passage is shown: the model sees the section text and nothing else.
+    The suggestion may add no name, number or transliterated term the sections
+    do not hold, no bracket and no em dash; one that does is kept in the record
+    as rejected and is not offered. It prints nothing by itself.
+    """
+    if kind not in FRAME_KINDS:
+        raise ArticleError("A suggestion is for the introduction or the conclusion.")
+    body = section_text(render(workspace, draft))
+    if not body.strip():
+        raise ArticleError("There is no section text yet to suggest from.")
+    prompt, digest = checks.load_prompt(checks.FRAME_PROMPT)
+    task = f"Write {FRAME_KINDS[kind]} the article titled “{draft.title}”."
+    try:
+        result, system_hash = ask.suggest_from_text(task, f"{prompt}\nARTICLE\n=======\n{body}")
+        error = None
+    except (Exception, SystemExit) as exc:  # recorded, never retried (hard rule 9)
+        result, system_hash, error = {}, None, f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}"
+    text = " ".join((result.get("answer") or "").split())
+    problems = []
+    if error:
+        problems.append(f"the pipeline failed: {error}")
+    elif not text:
+        problems.append("no_text: the model returned nothing to suggest")
+    else:
+        added = checks.new_terms(f"{draft.title}\n{body}", text)
+        if added:
+            problems.append("new_terms: the suggestion adds " + ", ".join(f"“{term}”" for term in added[:8]))
+        if _BRACKET.search(text):
+            problems.append("brackets: the suggestion holds a bracket or a note marker")
+        if ask.PAGE_CLAIM_RE.findall(text):
+            problems.append("page_number: the suggestion holds a page number")
+        if voice.EM_DASH.search(text):
+            problems.append("em_dash: the suggestion uses an em dash")
+        problems += checks.quotation_failures(text)
+    suggestion = {
+        "kind": kind, "prompt": checks.FRAME_PROMPT, "prompt_sha256_12": digest,
+        "system_prompt_sha256_12": system_hash, "text": text or None, "rejected_because": problems,
+        "suggested_at": _now(),
+    }
+    draft.frame_suggestions.setdefault(kind, []).append(suggestion)
+    return suggestion
+
+
+def offered(draft: Draft, kind: str) -> str | None:
+    """The newest suggestion for this part, if it passed its checks."""
+    latest = (draft.frame_suggestions.get(kind) or [None])[-1]
+    return latest["text"] if latest and not latest["rejected_because"] else None
+
+
+def set_frame(draft: Draft, kind: str, text: str) -> None:
+    """Put the researcher's introduction or conclusion in the article. If it started
+    from a suggestion that passed its checks, it is recorded as suggested by the model
+    and accepted by the researcher, with what the model proposed kept beside it.
+    Otherwise it is the researcher's own. Empty text takes the part out."""
+    if kind not in FRAME_KINDS:
+        raise ArticleError("This is for the introduction or the conclusion.")
+    text, proposed = text.strip(), offered(draft, kind)
+    element = None
+    if text:
+        element = (FrameElement(SUGGESTED, text=text, suggestion=proposed) if proposed
+                   else FrameElement(RESEARCHER, text=text))
+    setattr(draft, kind, element)
+
+
+def export_blockers(draft: Draft, article: assemble.Article) -> list[str]:
+    """What still stands between this article and its export, in words. Empty when it
+    may be exported: every pair judged, no *does not* left, every sentence without a
+    note resolved, every printed commentary accepted."""
+    blockers = []
+    if not draft.complete:
+        blockers.append("the draft is not finished")
+    if article.held_back:
+        blockers.append(f"{len(article.held_back)} sentence(s) with no note are waiting to be deleted or kept as yours")
+    given = [(pair_verdict(draft, pair) or {}).get("verdict") for pair in article.pairs]
+    if not article.pairs:
+        blockers.append("the article has no sourced sentence")
+    if given.count(None):
+        blockers.append(f"{given.count(None)} of {len(given)} sentences are not judged yet")
+    if given.count("does not"):
+        blockers.append(f"{given.count('does not')} sentence(s) judged “does not” are still in the article")
+    waiting = sum(1 for entry in article.commentary if entry["printed"]
+                  and draft.commentary_verdicts.get(entry["section"], {}).get("verdict") != "accept")
+    if waiting:
+        blockers.append(f"{waiting} commentary paragraph(s) are not accepted")
+    return blockers
+
+
+def export(workspace: Workspace, draft: Draft) -> dict[str, str]:
+    """The article as it is published, as Markdown and as HTML. Refused while anything
+    blocks it: what is exported is what the record shows as reviewed."""
+    article = render(workspace, draft)
+    blockers = export_blockers(draft, article)
+    if blockers:
+        raise ArticleError("This article cannot be exported yet: " + "; ".join(blockers) + ".")
+    owner = ask.settings.owner_name
+    return {"markdown": article_export.markdown(article, workspace.document, owner),
+            "html": article_export.as_html(article, workspace.document, owner)}
+
+
+def pair_key(pair: dict) -> str:
+    return f"{pair['sid']}|{pair['chunk_id']}"
+
+
+def pair_verdict(draft: Draft, pair: dict) -> dict | None:
+    """The researcher's verdict on this sentence and this note, if it still stands.
+
+    A verdict stands for the text it was given on: an edited sentence needs a
+    fresh one. A verdict given per note, before sentences were judged one by one
+    (ADR 0008), is carried over to every sentence of that note that has not been
+    edited since, and is marked as carried over.
+    """
+    own = draft.pair_verdicts.get(pair_key(pair))
+    if own is not None:
+        return {**own, "carried_over": False} if own["judged_text"] == pair["raw"] else None
+    legacy = draft.verdicts.get(pair["chunk_id"])
+    if legacy and legacy.get("verdict") and not pair["edited"]:
+        return {**legacy, "carried_over": True}
+    return None
+
+
+def set_pair_verdict(draft: Draft, pair: dict, verdict: str, reason: str = "") -> None:
+    if verdict not in VERDICTS:
+        raise ArticleError(f"A verdict is one of: {', '.join(VERDICTS)}.")
+    draft.pair_verdicts[pair_key(pair)] = {
+        "verdict": verdict, "reason": reason.strip(), "judged_at": _now(), "judged_text": pair["raw"]}
+
+
+def pair_flags(workspace: Workspace, pair: dict) -> list[str]:
+    """What is raised for the researcher on this pair. Today: reported speech in the
+    passage sentence that best matches the drafted one."""
+    matches = sentences.best_matches(pair["raw"], workspace.by_id[pair["chunk_id"]]["text"], limit=1)
+    return checks.reported_speech_flags(pair["raw"], matches[0].text) if matches else []
+
+
+def pairs_record(draft: Draft, article: assemble.Article, workspace: Workspace | None = None) -> list[dict]:
+    """Every sentence-and-note pair the article has, with the researcher's verdict,
+    and every pair it had: a sentence deleted after a verdict keeps that verdict here."""
+    rows, current = [], set()
+    for pair in article.pairs:
+        given = pair_verdict(draft, pair) or {}
+        current.add(pair_key(pair))
+        rows.append({
+            "sid": pair["sid"], "chunk_id": pair["chunk_id"], "n": pair["n"], "sentence": pair["sentence"],
+            "verdict": given.get("verdict"), "reason": given.get("reason", ""), "judged_at": given.get("judged_at"),
+            "judged_by": "researcher" if given else None, "carried_over": bool(given.get("carried_over")),
+            "in_article": True,
+            # the text the verdict was given on; None for a verdict carried over from a note
+            "raw": None if given.get("carried_over") or not given else pair["raw"],
+            "raised": pair_flags(workspace, pair) if workspace is not None else [],
+        })
+    for key, given in draft.pair_verdicts.items():
+        sid, chunk_id = key.split("|", 1)
+        if key not in current and draft.sentence_edits.get(sid, {}).get("text", "") is None:
+            rows.append({"sid": sid, "chunk_id": chunk_id, "n": None, "sentence": given["judged_text"],
+                         "verdict": given["verdict"], "reason": given["reason"], "judged_at": given["judged_at"],
+                         "judged_by": "researcher", "carried_over": False, "in_article": False,
+                         "sentence_deleted": True, "raw": given["judged_text"]})
+    for chunk_id in sorted(draft.removed):                # removed under a per-note verdict, before ADR 0008
+        given = draft.verdicts.get(chunk_id, {})
+        rows.append({"sid": None, "chunk_id": chunk_id, "n": None, "sentence": None, "verdict": given.get("verdict"),
+                     "reason": given.get("reason", ""), "judged_at": given.get("judged_at"),
+                     "judged_by": "researcher" if given else None, "carried_over": True, "in_article": False,
+                     "sentences_removed": True})
+    return rows
 
 
 def set_verdict(draft: Draft, chunk_id: str, verdict: str, reason: str = "") -> None:
@@ -358,6 +594,69 @@ def set_verdict(draft: Draft, chunk_id: str, verdict: str, reason: str = "") -> 
         "reason": reason.strip(),
         "judged_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+
+
+def _unit(draft: Draft, sid: str):
+    section = draft.sections[int(sid.split(".")[0])]
+    return next(unit for unit in sentences.units(int(sid.split(".")[0]), assemble.base_text(section)) if unit.sid == sid)
+
+
+def delete_sentence(draft: Draft, sid: str) -> None:
+    """Take a sentence out of the article. The record keeps what it said."""
+    original = draft.sentence_edits.get(sid, {}).get("original", _unit(draft, sid).text)
+    draft.sentence_edits[sid] = {"text": None, "original": original, "edited_at": _now()}
+    draft.own_words.pop(sid, None)
+
+
+def edit_sentence(draft: Draft, sid: str, text: str) -> None:
+    """Replace a sentence with the researcher's wording of it.
+
+    The edit keeps the sentence's notes: the same markers, no more and no fewer.
+    It is checked as the model's text was: no page number, no joined marker, no
+    marker used as a word, quotation within its limits. An edit that fails is
+    refused with the reason and nothing is changed. The record keeps the
+    original; the verdict given on the old wording no longer stands.
+    """
+    index = int(sid.split(".")[0])
+    unit = _unit(draft, sid)
+    text = " ".join(text.split())
+    problems = []
+    if not text:
+        raise ArticleError("An edited sentence cannot be empty. Delete the sentence instead.")
+    if sorted(sentences.handles(text)) != sorted(sentences.handles(unit.text)):
+        kept = " ".join(f"[{handle}]" for handle in sentences.handles(unit.text)) or "no marker"
+        problems.append(f"the sentence must keep its markers exactly ({kept})")
+    if ask.malformed_handles(text):
+        problems.append("one marker per bracket, written as [E1]")
+    if ask.PAGE_CLAIM_RE.findall(text):
+        problems.append("no page number: pages come from the notes")
+    if checks.handle_as_subject(text):
+        problems.append("a marker closes its clause and is never a word of the sentence")
+    if sentences.handles(unit.text) and any(not sentences.handles(part) for part in sentences.split(text)):
+        problems.append("every sentence of the edit needs a marker of its own")
+    section = draft.sections[index]
+    body = " ".join(
+        text if other.sid == sid else (draft.sentence_edits.get(other.sid, {}).get("text", other.text) or "")
+        for other in sentences.units(index, assemble.base_text(section))
+    )
+    problems += [failure.split(":")[0].replace("_", " ") for failure in checks.quotation_failures(body)]
+    if problems:
+        raise ArticleError("This edit was not saved: " + "; ".join(problems) + ".")
+    if text == unit.text:
+        draft.sentence_edits.pop(sid, None)               # back to what the model wrote
+    else:
+        draft.sentence_edits[sid] = {"text": text, "original": unit.text, "edited_at": _now()}
+
+
+def keep_as_own_words(draft: Draft, sid: str) -> None:
+    """A sentence with no note may stay only as the researcher's own words. It is
+    printed without a note and recorded with origin "researcher": no claim of
+    support is made for it."""
+    unit = _unit(draft, sid)
+    current = draft.sentence_edits.get(sid, {}).get("text", unit.text)
+    if current is None or sentences.handles(current):
+        raise ArticleError("Only a sentence that carries no note can be kept as your own words.")
+    draft.own_words[sid] = {"kept_at": _now()}
 
 
 COMMENTARY_VERDICTS = ("accept", "reject")
@@ -426,6 +725,9 @@ def _frame_record(element: FrameElement | None) -> dict | None:
     if element.origin == RESEARCHER:
         # The researcher's own words: kept so the article can be rebuilt; outside the support rate.
         return {"origin": RESEARCHER, "text": element.text}
+    if element.origin == SUGGESTED:
+        return {"origin": SUGGESTED, "text": element.text, "suggestion": element.suggestion,
+                "edited_by_researcher": element.text != element.suggestion}
     return {"origin": GENERATED, "brief": element.brief, **_outcome_record(element.outcome, element.error)}
 
 
@@ -445,6 +747,7 @@ def voice_columns(article: assemble.Article, reference_text: str = "") -> dict:
 def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, reference_text: str = "") -> dict:
     cut = workspace.sources.removed
     notes = notes_record(draft, article)
+    pairs = pairs_record(draft, article, workspace)
     commentary = {entry["section"]: entry for entry in article.commentary}
 
     def commentary_record(index: int) -> dict | None:
@@ -491,6 +794,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             checks.SECTION_PROMPT: checks.load_prompt(checks.SECTION_PROMPT)[1],
             **({checks.EDITORIAL_PROMPT: checks.load_prompt(checks.EDITORIAL_PROMPT)[1]}
                if any(section.editorial for section in draft.sections) else {}),
+            **({checks.FRAME_PROMPT: checks.load_prompt(checks.FRAME_PROMPT)[1]} if draft.frame_suggestions else {}),
         },
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
@@ -504,12 +808,23 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             "transitions": [_frame_record(element) for element in draft.transitions],
             "conclusion": _frame_record(draft.conclusion),
         },
+        "frame_suggestions": draft.frame_suggestions,
         "blocked": article.blocked,
         "frame_sentences_without_a_note": article.unnoted,
         "limitations_kept_in_record_only": article.limits_held_back,
+        "export": {"ready": not export_blockers(draft, article), "blocked_by": export_blockers(draft, article)},
+        "sentences": {
+            "held_back_without_a_note": article.held_back,
+            "kept_as_own_words": [{**entry, "origin": RESEARCHER, **draft.own_words[entry["sid"]]}
+                                  for entry in article.own_words],
+            "edits": {sid: {**edit, "edited_by": RESEARCHER} for sid, edit in draft.sentence_edits.items()},
+        },
         "em_dashes_in_print": em_dashes(draft),
         "notes": notes,
-        "support": assemble.support_rate(notes),
+        # One row per sentence and note it carries: the unit the researcher judges (ADR 0008).
+        "pairs": pairs,
+        # Verdicts are counted per pair; "notes" is how many distinct notes those pairs carry.
+        "support": {**assemble.support_rate(pairs), "notes": len({row["chunk_id"] for row in pairs})},
         "support_excludes": "text written by the researcher, which carries no notes",
         "source_filter": workspace.sources.report.to_json(),
         "voice": voice_columns(article, reference_text),
@@ -571,6 +886,8 @@ def _frame_from(record: dict | None, workspace: Workspace) -> FrameElement | Non
         return None
     if record["origin"] == RESEARCHER:
         return FrameElement(RESEARCHER, text=record.get("text", ""))
+    if record["origin"] == SUGGESTED:
+        return FrameElement(SUGGESTED, text=record.get("text", ""), suggestion=record.get("suggestion", ""))
     outcome, error = _outcome_from(record, record["brief"], workspace)
     return FrameElement(GENERATED, brief=record["brief"], outcome=outcome, error=error)
 
@@ -605,6 +922,15 @@ def load(folder: Path, workspace: Workspace) -> Draft:
             for note in record["notes"] if note["verdict"]
         },
         removed={note["chunk_id"] for note in record["notes"] if note["sentences_removed"]},
+        pair_verdicts={
+            f"{row['sid']}|{row['chunk_id']}": {"verdict": row["verdict"], "reason": row["reason"],
+                                                "judged_at": row["judged_at"], "judged_text": row["raw"]}
+            for row in record.get("pairs", []) if row.get("verdict") and row.get("raw") is not None
+        },
+        sentence_edits={sid: {key: edit[key] for key in ("text", "original", "edited_at")}
+                        for sid, edit in record.get("sentences", {}).get("edits", {}).items()},
+        own_words={entry["sid"]: {"kept_at": entry["kept_at"]}
+                   for entry in record.get("sentences", {}).get("kept_as_own_words", [])},
         commentary=record.get("commentary_switched_on", False),
         commentary_verdicts={
             index: {"verdict": entry["commentary"]["verdict"], "judged_at": entry["commentary"]["judged_at"]}
@@ -613,6 +939,7 @@ def load(folder: Path, workspace: Workspace) -> Draft:
         },
         article_id=record["article_id"],
         created=record["created"],
+        frame_suggestions={kind: list(asked) for kind, asked in record.get("frame_suggestions", {}).items()},
         frame_plan=dict(record.get("plan", {}).get("frame", {})),
         editorial=record.get("plan", {}).get("editorial", False),
         frame_done=set(record.get("drafting", {}).get("frame_steps_done", [])),
