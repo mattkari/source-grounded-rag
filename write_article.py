@@ -125,9 +125,14 @@ def report(workspace: pipeline.Workspace, draft: pipeline.Draft, folder: Path, r
     for heading, count in pipeline.em_dashes(draft).items():
         print(f"\nEM DASHES: “{heading}” prints {count} (target 0). They are left as written; "
               "replace them by hand if you wish.", file=stream)
+    print("\nSOURCE FILTER (footnotes and the reference list are never drafted from)", file=stream)
+    for line in workspace.sources.report.lines():
+        print(f"  {line}", file=stream)
     columns = pipeline.voice_columns(article, reference_text)
     print("\nVOICE (plain counts; no score)", file=stream)
     print(voice.format_comparison(columns), file=stream)
+    if not reference_text.strip():
+        print("  No --reference file was given, so there is nothing of yours to compare with.", file=stream)
     for check in voice.profile_checks(columns["draft, sourced"]):
         print(f"  {check['check']}: {check['value']} (target {check['target']}) -> "
               f"{'met' if check['met'] else 'NOT met'}", file=stream)
