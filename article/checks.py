@@ -29,7 +29,12 @@ _REPORTING = (
     "identifies|points|addresses|refers|outlines?|clarifies|maintains?|asserts?|concludes?|stresses"
 )
 _BEFORE_VERB = re.compile(rf"{_HANDLES}\s+(?:(?:also|further|then|thus|only|clearly)\s+)?(?:{_REPORTING})\b", re.IGNORECASE)
-_AS_NOUN = re.compile(rf"\b(?:according to|as|per|see|in|from|by)\s+{_HANDLE}", re.IGNORECASE)
+# "set out in [E6]" uses the marker as a noun; "draws ships in [E3]." only ends on a
+# preposition. So "in", "by" and "from" count only after a word of showing or saying.
+_SHOWN = ("shown|set\\s+out|described|stated|found|discussed|given|outlined|presented|explained|noted|argued|"
+          "claimed|cited|quoted|drawn|taken|seen|mentioned|recorded|reported|made|developed|defined")
+_AS_NOUN = re.compile(
+    rf"\b(?:according to|as|per|see)\s+{_HANDLE}|\b(?:{_SHOWN})\s+(?:in|by|from)\s+{_HANDLE}", re.IGNORECASE)
 # A marker that opens a sentence and runs on in lower case is its subject. One that
 # trails the full stop before a new, capitalised sentence is only placed late.
 _AT_START = re.compile(rf"(?:^|(?<=[.!?])\s+|\n)[\"'“‘(]*{_HANDLES}\s+[a-z]\w*")

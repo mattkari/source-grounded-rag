@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ask
-from article import assemble, checks, export as article_export, sentences, sources, topics, voice
+from article import assemble, checks, export as article_export, sentences, sources, terms, topics, voice
 from article.assemble import GENERATED, RESEARCHER, SUGGESTED, VERDICTS, FrameElement, SectionDraft
 from documents import Document, default_document
 
@@ -812,6 +812,8 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "blocked": article.blocked,
         "frame_sentences_without_a_note": article.unnoted,
         "limitations_kept_in_record_only": article.limits_held_back,
+        # Raised for the researcher to read side by side; nothing is decided from it (ADR 0009).
+        "terms_used_in_more_than_one_section": terms.as_record(terms.shared_terms(article.pairs, article.own_words)),
         "export": {"ready": not export_blockers(draft, article), "blocked_by": export_blockers(draft, article)},
         "sentences": {
             "held_back_without_a_note": article.held_back,

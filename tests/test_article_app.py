@@ -673,3 +673,17 @@ def test_an_outline_can_ask_for_an_argument_and_no_model_is_called(view):
     assert [brief.split(" ")[0] for brief in briefs] == ["How", "How,", "What,"]      # define, explain how, consequences
     assert briefs[0].startswith("How does the thesis define ") and "What does the thesis say about" not in "".join(briefs)
     assert view.model.calls == []
+
+
+def test_terms_used_in_more_than_one_section_are_listed_in_the_review(view):
+    view.model.script["FIXTURE-B"] = payload("FIXTURE the amber beacon draws ships in [E3].", ["E3"])
+    view.model.script["FIXTURE-C"] = payload("FIXTURE the amber beacon warns ships off [E4].", ["E4"])
+    draft(view)
+    shown = all_text(view)
+
+    assert any(e.label == "Terms used in more than one section (1)" for e in view.expander)
+    assert "**amber beacon** — in 2 sections" in shown
+    assert "- *FIXTURE second heading*: FIXTURE the amber beacon draws ships in [3]." in shown
+    assert "- *FIXTURE third heading*: FIXTURE the amber beacon warns ships off [4]." in shown
+    assert "Nothing here is checked for you." in shown and len(view.model.calls) == 3
+

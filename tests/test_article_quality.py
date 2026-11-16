@@ -57,6 +57,8 @@ def test_a_note_marker_standing_as_a_word_of_the_sentence_is_found(text):
     "FIXTURE the keeper logged oil [E1], and the calendar lists rootstock [E2].",
     "FIXTURE the keeper wrote “oil came late” [E1]. FIXTURE the tramway closed [E3][E4].",
     "FIXTURE the author states that the harbour silted up [E2], which the survey notes too [E6].",
+    "FIXTURE the amber beacon draws ships in [E3].",                    # ends on a preposition: not a noun use
+    "FIXTURE this is the doctrine the keeper believed in [E2], and lived by [E4].",
 ])
 def test_a_marker_at_the_end_of_its_clause_is_left_alone(text):
     assert checks.handle_as_subject(text) == []
@@ -1335,3 +1337,72 @@ def test_the_summary_outline_is_what_it_was_and_every_kind_uses_only_printed_tit
             assert set(re.findall(r"[a-z]+", heading.lower())) <= words           # nothing added to a title
     with pytest.raises(ValueError):
         topics.outline(topic, "persuade")
+
+
+# =====================================================================================
+# ADR 0009: terms used in more than one section, side by side
+# =====================================================================================
+
+# The fourth error of the first published article, rebuilt from invented text: one term
+# names one thing in the first section and another in the second. Each sentence can be
+# faithful to its own passage, so nothing but reading the two together shows the clash.
+CLASH = [
+    {"sid": "0.0", "section": 0, "sentence": "FIXTURE the keeper's night lamp, the amber beacon, warns ships off the rocks [1]."},
+    {"sid": "0.1", "section": 0, "sentence": "FIXTURE the harbour master kept the lamp oil ledger [1]."},
+    {"sid": "1.0", "section": 1, "sentence": "FIXTURE the amber beacon draws ships into the harbour at dusk [2]."},
+    {"sid": "1.0", "section": 1, "sentence": "FIXTURE the amber beacon draws ships into the harbour at dusk [2]."},   # a second note on it
+    {"sid": "1.1", "section": 1, "sentence": "FIXTURE the tide tables were printed each spring [3]."},
+    {"sid": "2.0", "section": 2, "sentence": "FIXTURE the “lamp oil ledger” records what the amāna cost [4]."},
+    {"sid": "2.L", "section": 2, "sentence": "The thesis does not say who lit the amber beacon [4]."},
+]
+
+
+def test_a_term_used_in_two_sections_is_listed_with_every_sentence_that_uses_it():
+    from article import terms
+    found = {term.term: term for term in terms.shared_terms(CLASH)}
+
+    beacon = found["amber beacon"]
+    assert beacon.sections == 2 and beacon.count == 2                   # one sentence counts once, whatever its notes
+    assert [use["sid"] for use in beacon.uses[0]] == ["0.0"] and [use["sid"] for use in beacon.uses[1]] == ["1.0"]
+    assert "warns ships off" in beacon.uses[0][0]["sentence"] and "draws ships into" in beacon.uses[1][0]["sentence"]
+    assert found["lamp oil ledger"].sections == 2                       # in running text and in quotation marks
+    assert "lamp oil" not in found and "oil ledger" not in found        # the longest form is the one shown
+    assert "tide tables" not in found and "harbour master" not in found          # one section only: not listed
+    assert not any("the thesis" in term or term.startswith("fixture") and " " not in term for term in found)
+
+
+def test_a_transliterated_term_is_followed_across_sections_and_the_closing_list_is_left_out():
+    from article import terms
+    uses = [{"sid": "0.0", "section": 0, "sentence": "FIXTURE the amāna is a trust held by the keeper [1]."},
+            {"sid": "1.0", "section": 1, "sentence": "FIXTURE the keeper pays the amāna each spring [2]."},
+            {"sid": "1.L", "section": 1, "sentence": "The thesis does not define the zakhīra [2]."},
+            {"sid": "2.0", "section": 2, "sentence": "FIXTURE the zakhīra is stored in the tower [3]."}]
+    found = {term.term: term for term in terms.shared_terms(uses)}
+
+    assert found["amāna"].sections == 2
+    quoted = [{"sid": "0.0", "section": 0, "sentence": "FIXTURE the keeper calls it “balance” [1]."},
+              {"sid": "1.0", "section": 1, "sentence": "FIXTURE a different “balance” is struck by the tide [2]."}]
+    assert [term.term for term in terms.shared_terms(quoted)] == ["balance"]       # a single word, once it is quoted
+    joined = [{"sid": "0.0", "section": 0, "sentence": "FIXTURE the doctrine of light guides the keeper [1]."},
+              {"sid": "1.0", "section": 1, "sentence": "FIXTURE the doctrine of light is rejected by the keeper [2]."}]
+    assert "doctrine of light" in [term.term for term in terms.shared_terms(joined)]
+    assert not any(" the " in term.term for term in terms.shared_terms(joined))
+    assert "zakhīra" not in found                                       # its other use is a limit line, not a section's prose
+
+
+def test_the_table_is_capped_recorded_by_id_and_decides_nothing(workspace, monkeypatch):
+    from article import terms
+    scripted(monkeypatch,
+             lighthouse=payload("FIXTURE the amber beacon warns ships off the rocks [E1].", cites=["E1"]),
+             orchard=payload("FIXTURE the amber beacon draws ships into the harbour [E1].", cites=["E1"]),
+             tramway=payload("FIXTURE the timetable changed [E1].", cites=["E1"]))
+    sections = [pipeline.draft_section(workspace, f"FIXTURE heading {n + 1}", brief) for n, brief in enumerate(BRIEFS)]
+    draft = pipeline.Draft("FIXTURE title", sections)
+    article = pipeline.render(workspace, draft)
+    record = pipeline.build_record(workspace, draft, article)
+
+    assert {"term": "amber beacon", "sections": [0, 1], "sentences": ["0.0", "1.0"]} in record["terms_used_in_more_than_one_section"]
+    assert "warns ships" not in json.dumps(record["terms_used_in_more_than_one_section"])     # ids, not sentences
+    assert article.blocked == [] and pipeline.export_blockers(draft, article) == ["3 of 3 sentences are not judged yet"]
+    many = [{"sid": f"{s}.0", "section": s, "sentence": " ".join(f"FIXTURE alpha{n} beta{n}," for n in range(30))} for s in (0, 1)]
+    assert len(terms.shared_terms(many)) == terms.SHOWN

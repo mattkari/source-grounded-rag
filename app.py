@@ -39,7 +39,7 @@ import audit
 import runs
 import upload
 from article import assemble, pipeline, sentences as article_sentences, sources as article_sources
-from article import topics as article_topics, voice
+from article import terms as article_terms, topics as article_topics, voice
 from config import settings
 from documents import Document, default_document
 
@@ -1157,6 +1157,26 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
             st.rerun()
 
 
+def render_terms(draft: pipeline.Draft, article: assemble.Article) -> None:
+    """Terms the article uses in more than one section, with each sentence that uses
+    them, section by section. A term can be faithful to its passage each time and
+    still name two different things; only reading the uses together shows it."""
+    shared = article_terms.shared_terms(article.pairs, article.own_words)
+    if not shared:
+        return
+    with st.expander(f"Terms used in more than one section ({len(shared)})"):
+        st.caption(
+            "Check that each term means the same thing wherever it is used. The thesis itself may use "
+            "one term in two senses on different pages; each sentence can then match its passage and "
+            "the article still contradict itself. Nothing here is checked for you."
+        )
+        for term in shared:
+            st.markdown(f"**{term.term}** — in {term.sections} sections")
+            for section in sorted(term.uses):
+                for use in term.uses[section]:
+                    st.markdown(f"- *{draft.sections[section].heading}*: {use['sentence']}")
+
+
 def render_resume(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
     left = pipeline.planned_calls(draft)
     st.warning(
@@ -1197,6 +1217,7 @@ def render_step_review(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
             "Check that they add no fact of their own."
         )
     render_review(workspace, draft, article)
+    render_terms(draft, article)
     if st.button("Next: the finished article"):
         go_to_step(STEP_FINISH)
 
