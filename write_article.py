@@ -34,6 +34,7 @@ from pathlib import Path
 import ask
 import upload
 from article import assemble, checks, pipeline, sources, topics, voice
+from article import trace as article_trace
 
 GENERATE, NONE = "generate", "none"
 CHARS_PER_TOKEN = 4          # a rough rule for prompt text; the provider's own count will differ
@@ -150,6 +151,9 @@ def main(argv: list[str] | None = None, stream=None) -> int:
     parser.add_argument("--export", metavar="ARTICLE_ID",
                         help="write the reviewed article as medium.md and medium.html; no model call. Refused, with "
                              "the reasons, until every sentence is judged")
+    parser.add_argument("--trace", metavar="ARTICLE_ID",
+                        help="print every step a saved article has been through, and why anything was blocked, "
+                             "rejected or held back; no model call")
     parser.add_argument("--resume", metavar="ARTICLE_ID", help="finish an interrupted draft; finished steps are not sent again")
     parser.add_argument("--title", help="the article's title, in your words")
     parser.add_argument("--outline", type=Path, metavar="FILE", help="one section per line: Heading | question")
@@ -191,6 +195,14 @@ def main(argv: list[str] | None = None, stream=None) -> int:
     if args.topics or args.sources:
         print(topics.format_topics(workspace.topics()) if args.topics
               else "\n".join(workspace.sources.report.lines()), file=stream)
+        return 0
+
+    if args.trace:
+        folder = out_dir / args.trace
+        if not (folder / "record.json").exists():
+            print(f"There is no saved article {args.trace}. Run with --list to see them.", file=stream)
+            return 2
+        print(article_trace.format_trace(article_trace.trace(workspace, pipeline.load(folder, workspace))), file=stream)
         return 0
 
     if args.export:
