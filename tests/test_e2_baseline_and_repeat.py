@@ -135,7 +135,7 @@ def test_the_baseline_switch_is_reachable_only_from_the_evaluation_runner():
         source = (ROOT / shell).read_text(encoding="utf-8")
         assert "retrieve_evidence" not in source and "baseline" not in source.lower(), shell
 
-    command_line = (ROOT / "ask.py").read_text(encoding="utf-8").split("def main() -> int:")[1]
+    command_line = (ROOT / "ask.py").read_text(encoding="utf-8").split("def main(")[1]
     assert "retrieve_evidence" not in command_line and "baseline" not in command_line.lower()
     assert "retrieve_evidence=False" in (ROOT / "evaluate.py").read_text(encoding="utf-8")
 

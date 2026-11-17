@@ -168,7 +168,8 @@ def test_nothing_is_embedded_or_indexed_before_approval(library, analysed):
 def test_the_identity_is_proposed_but_not_adopted(analysed):
     assert analysed["identity_proposal"]["author"]["value"] == "Fixture Author"
     assert analysed["identity_proposal"]["year"]["value"] == "2001"
-    assert analysed["identity"] == {"author": "", "year": "", "title": "", "short_title": "", "confirmed": False}
+    assert analysed["identity"] == {"author": "", "year": "", "title": "", "short_title": "", "container": "",
+                                    "volume_issue": "", "pages": "", "doi": "", "confirmed": False}
 
 
 def test_the_canonical_extraction_is_written_once(library, analysed):

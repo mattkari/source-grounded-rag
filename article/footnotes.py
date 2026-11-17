@@ -56,12 +56,10 @@ def build(document: Document) -> FootnoteMap:
     found = FootnoteMap()
     for blocks in layout.read_blocks(document.pdf_path):
         zone = [b for b in blocks if layout._in_zone(b, profile.header_band_y, profile.footnote_band_y)]
-        body_rows = [b.y0 for b in zone if b.dominant_size() == profile.body_size]
-        if not body_rows:
-            continue
-        last_body = max(body_rows)
         for block in zone:
-            if block.y0 <= last_body or block.dominant_size() >= profile.body_size:
+            # In two columns a footnote sits at the foot of its own column (PLAN_V7 §5).
+            last_body = layout.last_body_row(zone, profile.body_size, block, profile.column_split_x)
+            if last_body is None or block.y0 <= last_body or block.dominant_size() >= profile.body_size:
                 continue
             # What the extractor would have kept of this block: spans at or above the body floor.
             kept = " ".join(s["text"] for s in block.spans if s["size"] >= profile.body_min_size)

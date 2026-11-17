@@ -300,3 +300,34 @@ def test_the_ask_view_never_shows_a_raw_handle_and_says_the_answer_is_not_ground
     assert "FIXTURE one thing\u00a0¹." in answer_text.replace(" ¹", "\u00a0¹")   # the good note still resolves
     assert "did not pass the automatic grounding checks" in all_text(app)
     assert any(f.startswith("malformed_handle:") for f in record["validation_failures"])
+
+
+def test_an_article_is_added_as_an_article_and_its_publication_details_are_confirmed(app, library, tmp_path):
+    from pdf_factory import make_article
+
+    pdf = tmp_path / "article.pdf"
+    make_article(pdf)
+    open_library(app)
+    next(radio for radio in app.radio if radio.label == "What is this document?").set_value("article")
+    app.run()
+    app.file_uploader[0].upload("fixture-article.pdf", pdf.read_bytes(), "application/pdf")
+    app.run()
+    button(app, "Add to the library").click()
+    app.run()
+    (record,) = upload.list_records()
+
+    assert not app.exception
+    assert record["kind"] == "article" and record["document_id"].startswith("article-")
+    assert "COLUMNS — two, read down the left and then the right" in all_text(app)
+    assert text_input(app, "DOI").value == "10.5555/fixture.2020.001"
+    assert "DOI — proposed from a DOI printed on PDF page 1." in all_text(app)
+    assert button(app, "Approve").disabled is True                        # nothing is cited until confirmed
+
+    text_input(app, "Author").set_value("Fixture, A.")
+    text_input(app, "Journal").set_value("FIXTURE Journal of Synthetic Studies")
+    button(app, "Confirm identity").click()
+    app.run()
+
+    assert ("Confirmed: Fixture, A. (2020), FIXTURE Article On Synthetic Canals, FIXTURE Journal of Synthetic Studies. "
+            "doi:10.5555/fixture.2020.001") in all_text(app)
+    assert button(app, "Approve").disabled is False and library.embedded == []

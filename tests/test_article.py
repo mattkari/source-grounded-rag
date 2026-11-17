@@ -512,7 +512,7 @@ def test_no_shell_exposes_drafting_from_chosen_passages():
     for shell in ("app.py", "main.py", "evaluate.py"):
         assert "draft_from_evidence" not in (ROOT / shell).read_text(encoding="utf-8"), shell
     source = (ROOT / "ask.py").read_text(encoding="utf-8")
-    assert "draft_from_evidence" not in source[source.index("def main()"):]
+    assert "draft_from_evidence" not in source[source.index("def main("):]
 
 
 # =====================================================================================
@@ -776,7 +776,7 @@ def test_the_record_holds_what_the_plan_says_and_no_passage_text(workspace, draf
     record = json.loads(text)
 
     assert "FIXTURE passage:" not in text                              # passages by id, never by text
-    assert record["schema_version"] == 4 and record["status"] == "draft"
+    assert record["schema_version"] == pipeline.SCHEMA_VERSION and record["status"] == "draft"
     assert record["model"] == ask.settings.llm_model and record["sections"][0]["prompt_sha256_12"] == "fixturehash"
     section = record["sections"][0]
     assert {"heading", "brief", "kept_by_researcher", "gap_stated", "blocked", "evidence", "result",
@@ -821,7 +821,7 @@ def test_a_saved_draft_is_not_reopened_against_another_index_or_document(workspa
         pipeline.load(folder, changed)
     other = pipeline.Workspace(dataclasses.replace(workspace.document, document_id="another-thesis"),
                                workspace.sources, workspace.manifest)
-    with pytest.raises(pipeline.ArticleError, match="not the thesis now open"):
+    with pytest.raises(pipeline.ArticleError, match="not from what is now open"):
         pipeline.load(folder, other)
 
 

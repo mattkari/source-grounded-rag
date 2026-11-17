@@ -168,6 +168,12 @@ class Settings:
         float(os.environ["LLM_PRICE_OUTPUT_PER_MTOK"]) if os.environ.get("LLM_PRICE_OUTPUT_PER_MTOK") else None
     )
 
+    # The exploring agent (PLAN_V7 §14, ADR 0014). The most model calls one
+    # exploration may make, and the most searches. Held by code: the model cannot
+    # raise it. Each call's output is capped separately, below.
+    explorer_max_steps: int = int(os.environ.get("EXPLORER_MAX_STEPS", "12"))
+    explorer_step_max_tokens: int = 4000
+
     # --- local generation fallback (LLM_PROVIDER=ollama) --------------------
     # Removes the API dependency entirely, at a real cost in speed and in
     # instruction-following. Documented and tested, but not the default — see
@@ -184,6 +190,10 @@ class Settings:
 
     # --- retrieval ---------------------------------------------------------
     top_k: int = 5
+    # A question asked of several sources at once (PLAN_V7 §6) takes at most this many
+    # passages from any one of them, so a long thesis cannot crowd out a short article.
+    # Three is the number one published system uses (ADR 0013), not one measured here.
+    per_source_passages: int = int(os.environ.get("PER_SOURCE_PASSAGES", "3"))
 
     @property
     def openai_api_key(self) -> str:

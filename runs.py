@@ -52,6 +52,7 @@ def append(
     prompt_hash: str,
     manifest: dict,
     error: str | None = None,
+    collection: dict | None = None,
 ) -> dict:
     """Append one run record and return it.
 
@@ -76,6 +77,18 @@ def append(
         "result": result,
         "validation_failures": list(failures),
     }
+    if collection:
+        # A question asked of several sources at once (PLAN_V7 §6): which sources, the
+        # instruction it was sent with, and the source of every passage. `document_id`
+        # above then names the first source only, for older readers of this file.
+        record["collection"] = {
+            "document_ids": list(collection["document_ids"]),
+            "prompt": collection["prompt"],
+            "prompt_sha256_12": collection["prompt_sha256_12"],
+            "per_source_passages": collection["per_source_passages"],
+        }
+        for entry, item in zip(record["evidence"], items):
+            entry["document_id"] = item.chunk["document_id"]
     if error:
         record["error"] = error
 
@@ -115,11 +128,15 @@ def load(limit: int | None = None) -> list[dict]:
     return records[:limit] if limit else records
 
 
-def rehydrate(record: dict, chunks: list[dict], document=None):
+def rehydrate(record: dict, chunks: list[dict], document=None, sources: list | None = None):
     """Rebuild EvidenceItems from stored chunk ids against the CURRENT index.
 
     `document` is the thesis those chunks belong to (None = the built-in one),
     so a citation rendered from history names the right author and year.
+
+    `sources` (a list of `ask.Source`) is for a record of a question asked of
+    several sources: each passage is then found in its own source's index and
+    carries that source's identity. `chunks` and `document` are not used.
 
     Returns (items, unresolved_ids). Provenance is re-read from the index rather
     than trusted from the record, so citations rendered from history are subject
@@ -127,29 +144,32 @@ def rehydrate(record: dict, chunks: list[dict], document=None):
     """
     import ask
 
-    by_id = {c["chunk_id"]: c for c in chunks}
+    if sources is not None:
+        by_id = {c["chunk_id"]: (c, source.document) for source in sources for c in source.chunks}
+    else:
+        by_id = {c["chunk_id"]: (c, document) for c in chunks}
     items, unresolved = [], []
     for entry in record.get("evidence", []):
-        chunk = by_id.get(entry["chunk_id"])
-        if chunk is None:
+        found = by_id.get(entry["chunk_id"])
+        if found is None:
             unresolved.append(entry["chunk_id"])
             continue
         items.append(
             ask.EvidenceItem(
-                handle=entry["handle"], chunk=chunk, score=entry["score"], document=document
+                handle=entry["handle"], chunk=found[0], score=entry["score"], document=found[1]
             )
         )
     return items, unresolved
 
 
-def as_outcome(record: dict, chunks: list[dict], document=None):
+def as_outcome(record: dict, chunks: list[dict], document=None, sources: list | None = None):
     """A stored record rendered through the same path as a live answer.
 
     Returns (QueryOutcome, unresolved_chunk_ids).
     """
     import ask
 
-    items, unresolved = rehydrate(record, chunks, document)
+    items, unresolved = rehydrate(record, chunks, document, sources)
     outcome = ask.QueryOutcome(
         question=record["question"],
         result=record["result"],

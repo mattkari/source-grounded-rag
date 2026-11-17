@@ -1234,7 +1234,7 @@ def test_no_shell_calls_the_model_without_evidence_itself():
     for shell in ("app.py", "main.py", "evaluate.py", "write_article.py"):
         assert "suggest_from_text" not in (ROOT / shell).read_text(encoding="utf-8"), shell
     source = (ROOT / "ask.py").read_text(encoding="utf-8")
-    assert "suggest_from_text" not in source[source.index("def main()"):]
+    assert "suggest_from_text" not in source[source.index("def main("):]
 
 
 # =====================================================================================

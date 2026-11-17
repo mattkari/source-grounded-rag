@@ -27,6 +27,7 @@ import tiktoken
 
 from config import settings
 from documents import HEADING, RUNNING_HEADER, Document, LayoutProfile, default_document
+from layout import column_of, lies_across
 from embeddings import active_model_name, embed_texts
 
 # --- layout ---------------------------------------------------------------
@@ -106,10 +107,34 @@ def _heading_level(size: float, layout: LayoutProfile) -> int:
     return 2 if size >= layout.section_heading_min_size else 3
 
 
+def reading_order(blocks: list[dict], split_x: float) -> list[dict]:
+    """Blocks of a two-column page in the order a reader takes them (PLAN_V7 §5).
+
+    A block that lies across the split (a title, an abstract, a wide heading) divides
+    the page into bands. Within a band the left column is read to its foot, then the
+    right. Nothing is inferred beyond position: PyMuPDF gives no reading order of its
+    own for columns, so it is worked out from where the blocks sit.
+    """
+    across = sorted((b for b in blocks if lies_across(b["bbox"][0], b["bbox"][2], split_x)),
+                    key=lambda b: (round(b["bbox"][1], 1), round(b["bbox"][0], 1)))
+    tops = [b["bbox"][1] for b in across]
+
+    def key(block: dict):
+        x0, y0, x1, _ = block["bbox"]
+        place = (round(y0, 1), round(x0, 1))
+        if lies_across(x0, x1, split_x):
+            return (sum(1 for top in tops if top <= y0), 0, 0, *place)
+        return (sum(1 for top in tops if top <= y0), 1, column_of(x0, x1, split_x), *place)
+
+    return sorted(blocks, key=key)
+
+
 def extract_page(page: pymupdf.Page, pdf_page: int, layout: LayoutProfile | None = None) -> Page:
     layout = _layout(layout)
     blocks = [b for b in page.get_text("dict")["blocks"] if b["type"] == 0]
     blocks.sort(key=lambda b: (round(b["bbox"][1], 1), round(b["bbox"][0], 1)))
+    if layout.columns == 2 and layout.column_split_x is not None:
+        blocks = reading_order(blocks, layout.column_split_x)
 
     printed_page: str | None = None
     header_parts: list[str] = []
@@ -385,15 +410,20 @@ def pages_for(seg: Segment, lo: int, hi: int) -> list[Page]:
 # ---------------------------------------------------------------------------
 
 
-def is_apparatus(chapter: str | None, layout: LayoutProfile | None = None) -> bool:
+def is_apparatus(chapter: str | None, layout: LayoutProfile | None = None, section: str | None = None) -> bool:
     """Reference apparatus is not a source claim (hard rule 5).
 
     Apparatus is indexed like anything else, but carries `kind: "apparatus"`
     so that the model is told what it is and the citation says so. A
     bibliography entry supports "the thesis cites this work" and nothing more.
     """
-    prefixes = _layout(layout).apparatus_chapter_prefixes
-    return bool(chapter) and bool(prefixes) and chapter.startswith(prefixes)
+    layout = _layout(layout)
+    prefixes = layout.apparatus_chapter_prefixes
+    if bool(chapter) and bool(prefixes) and chapter.startswith(prefixes):
+        return True
+    # A document with no chapters prints its reference list under a section heading.
+    sections = layout.apparatus_section_prefixes
+    return bool(section) and bool(sections) and section.startswith(sections)
 
 
 def page_span(segments: list[Segment]) -> tuple[int, int] | tuple[None, None]:
@@ -419,7 +449,7 @@ def build_chunks(segments: list[Segment], document: Document | None = None) -> l
                 {
                     "chunk_id": f"{document.document_id}::{len(records):05d}::{digest}",
                     "document_id": document.document_id,
-                    "kind": "apparatus" if is_apparatus(seg.chapter, document.layout) else "source",
+                    "kind": "apparatus" if is_apparatus(seg.chapter, document.layout, seg.section) else "source",
                     "chapter": seg.chapter,
                     "section": seg.section,
                     "page_start": printed[0],

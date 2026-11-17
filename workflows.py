@@ -2,7 +2,8 @@
 
 Asking a question, drafting an article and running the evaluation are each a
 fixed sequence of steps. None has a loop, a retry, or a step where a model
-decides what happens next. This module states those sequences as data, and
+decides what happens next. One step, exploring, is a bounded agent: inside it
+the model chooses its own searches, and its output is a proposal (ADR 0014). This module states those sequences as data, and
 `docs/workflows.md` is generated from it by `scripts/workflow_diagrams.py`.
 
 It is a description, kept honest by tests rather than by hand: every step names
@@ -19,7 +20,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 RESEARCHER, MODEL, EMBEDDING, CHECK, PLAIN = "researcher", "model call", "embedding call", "check", "no model"
-KINDS = (RESEARCHER, MODEL, EMBEDDING, CHECK, PLAIN)
+# One step inside which the model chooses its own next search, up to a budget that code holds
+# (ADR 0014). The workflow around it still has no loop: the step has one way in and one way out.
+AGENT = "agent, bounded"
+KINDS = (RESEARCHER, MODEL, EMBEDDING, CHECK, PLAIN, AGENT)
 
 
 @dataclass(frozen=True)
@@ -45,13 +49,19 @@ ASK = (
 )
 
 ARTICLE = (
-    Step("outline", "Title and outline", RESEARCHER, ("article.topics.outline", "article.pipeline.new_draft"),
+    Step("explore", "Explore the sources and propose a theme, an outline and passages", AGENT,
+         ("article.explorer.explore", "article.explorer.check_proposal"), (("outline", ""),), optional=True),
+    Step("outline", "Title and outline: written, or a proposal edited and approved", RESEARCHER,
+         ("article.topics.outline", "article.pipeline.approve", "article.pipeline.new_draft"),
          (("preview", ""),)),
-    Step("preview", "Retrieval preview", EMBEDDING, ("article.pipeline.preview",), (("sources", ""),), optional=True),
-    Step("sources", "Source filter: no footnotes, no reference list", PLAIN, ("article.sources.open_sources",),
+    Step("preview", "Retrieval preview, or a coverage map of several sources", EMBEDDING,
+         ("article.pipeline.preview", "article.pipeline.coverage"), (("sources", ""),), optional=True),
+    Step("sources", "Source filter, for each source: no footnotes, no reference list", PLAIN,
+         ("article.sources.open_sources",),
          (("section", ""),)),
-    Step("section", "Draft each section through the Ask pipeline", MODEL,
-         ("article.pipeline.draft_section", "ask.run_query"), (("checks", ""),)),
+    Step("section", "Draft each section through the Ask pipeline, or from approved passages", MODEL,
+         ("article.pipeline.draft_section", "ask.run_query", "ask.retrieve_collection", "ask.draft_from_evidence"),
+         (("checks", ""),)),
     Step("checks", "Validation and checks of form", CHECK, ("ask.validate", "article.checks.prose_failures"),
          (("editorial", "passed"), ("blocked", "failed"))),
     Step("blocked", "Section left out; reason shown, not retried", PLAIN, ("article.assemble.block_reason",)),
@@ -62,8 +72,10 @@ ARTICLE = (
     Step("review", "Verdict on each sentence and note; edit or delete", RESEARCHER,
          ("article.pipeline.set_pair_verdict", "article.pipeline.edit_sentence", "article.pipeline.delete_sentence",
           "article.pipeline.keep_as_own_words"), (("raised", ""), ("frame", ""))),
-    Step("raised", "Raised to read: reported speech, shared terms; a second opinion on request (one model call)", CHECK,
-         ("article.checks.reported_speech_flags", "article.terms.shared_terms", "article.pipeline.second_opinion"),
+    Step("raised", "Raised to read: reported speech, mixed or wrong sources, shared terms; "
+                   "a second opinion on request (one model call)", CHECK,
+         ("article.checks.reported_speech_flags", "article.checks.source_flags", "article.checks.consensus_flags",
+          "article.terms.shared_terms", "article.pipeline.second_opinion"),
          optional=True),
     Step("frame", "Introduction and conclusion: written, or a suggestion edited", RESEARCHER,
          ("article.pipeline.suggest_frame", "article.pipeline.set_frame"), (("export", ""),), optional=True),
@@ -92,7 +104,7 @@ SHARED = (("Drafting an article", "section", "Asking a question"),
           ("Running the evaluation", "run", "Asking a question"))
 
 _SHAPES = {RESEARCHER: ('(["', '"])'), MODEL: ('{{"', '"}}'), EMBEDDING: ('[/"', '"/]'), CHECK: ('[["', '"]]'),
-           PLAIN: ('["', '"]')}
+           PLAIN: ('["', '"]'), AGENT: ('>"', '"]')}
 
 
 def mermaid(steps: tuple[Step, ...]) -> str:
@@ -117,7 +129,9 @@ def document() -> str:
         "a test fails if this file and that module disagree, or if a function a step names no longer exists.",
         "",
         "Each workflow is a fixed sequence. None has a loop or a retry, and no step lets a model decide",
-        "what happens next. A step's kind is written in it:",
+        "what happens next. The one exception is inside a single step: while exploring, the model chooses",
+        "its own next search, up to a budget that code holds, and what it produces is a proposal the",
+        "researcher approves. A step's kind is written in it:",
         "",
         "| Kind | Shape | Meaning |",
         "|---|---|---|",
@@ -126,6 +140,8 @@ def document() -> str:
         "| embedding call | slanted | the embedding provider is called |",
         "| check | double-edged box | plain code that passes, blocks or raises; never a model's verdict |",
         "| no model | rectangle | plain code |",
+        "| agent, bounded | flag | the model chooses its own searches inside this step, up to a fixed budget; "
+        "every call is recorded |",
         "",
     ]
     for name, steps in WORKFLOWS.items():

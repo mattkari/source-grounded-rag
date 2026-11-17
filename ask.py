@@ -142,6 +142,71 @@ def retrieve(
 
 
 # ---------------------------------------------------------------------------
+# Several sources at once (PLAN_V7 §6)
+# ---------------------------------------------------------------------------
+
+COLLECTION_PROMPT = "collection_v1.md"
+
+
+class CollectionRefused(Exception):
+    """These sources cannot be searched together; the message says why."""
+
+
+@dataclass
+class Source:
+    """One document and its index, as one member of a collection."""
+    document: Document
+    vectors: np.ndarray
+    chunks: list[dict]
+    manifest: dict
+
+
+def load_sources(documents: list[Document | None]) -> list[Source]:
+    """Each document's own index, loaded by the one loader. None is the built-in thesis."""
+    return [Source(_document(document), *load_index(document)) for document in documents]
+
+
+def retrieve_collection(question: str, sources: list[Source], k: int, per_source: int) -> list[EvidenceItem]:
+    """The same cosine ranking as `retrieve`, over several indexes.
+
+    The question is embedded once. Each source is ranked by itself and gives at
+    most `per_source` passages; those are merged by score and the best `k` kept.
+    The cap is what stops one long document taking every place. Scores from
+    different documents are compared as they stand: that is an assumption, and
+    a score remains a diagnostic, never a confidence (hard rule 4).
+    """
+    if not sources:
+        raise CollectionRefused("No source was chosen.")
+    models = sorted({str(source.manifest.get("embedding_model")) for source in sources})
+    if len(models) != 1:
+        raise CollectionRefused(
+            "These sources were indexed with different embedding models "
+            f"({', '.join(models)}), so their passages cannot be ranked together."
+        )
+    seen = [source.document.document_id for source in sources]
+    if len(set(seen)) != len(seen):
+        raise CollectionRefused("The same source was chosen twice.")
+    query = embed_texts([question], is_query=True)[0]
+    picked = []
+    for place, source in enumerate(sources):
+        scores = source.vectors @ query
+        for index in np.argsort(-scores)[:per_source]:
+            picked.append((-float(scores[index]), place, int(index)))
+    picked.sort()
+    return [
+        EvidenceItem(handle=f"E{n + 1}", chunk=sources[place].chunks[index], score=-negative,
+                     document=sources[place].document)
+        for n, (negative, place, index) in enumerate(picked[:k])
+    ]
+
+
+def collection_prompt() -> tuple[str, str]:
+    """The instruction a question over several sources is sent with, and its hash."""
+    text = (settings.prompt_path.parent / COLLECTION_PROMPT).read_text(encoding="utf-8")
+    return text, hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+# ---------------------------------------------------------------------------
 # Model-facing evidence (no page numbers, by construction)
 # ---------------------------------------------------------------------------
 
@@ -228,6 +293,52 @@ def call_model(
     if text is None:
         raise SystemExit(f"No text block in response (stop_reason={response.stop_reason})")
     return json.loads(text), prompt_hash
+
+
+class ExplorerUnavailable(Exception):
+    """The configured provider cannot run the exploring agent."""
+
+
+def call_explorer(system_prompt: str, messages: list[dict], tools: list[dict]) -> dict:
+    """One turn of the exploring agent (PLAN_V7 §14, ADR 0014).
+
+    This is the second place the generation model is called, and the only one
+    that offers it tools. It makes exactly one request and returns what came
+    back; the loop, the budget and the tools themselves are plain code in
+    `article/explorer.py`. Nothing here is used by a question, by a drafted
+    section or by the evaluation. Tests replace this function, as they replace
+    `call_model`, and never make a live call.
+
+    Returns {"stop_reason", "content", "tool_calls", "usage"}. `content` is the
+    reply exactly as the provider gave it, to be sent back unchanged on the
+    next turn; `tool_calls` is the same reply's tool requests as plain dicts.
+    """
+    if settings.llm_provider != "anthropic":
+        raise ExplorerUnavailable(
+            f"Exploring needs a provider with tool use; LLM_PROVIDER is {settings.llm_provider}. "
+            "Write the outline yourself, or use the coverage of the retrieval preview."
+        )
+    client = _get_client()
+    response = client.messages.create(
+        model=settings.llm_model,
+        max_tokens=settings.explorer_step_max_tokens,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        cache_control={"type": "ephemeral"},      # the conversation only grows, so its prefix is reused
+        tools=tools,
+        messages=messages,
+    )
+    usage = response.usage
+    return {
+        "stop_reason": response.stop_reason,
+        "content": response.content,
+        "tool_calls": [{"id": block.id, "name": block.name, "input": block.input}
+                       for block in response.content if block.type == "tool_use"],
+        "usage": {
+            "input_tokens": usage.input_tokens + (getattr(usage, "cache_read_input_tokens", 0) or 0)
+            + (getattr(usage, "cache_creation_input_tokens", 0) or 0),
+            "output_tokens": usage.output_tokens,
+        },
+    }
 
 
 def _call_ollama(system_prompt: str, user_content: str) -> dict:
@@ -405,7 +516,7 @@ def footnote(index: int, item: EvidenceItem) -> str:
     if c["section"]:
         parts.append(f"§ {c['section']}")
     parts.append(page_phrase(c))
-    suffix = " [reference list — what the thesis cites, not what it argues]" if is_apparatus(c) else ""
+    suffix = f" [reference list — what the {source.kind} cites, not what it argues]" if is_apparatus(c) else ""
     return f"{index}. " + ", ".join(parts) + "." + suffix
 
 
@@ -495,9 +606,13 @@ def render(question: str, result: dict, items: list[EvidenceItem], verbose: bool
                 out.append(f"     verbatim: “{item.chunk['text'][:400]}…”")
 
     out.append("\nRETRIEVAL DIAGNOSTICS (not a confidence measure)")
+    several = len({_document(item.document).document_id for item in items}) > 1
     for item in items:
         c = item.chunk
         label = (c["section"] or c["chapter"] or "—")[:52]
+        if several:                         # say which source each passage is from
+            who = _document(item.document)
+            label = f"{who.author} ({who.year}) — {label}"
         out.append(f"  {item.handle}  score={item.score:.4f}  {page_phrase(c):<14} {label}")
 
     return "\n".join(out)
@@ -520,6 +635,9 @@ class QueryOutcome:
     # False only for the evaluation baseline (PLAN_V5): the same prompt and the
     # same model, asked with an empty evidence block.
     evidence_retrieved: bool = True
+    # Set only when the question was asked of several sources at once (PLAN_V7 §6):
+    # the hash of the collection instruction it was sent with.
+    collection_prompt_hash: str | None = None
 
     @property
     def grounded(self) -> bool:
@@ -544,6 +662,7 @@ def run_query(
     *,
     retrieve_evidence: bool = True,
     instructions: str | None = None,
+    collection: list[Source] | None = None,
 ) -> QueryOutcome:
     """Retrieve -> ground -> validate. No printing, no process control.
 
@@ -558,12 +677,28 @@ def run_query(
 
     `instructions` is passed on to `call_model` by the article writer only. It
     plays no part in retrieval: the passages are found from the question alone.
+
+    `collection` asks the question of several sources at once (PLAN_V7 §6). The
+    passages then come from `retrieve_collection`, `vectors`, `chunks` and
+    `document` are not used, and the collection instruction is sent with the
+    question, ahead of any other instructions. It is the same model call and
+    the same validation. With None, which is every question of one document and
+    every evaluation run, nothing here is different from before the parameter
+    existed.
     """
-    items = (
-        retrieve(question, vectors, chunks, top_k or settings.top_k, document)
-        if retrieve_evidence
-        else []
-    )
+    collection_hash = None
+    if collection is not None:
+        if not retrieve_evidence:
+            raise CollectionRefused("The no-retrieval baseline is an evaluation of one document only.")
+        items = retrieve_collection(question, collection, top_k or settings.top_k, settings.per_source_passages)
+        rules, collection_hash = collection_prompt()
+        instructions = rules if instructions is None else f"{rules}\n\n{instructions}"
+    else:
+        items = (
+            retrieve(question, vectors, chunks, top_k or settings.top_k, document)
+            if retrieve_evidence
+            else []
+        )
     result, prompt_hash = _generate(question, items, instructions)
     return QueryOutcome(
         question=question,
@@ -572,6 +707,7 @@ def run_query(
         failures=validate(result, items),
         prompt_hash=prompt_hash,
         evidence_retrieved=retrieve_evidence,
+        collection_prompt_hash=collection_hash,
     )
 
 
@@ -616,28 +752,36 @@ def suggest_from_text(task: str, instructions: str) -> tuple[dict, str]:
     return _generate(task, [], instructions)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Query the authorised research collection.")
     parser.add_argument("question", help="the question to ask")
     parser.add_argument("-k", "--top-k", type=int, default=settings.top_k)
     parser.add_argument("--verbose-provenance", action="store_true",
                         help="print chunk ids and verbatim passages under each footnote")
     parser.add_argument("--json", action="store_true", help="emit the raw run record")
-    parser.add_argument("--document", default=None,
-                        help="id of an uploaded thesis (default: the built-in thesis)")
-    args = parser.parse_args()
+    parser.add_argument("--document", action="append", default=None, metavar="ID",
+                        help="id of an uploaded document (default: the built-in thesis). Give it more than "
+                             "once to ask several sources at once; the built-in thesis's own id may be one of them")
+    args = parser.parse_args(argv)
 
-    document = None
+    documents = []
     if args.document:
-        import upload  # only needed for an uploaded thesis; pulls in the PDF tools
+        import upload  # only needed for an uploaded document; pulls in the PDF tools
 
         try:
-            document = upload.find_document(args.document)
+            documents = [upload.find_document(document_id) for document_id in args.document]
         except upload.UploadRefused as exc:
             raise SystemExit(str(exc))
 
+    document = documents[0] if documents else None
     vectors, chunks, manifest = load_index(document)
-    outcome = run_query(args.question, vectors, chunks, args.top_k, document)
+    if len(documents) > 1:
+        try:
+            outcome = run_query(args.question, vectors, chunks, args.top_k, collection=load_sources(documents))
+        except CollectionRefused as exc:
+            raise SystemExit(str(exc))
+    else:
+        outcome = run_query(args.question, vectors, chunks, args.top_k, document)
     result, items, failures = outcome.result, outcome.items, outcome.failures
     prompt_hash = outcome.prompt_hash
 
@@ -655,6 +799,8 @@ def main() -> int:
                 ],
                 "result": result,
                 "validation_failures": failures,
+                **({"document_ids": [d.document_id for d in documents],
+                    "collection_prompt_sha256_12": outcome.collection_prompt_hash} if len(documents) > 1 else {}),
             },
             indent=1, ensure_ascii=False,
         ))

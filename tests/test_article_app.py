@@ -11,6 +11,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import re
 
 import numpy as np
 import pytest
@@ -717,6 +718,249 @@ def test_the_finish_step_offers_a_trace_of_every_step(view):
     shown = "\n".join(str(c.value) for c in view.code)
 
     assert any(e.label == "Trace — every step this article has been through" for e in view.expander)
-    assert "DONE      Title and outline (researcher)" in shown
+    assert "DONE      Title and outline: written, or a proposal edited and approved (researcher)" in shown
     assert "BLOCKED   Validation and checks of form [FIXTURE third heading] (check)" in shown
     assert "validation failed: ungrounded_answer" in shown and len(view.model.calls) == 3
+
+
+# --- the exploring agent (ADR 0014) --------------------------------------------------
+
+
+def agent_turn(*calls):
+    content = [{"type": "tool_use", "id": f"toolu_{n}_{name}", "name": name, "input": arguments}
+               for n, (name, arguments) in enumerate(calls)]
+    return {"stop_reason": "tool_use", "content": content, "usage": {"input_tokens": 50, "output_tokens": 10},
+            "tool_calls": [{"id": block["id"], "name": block["name"], "input": block["input"]} for block in content]}
+
+
+def test_an_agent_proposes_an_outline_and_nothing_is_drafted_until_the_researcher_uses_it(view, monkeypatch, tmp_path):
+    from article import explorer
+
+    monkeypatch.setattr(explorer, "DEFAULT_DIR", tmp_path / "explorations")
+    turns = iter([
+        agent_turn(("search", {"query": "FIXTURE query one"})),
+        agent_turn(("propose", {
+            "theme": "FIXTURE: a proposed theme.", "gaps": ["FIXTURE: a reported gap"],
+            "sections": [{"heading": "FIXTURE agent one", "question": "FIXTURE-A what first?", "passages": ["P1", "P2"]},
+                         {"heading": "FIXTURE agent two", "question": "FIXTURE-B what second?", "passages": ["P3"]},
+                         {"heading": "FIXTURE agent three", "question": "FIXTURE-C what third?", "passages": ["P4"]}]})),
+    ])
+    asked = []
+    monkeypatch.setattr(ask, "call_explorer", lambda system, messages, tools: (asked.append(len(messages)), next(turns))[1])
+    for key in ("FIXTURE-A", "FIXTURE-B", "FIXTURE-C"):
+        view.model.script[key] = payload("FIXTURE a sentence from an approved passage [E1].", ["E1"])
+
+    view.checkbox(key="article_explore_open").check()
+    view.run()
+    assert button(view, "Explore").disabled                              # no topic, and the ceiling not accepted
+    assert "The most this exploration can use" in all_text(view) and "Model calls: 12" in all_text(view)
+    view.text_input(key="article_explore_topic").set_value("FIXTURE topic of mine")
+    view.checkbox(key="article_explore_accept").check()
+    view.run()
+    button(view, "Explore").click()
+    view.run()
+
+    assert len(asked) == 2 and view.model.calls == []                    # the agent ran; nothing was drafted
+    assert "FIXTURE: a proposed theme." in all_text(view) and "FIXTURE: a reported gap" in all_text(view)
+    assert len(list((tmp_path / "explorations").glob("*.json"))) == 1
+    passages = [c for c in view.checkbox if c.label.startswith("Use the passage at ")]
+    assert len(passages) == 4 and all(re.match(r"Use the passage at (p|pp|PDF p)\.", c.label) for c in passages)
+    passages[1].uncheck()                                                # the researcher drops one passage
+    next(t for t in view.text_input if t.value == "FIXTURE agent two").set_value("FIXTURE my wording")
+    view.run()
+    button(view, "Use this proposal as my outline").click()
+    view.run()
+
+    assert view.model.calls == []                                        # approving drafts nothing either
+    assert view.text_area(key="article_outline").value.splitlines()[1] == "FIXTURE my wording | FIXTURE-B what second?"
+    view.text_input(key="article_title").set_value("FIXTURE harbour title")
+    view.run()
+    button(view, "Next: frame and options").click()
+    view.run()
+    button(view, "Next: check the plan").click()
+    view.run()
+    assert "from 1 passage(s) you approved" in all_text(view)
+    button(view, "Draft the article").click()
+    view.run()
+
+    saved = record(view)
+    assert len(view.model.calls) == 3 and len(asked) == 2                # one call a section; the agent not called again
+    assert [len(s["approved_passages"]) for s in saved["sections"]] == [1, 1, 1]
+    assert saved["exploration"]["approval"]["changes"]["passages_dropped"] == 1
+    assert saved["exploration"]["approval"]["changes"]["headings_reworded"] == 1
+    assert saved["sections"][0]["evidence"][0]["chunk_id"] == saved["sections"][0]["approved_passages"][0]
+
+
+def test_an_exploration_that_ends_without_a_proposal_is_shown_and_not_run_again(view, monkeypatch, tmp_path):
+    from article import explorer
+
+    monkeypatch.setattr(explorer, "DEFAULT_DIR", tmp_path / "explorations")
+    calls = []
+
+    def failing(*args):
+        calls.append(1)
+        raise RuntimeError("FIXTURE: the provider is down")
+
+    monkeypatch.setattr(ask, "call_explorer", failing)
+    view.checkbox(key="article_explore_open").check()
+    view.run()
+    view.text_input(key="article_explore_topic").set_value("FIXTURE topic of mine")
+    view.checkbox(key="article_explore_accept").check()
+    view.run()
+    button(view, "Explore").click()
+    view.run()
+
+    assert len(calls) == 1
+    assert any("ended without a proposal: failed (RuntimeError: FIXTURE: the provider is down)" in str(w.value)
+               for w in view.warning)
+    assert not any(b.label == "Use this proposal as my outline" for b in view.button)
+
+
+# --- several sources (PLAN_V7 §7) ----------------------------------------------------
+
+
+@pytest.fixture
+def second_source(tmp_path, monkeypatch):
+    """A second ready document beside the built-in thesis: its own small index in the
+    built-in index's dimension, and a stored footnote map that says it has no footnotes."""
+    import shutil
+
+    import upload
+    from article import sources
+    from documents import Document, default_document, default_layout
+
+    second_id = "article-fixture0001"
+    index_dir = tmp_path / "second-index"
+    index_dir.mkdir()
+    texts = [f"FIXTURE passage: a synthetic article passage number {n} about harbours." for n in range(3)]
+    chunks = [{"chunk_id": f"{second_id}::{n:05d}::fixture", "document_id": second_id, "kind": "source", "chapter": None,
+               "section": f"FIXTURE article section {n}", "page_start": str(101 + n), "page_end": str(101 + n),
+               "pdf_page_start": n + 1, "pdf_page_end": n + 1, "pages_unresolved": [], "token_count": 9, "text": text}
+              for n, text in enumerate(texts)]
+    np.save(index_dir / "vectors.npy", offline_embedding(texts))
+    (index_dir / "chunks.json").write_text(json.dumps(chunks), encoding="utf-8")
+    builtin_manifest = json.loads((settings.index_dir / "manifest.json").read_text(encoding="utf-8"))
+    (index_dir / "manifest.json").write_text(json.dumps({
+        "document_id": second_id, "embedding_model": builtin_manifest["embedding_model"],
+        "corpus_text_sha256": "second-corpus-hash", "chunk_count": 3}), encoding="utf-8")
+    document = Document(second_id, "Second, B.", "2020", "FIXTURE Article On Synthetic Canals",
+                        "Second, B. (2020), FIXTURE Article", default_layout(settings), tmp_path / "none.pdf",
+                        tmp_path, index_dir, kind="article")
+
+    maps = tmp_path / "footnote_maps"                     # the built-in map (ids and offsets only), and the second's
+    shutil.copytree(sources.SIDE_DIR, maps)
+    (maps / f"{second_id}.json").write_text(json.dumps({
+        "schema_version": sources.SCHEMA_VERSION, "corpus_text_sha256": "second-corpus-hash",
+        "footnotes_found": 0, "unclear_foot_blocks": 0, "spans": {}}), encoding="utf-8")
+    monkeypatch.setattr(sources, "SIDE_DIR", maps)
+    builtin = default_document(settings)
+    monkeypatch.setattr(upload, "ready_documents", lambda: [document])
+    monkeypatch.setattr(upload, "find_document", lambda i: document if i == second_id else builtin)
+    return document
+
+
+def test_an_article_can_draw_on_a_further_source_with_a_coverage_map_and_a_narrowed_section(view, second_source):
+    second_id = second_source.document_id
+    view.run()                                                           # the library now offers a second source
+    picker = next(m for m in view.multiselect if m.label.startswith("Further sources"))
+    picker.set_value([second_id])
+    view.run()
+
+    assert not view.exception and second_source.reference() in all_text(view)      # its own source filter is shown
+    fill(view)
+    button(view, "Next: frame and options").click()
+    view.run()
+    button(view, "Next: check the plan").click()
+    view.run()
+    assert "Which sources each section searches." in all_text(view)
+    button(view, "Coverage map: what each source holds for each section (no model call)").click()
+    view.run()
+    shown = "\n".join(str(c.value) for c in view.code)
+    assert "COVERAGE MAP (embedding only" in shown and "Second, B. (2020)" in shown and view.model.calls == []
+
+    view.multiselect(key="section_sources_1").set_value([second_id])     # the second section: this source only
+    view.run()
+    button(view, "Draft the article").click()
+    view.run()
+
+    saved = record(view)
+    assert not view.exception and len(view.model.calls) == 3
+    assert saved["document_ids"] == [settings.document_id, second_id]
+    assert [s["sources_searched"] for s in saved["sections"]] == [None, [second_id], None]
+    assert {e["chunk_id"].split("::")[0] for e in saved["sections"][1]["evidence"]} == {second_id}
+    assert "article_section_v3.md" in saved["prompts"] and "collection_v1.md" in saved["prompts"]
+    assert re.search(r"\*\*Sentence with note \[\d+\]\*\*, in “.+” — .+ \(\d{4}\), pp?\. ", all_text(view))
+    assert "FIXTURE Article On Synthetic Canals" in article_file(view)   # the draft names both of its sources
+
+
+def test_with_no_other_source_ready_the_view_offers_none_and_drafts_as_before(view):
+    assert not any(m.label.startswith("Further sources") for m in view.multiselect)
+    draft(view)
+
+    saved = record(view)
+    assert saved["document_ids"] == [settings.document_id] and "collection_v1.md" not in saved["prompts"]
+    assert "article_section_v2.md" in saved["prompts"]
+
+
+# --- asking every ready source at once (PLAN_V7 §8) ----------------------------------
+
+
+def ask_view(view):
+    view.radio[0].set_value("Ask questions")
+    return view.run()
+
+
+def test_a_question_can_be_asked_of_every_ready_source_and_each_note_names_its_own(view, second_source, tmp_path):
+    ask_view(view)
+    box = next(c for c in view.checkbox if c.label == "Ask all 2 ready sources at once")
+    assert box.value is False                                            # one document at a time unless asked
+
+    box.check()
+    view.run()
+    assert not view.exception and any(h.value.startswith("All ready sources — 2 documents, ") for h in view.header)
+    view.chat_input[0].set_value("FIXTURE-A what do the sources say?")
+    view.run()
+
+    (stored,) = [json.loads(line) for line in (tmp_path / "runs.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert not view.exception and view.model.calls == ["FIXTURE-A what do the sources say?"]
+    assert stored["collection"]["document_ids"] == [settings.document_id, second_source.document_id]
+    assert stored["collection"]["prompt"] == "collection_v1.md"
+    assert {entry["document_id"] for entry in stored["evidence"]} == {settings.document_id, second_source.document_id}
+    assert sum(entry["document_id"] == settings.document_id for entry in stored["evidence"]) <= 3    # the cap per source
+    assert "FIXTURE-A what do the sources say?" in all_text(view)
+
+    next(c for c in view.checkbox if c.label == "Ask all 2 ready sources at once").uncheck()
+    view.run()
+    assert "FIXTURE-A what do the sources say?" not in all_text(view)    # it is not the first source's conversation
+    view.chat_input[0].set_value("FIXTURE-B and of the thesis alone?")
+    view.run()
+    alone = json.loads((tmp_path / "runs.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert "collection" not in alone and all("document_id" not in entry for entry in alone["evidence"])
+
+
+def test_a_collection_conversation_is_rebuilt_from_disk_with_each_sources_identity(view, second_source, monkeypatch):
+    def from_the_second(question, items, instructions=None):
+        cited = next(item.handle for item in items if item.chunk["document_id"] == second_source.document_id)
+        return payload(f"FIXTURE Second says so [{cited}].", [cited]), "fixturehash"
+
+    monkeypatch.setattr(ask, "call_model", from_the_second)
+    ask_view(view)
+    next(c for c in view.checkbox if c.label == "Ask all 2 ready sources at once").check()
+    view.run()
+    view.chat_input[0].set_value("FIXTURE-A what do the sources say?")
+    view.run()
+
+    again = AppTest.from_file(str(ROOT / "app.py"), default_timeout=180).run()      # a new browser session
+    assert "FIXTURE-A what do the sources say?" not in all_text(again)   # not part of the first source's own conversation
+    next(c for c in again.checkbox if c.label == "Ask all 2 ready sources at once").check()
+    again.run()
+
+    assert not again.exception and "FIXTURE-A what do the sources say?" in all_text(again)
+    assert "1 earlier question(s) in this collection" in all_text(again)
+    assert "Second, B. (2020)" in all_text(again)                        # the note is re-read under its own source
+    assert "no longer in the collection" not in all_text(again)
+
+
+def test_with_one_document_the_ask_view_offers_no_such_choice(view):
+    ask_view(view)
+    assert not any(c.label.startswith("Ask all ") for c in view.checkbox)

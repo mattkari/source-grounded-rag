@@ -204,3 +204,120 @@ def make_encrypted_pdf(path) -> None:
     page.insert_text((LEFT, 200), "FIXTURE protected text", fontname="tiro", fontsize=12)
     doc.save(path, encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw="fixture", owner_pw="fixture")
     doc.close()
+
+
+# ---------------------------------------------------------------------------
+# A synthetic journal article in two columns (PLAN_V7 §5)
+# ---------------------------------------------------------------------------
+
+COL_LEFT, COL_RIGHT = 50, 310          # where each column's text starts
+ARTICLE_TOP = 70
+
+
+@dataclass
+class ArticleSpec:
+    pages: int = 4
+    columns: int = 2                   # 1 = the same article set in a single column
+    body_size: float = 10.0
+    title: str = "FIXTURE Article On Synthetic Canals"
+    authors: str | None = "Fixture Author and Second Fixture"
+    doi: str | None = "10.5555/fixture.2020.001"
+    journal: str = "FIXTURE Journal of Synthetic Studies"
+    first_page_number: int = 101
+    year_line: str | None = "Received 2019, accepted 2020"
+    footnotes: bool = True             # a footnote at the foot of the LEFT column of each page
+    footnote_lines: int = 1            # more lines = footnotes carry more of the text
+    short_left_column: bool = False    # the left column ends, with its footnote, above the foot of the right
+    references: bool = True            # a "References" heading and entries, closing the last page
+    wide_figure_beside_text: bool = False   # a block across both columns with text beside it
+
+
+def _short(seed: int) -> str:
+    """A line short enough to stay inside one column."""
+    a, b = WORDS[(seed * 5) % len(WORDS)], WORDS[(seed * 11 + 3) % len(WORDS)]
+    return f"FIXTURE the {a} and the {b} met"
+
+
+def _column_paragraph(page, x: float, y: float, size: float, seed: int, tag: str, lines: int = 4) -> float:
+    leading = size * 1.25
+    for line in range(lines):
+        text = _short(seed * 10 + line)
+        page.insert_text((x, y + line * leading), f"{tag} {text}" if line == 0 else text, fontname="tiro", fontsize=size)
+    return y + lines * leading + size * 1.4
+
+
+def make_article(path, spec: ArticleSpec | None = None) -> dict:
+    """Write the PDF and return what a correct extraction must find: per page, the
+    tags of its paragraphs in reading order, and its printed page number."""
+    spec = spec or ArticleSpec()
+    doc = pymupdf.open()
+    expected = {"order": {}, "labels": {}, "footnote_pages": [], "reference_page": None}
+    seed = 0
+    for number in range(1, spec.pages + 1):
+        page = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+        label = str(spec.first_page_number + number - 1)
+        page.insert_text((COL_LEFT, 34), spec.journal, fontname="tiit", fontsize=8)
+        page.insert_text((PAGE_WIDTH - 70, 34), label, fontname="tiro", fontsize=8)
+        expected["labels"][number] = label
+        order, y = [], ARTICLE_TOP
+        if number == 1:
+            page.insert_text((COL_LEFT, y + 10), spec.title, fontname="tibo", fontsize=18)
+            y += 40
+            if spec.authors:
+                page.insert_text((COL_LEFT, y), spec.authors, fontname="tiro", fontsize=11)
+                y += 18
+            if spec.doi:
+                page.insert_text((COL_LEFT, y), f"https://doi.org/{spec.doi}", fontname="tiro", fontsize=8)
+                y += 14
+            if spec.year_line:
+                page.insert_text((COL_LEFT, y), spec.year_line, fontname="tiro", fontsize=8)
+                y += 20
+            # the abstract runs across both columns
+            for line in range(3):
+                page.insert_text((COL_LEFT, y + line * spec.body_size * 1.25),
+                                 ("abstractword " if line == 0 else "") + _sentence(500 + line) + " " + _short(600 + line),
+                                 fontname="tiro", fontsize=spec.body_size)
+            order.append("abstractword")
+            y += 3 * spec.body_size * 1.25 + 20
+        top = y
+        columns = [COL_LEFT, COL_RIGHT] if spec.columns == 2 else [COL_LEFT]
+        for column, x in enumerate(columns):
+            y = top
+            side = "left" if column == 0 else "right"
+            if column == 0 and number in (1, 3):
+                page.insert_text((x, y), f"FIXTURE Section {number}", fontname="tibo", fontsize=spec.body_size)
+                y += spec.body_size * 2.2
+            closing = spec.references and number == spec.pages and column == len(columns) - 1
+            short = spec.short_left_column and column == 0 and spec.columns == 2
+            for paragraph in range(2 if closing or short else 5):
+                seed += 1
+                tag = f"{side}{number}x{paragraph}"
+                y = _column_paragraph(page, x, y, spec.body_size, seed, tag)
+                order.append(tag)
+            if closing:
+                page.insert_text((x, y), "References", fontname="tibo", fontsize=spec.body_size)
+                y += spec.body_size * 2.2
+                for entry in range(6):
+                    for line in range(2):
+                        text = (f"refword{entry} Example, A. FIXTURE cited work {entry}" if line == 0
+                                else "FIXTURE Synthetic Press, 1999, and so on")
+                        page.insert_text((x, y + line * spec.body_size * 1.25), text, fontname="tiro", fontsize=spec.body_size)
+                    y += 2 * spec.body_size * 1.25 + spec.body_size * 1.4
+                    order.append(f"refword{entry}")
+                expected["reference_page"] = number
+            if spec.footnotes and column == 0 and not (number == spec.pages and len(columns) == 1):
+                foot_y = y + 12 if short else 760 - (spec.footnote_lines - 1) * 9.6
+                page.insert_text((x, foot_y - 3), str(number), fontname="tiro", fontsize=8 * 0.6)
+                for line in range(spec.footnote_lines):
+                    text = f"noteword{number} FIXTURE footnote, a synthetic work." if line == 0 else _short(9000 + number * 10 + line)
+                    page.insert_text((x + 8, foot_y + line * 9.6), text, fontname="tiro", fontsize=8)
+                expected["footnote_pages"].append(number)
+        if number == 2 and spec.wide_figure_beside_text:
+            # a caption-like block across the split, level with text on both sides
+            page.insert_text((COL_LEFT + 150, top + 4), "wideword FIXTURE a wide block lying across both columns here",
+                             fontname="tiro", fontsize=spec.body_size)
+        expected["order"][number] = order
+    doc.save(path)
+    doc.close()
+    expected["pages"] = spec.pages
+    return expected

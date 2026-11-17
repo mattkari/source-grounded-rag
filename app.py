@@ -28,6 +28,7 @@ a draft) lives in the `article` package and is tested there.
 
 from __future__ import annotations
 
+import copy
 import html
 import json
 import re
@@ -39,7 +40,7 @@ import audit
 import runs
 import upload
 from article import assemble, pipeline, sentences as article_sentences, sources as article_sources
-from article import terms as article_terms, topics as article_topics, trace as article_trace, voice
+from article import explorer, terms as article_terms, topics as article_topics, trace as article_trace, voice
 from config import settings
 from documents import Document, default_document
 
@@ -169,6 +170,12 @@ def load_collection(document_id: str):
     """Wraps ask.load_index so the index survives Streamlit's script reruns.
     Cached per document: switching the active thesis loads its own index."""
     return ask.load_index(upload.find_document(document_id))
+
+
+@st.cache_resource(show_spinner="Loading every ready source…")
+def load_all_sources(document_ids: tuple[str, ...]) -> list:
+    """Each ready document's own index, for a question asked of all of them (PLAN_V7 §8)."""
+    return ask.load_sources([upload.find_document(document_id) for document_id in document_ids])
 
 
 def collection_or_stop(document: Document):
@@ -404,11 +411,20 @@ def render_turn(entry: dict, key: str = "live") -> None:
 
 
 def belongs_to(record: dict, document: Document) -> bool:
-    """Runs recorded before documents were named belong to the built-in thesis."""
+    """Runs recorded before documents were named belong to the built-in thesis. A
+    question asked of several sources at once belongs to that collection, not to
+    its first source."""
+    if record.get("collection"):
+        return False
     return record.get("document_id", settings.document_id) == document.document_id
 
 
-def render_history_sidebar(chunks: list[dict], document: Document) -> dict | None:
+def asked_of(record: dict, sources: list) -> bool:
+    """A question asked of exactly these sources, in this order (PLAN_V7 §8)."""
+    return (record.get("collection") or {}).get("document_ids") == [s.document.document_id for s in sources]
+
+
+def render_history_sidebar(chunks: list[dict], document: Document, sources: list | None = None) -> dict | None:
     """Past runs, newest first. Returns a record to re-open, or None.
 
     History is read from disk, not from session state, so it survives a browser
@@ -416,7 +432,8 @@ def render_history_sidebar(chunks: list[dict], document: Document) -> dict | Non
     """
     with st.sidebar:
         st.markdown("### Past questions")
-        everything = [r for r in runs.load() if belongs_to(r, document)]
+        everything = [r for r in runs.load()
+                      if (asked_of(r, sources) if sources is not None else belongs_to(r, document))]
         records = everything[:HISTORY_LIMIT]
 
         if not records:
@@ -424,7 +441,8 @@ def render_history_sidebar(chunks: list[dict], document: Document) -> dict | Non
             return None
 
         st.caption(
-            f"{len(records)} most recent of {len(everything)} recorded for this thesis. "
+            f"{len(records)} most recent of {len(everything)} recorded for "
+            f"{'these sources together' if sources is not None else 'this thesis'}. "
             "Saved to disk — they survive a refresh."
         )
 
@@ -462,7 +480,7 @@ def render_history_sidebar(chunks: list[dict], document: Document) -> dict | Non
         return selected
 
 
-def session_history(chunks: list[dict], document: Document) -> list[dict]:
+def session_history(chunks: list[dict], document: Document, sources: list | None = None) -> list[dict]:
     """The conversation, rebuilt from disk on first load.
 
     Streamlit's session_state is per-browser-session, so relying on it alone
@@ -473,18 +491,20 @@ def session_history(chunks: list[dict], document: Document) -> list[dict]:
     Entries are rehydrated through runs.as_outcome, so citations are resolved
     against the current index rather than replayed from stored text.
     """
-    key = f"history::{document.document_id}"  # one conversation per thesis
+    # One conversation per thesis, and one per set of sources asked together.
+    key = ("history::all::" + "|".join(s.document.document_id for s in sources) if sources is not None
+           else f"history::{document.document_id}")
     if key in st.session_state:
         return st.session_state[key]
 
     rebuilt: list[dict] = []
     for record in reversed(runs.load()):  # runs.load is newest-first
-        if not belongs_to(record, document):
-            continue  # a different thesis: not part of this conversation
+        if not (asked_of(record, sources) if sources is not None else belongs_to(record, document)):
+            continue  # a different thesis, or other sources: not part of this conversation
         if record.get("error"):
             rebuilt.append({"question": record["question"], "error": record["error"]})
             continue
-        outcome, unresolved = runs.as_outcome(record, chunks, document)
+        outcome, unresolved = runs.as_outcome(record, chunks, document, sources)
         rebuilt.append(
             {
                 "question": record["question"],
@@ -553,18 +573,23 @@ def render_profile(record: dict) -> None:
         st.json(evidence, expanded=False)
 
 
+KIND_LABELS = {"thesis": "A thesis", "article": "A journal article or book chapter"}
+
+
 def render_identity_form(record: dict) -> None:
     proposal = record.get("identity_proposal") or {}
     confirmed = record["identity"]
 
     def start(name: str) -> str:
-        return confirmed[name] or (proposal.get(name) or {}).get("value", "")
+        return confirmed.get(name) or (proposal.get(name) or {}).get("value", "")
 
+    is_article = record.get("kind") == "article"
     st.markdown("**Who wrote this, and when?** Nothing is cited until you confirm these.")
-    for name in ("title", "author", "year"):
+    for name in ("title", "author", "year") + (("doi",) if is_article else ()):
         source = (proposal.get(name) or {}).get("source", "")
         value = (proposal.get(name) or {}).get("value", "")
-        st.caption(f"{name.capitalize()} — proposed from {source}." if value else f"{name.capitalize()} — {source}.")
+        label = "DOI" if name == "doi" else name.capitalize()
+        st.caption(f"{label} — proposed from {source}." if value else f"{label} — {source}.")
     hint = proposal.get("pdf_metadata") or {}
     if hint:
         st.caption(
@@ -583,15 +608,25 @@ def render_identity_form(record: dict) -> None:
             "Short title shown above each passage (leave blank to build it from the three above)",
             value=confirmed["short_title"], key=f"short-{key}",
         )
+        published = {}
+        if is_article:
+            st.caption("Where it was published. These go into the source line as you type them; nothing is "
+                       "looked up. Leave empty what you do not know.")
+            published = {
+                "container": st.text_input("Journal, or the book the chapter is in", value=start("container"),
+                                           key=f"container-{key}"),
+                "volume_issue": st.text_input("Volume and issue, as printed (for example 12(3))",
+                                              value=start("volume_issue"), key=f"volume-{key}"),
+                "pages": st.text_input("Its page range (for example 45–67)", value=start("pages"), key=f"pages-{key}"),
+                "doi": st.text_input("DOI", value=start("doi"), key=f"doi-{key}"),
+            }
         if st.form_submit_button("Confirm identity"):
             if attempt(upload.confirm_identity, key, author=author, year=year, title=title,
-                       short_title=short_title):
+                       short_title=short_title, **published):
                 st.session_state.library_message = ("success", "Identity confirmed.")
             refresh()
     if confirmed["confirmed"]:
-        st.success(
-            f"Confirmed: {confirmed['author']} ({confirmed['year']}), {confirmed['title']}", icon="✅"
-        )
+        st.success(f"Confirmed: {upload._provisional_document(record, None).reference()}", icon="✅")
 
 
 def render_remove(record: dict) -> None:
@@ -701,24 +736,29 @@ def render_record(record: dict) -> None:
 def render_library() -> None:
     st.title("Thesis library")
     st.markdown(
-        "Upload another thesis as a PDF. The system measures its layout, extracts it, and checks "
+        "Upload a thesis or an article as a PDF. The system measures its layout, extracts it, and checks "
         "the extraction against the PDF. **You read the report and decide.** Nothing is sent for "
         "embedding, and nothing is spent, until you approve."
     )
     st.caption(
-        "Theses with a text layer only — not journal articles, not scans. Uploads stay on this "
-        "machine and are never committed or shared."
+        "Theses, journal articles and book chapters with a text layer, in one or two columns. Not "
+        "scans. Uploads stay on this machine and are never committed or shared."
     )
 
     message = st.session_state.pop("library_message", None)
     if message:
         (st.error if message[0] == "error" else st.success)(message[1])
 
-    uploaded = st.file_uploader("Thesis PDF", type=["pdf"], key="thesis_upload")
+    kind = st.radio(
+        "What is this document?", list(KIND_LABELS), key="upload_kind", horizontal=True, format_func=KIND_LABELS.get,
+        help="A thesis prints a title page and chapters. An article is a journal article or a book "
+             "chapter: its first page gives the title and authors, and it ends in a reference list.",
+    )
+    uploaded = st.file_uploader("PDF", type=["pdf"], key="thesis_upload")
     if uploaded is not None and st.button("Add to the library", type="primary"):
         with st.spinner("Storing, measuring and auditing…"):
             try:
-                record = upload.receive(uploaded.getvalue(), uploaded.name)
+                record = upload.receive(uploaded.getvalue(), uploaded.name, kind)
                 upload.analyse(record["document_id"])
                 st.session_state.library_message = ("success", "Analysed. Read the report below.")
             except upload.UploadRefused as exc:
@@ -737,9 +777,22 @@ def render_library() -> None:
 # ---------------------------------------------------------------------------
 
 
-@st.cache_resource(show_spinner="Reading what the thesis offers…")
-def load_workspace(document_id: str) -> pipeline.Workspace:
-    return pipeline.open_workspace(upload.find_document(document_id))
+@st.cache_resource(show_spinner="Reading what the sources offer…")
+def load_workspace(document_id: str, others: tuple[str, ...] = ()) -> pipeline.Workspace:
+    """The active document's filtered sources, with any further sources of the article."""
+    return pipeline.open_workspace(upload.find_document(document_id),
+                                   others=[upload.find_document(other) for other in others])
+
+
+def workspace_key(workspace: pipeline.Workspace) -> str:
+    """What a draft on the screen belongs to: its sources, in order."""
+    return "|".join(document.document_id for document in workspace.documents)
+
+
+def further_sources(document: Document) -> list[Document]:
+    """Every other document that is ready to be drafted from."""
+    available = [default_document(settings)] + upload.ready_documents()
+    return [other for other in available if other.document_id != document.document_id]
 
 
 def parse_outline(text: str) -> list[tuple[str, str]]:
@@ -762,12 +815,14 @@ def persist(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
     pipeline.save(workspace, draft, reference_text=st.session_state.get("article_reference", ""))
 
 
-def plan_draft(title: str, outline: list[tuple[str, str]], topic: str | None, frame: dict) -> pipeline.Draft:
+def plan_draft(title: str, outline: list[tuple[str, str]], topic: str | None, frame: dict,
+               section_sources: list[list[str] | None] | None = None) -> pipeline.Draft:
     """The plan only: no model is called here."""
     origin = {I_WRITE: pipeline.RESEARCHER, GENERATE: pipeline.GENERATED}
     return pipeline.new_draft(
         title, outline, topic=topic, commentary=frame["commentary"], editorial=frame["editorial"],
         voice_exemplar=st.session_state.get("article_reference", "") if frame.get("voice_example") else "",
+        exploration=frame.get("exploration"), section_sources=section_sources,
         introduction=origin[frame["introduction"]], introduction_text=frame["introduction_text"],
         transitions=origin[frame["transitions"]],
         transitions_text=[line.strip() for line in frame["transitions_text"].splitlines() if line.strip()],
@@ -787,11 +842,15 @@ PLAN_DEFAULTS = {
     "topic": OWN_TOPIC, "title": "", "outline": "",
     "introduction": I_WRITE, "introduction_text": "", "transitions": I_WRITE, "transitions_text": "",
     "conclusion": I_WRITE, "conclusion_text": "", "commentary": False, "editorial": False, "voice_example": False,
+    # An exploration's record with the researcher's approval of its proposal (ADR 0014), or None.
+    "exploration": None,
+    # brief -> the document ids a section is narrowed to, of an article with several sources.
+    "section_sources": {},
 }
 
 
 def article_plan() -> dict:
-    return st.session_state.setdefault("article_plan", dict(PLAN_DEFAULTS))
+    return st.session_state.setdefault("article_plan", copy.deepcopy(PLAN_DEFAULTS))
 
 
 def remembered(name: str, widget, *args, **kwargs):
@@ -847,11 +906,122 @@ def render_saved_articles(workspace: pipeline.Workspace, document: Document) -> 
         )
         if st.button("Open this article"):
             try:
-                st.session_state.article_draft = pipeline.load(by_id[chosen]["folder"], workspace)
-                st.session_state.article_draft_document = document.document_id
+                # An article is reopened against the sources it was drafted from.
+                ids = by_id[chosen]["document_ids"]
+                opened = load_workspace(ids[0], tuple(ids[1:]))
+                st.session_state.article_draft = pipeline.load(by_id[chosen]["folder"], opened)
+                st.session_state.article_source_ids = list(ids[1:])
+                st.session_state.pop("article_sources", None)
+                st.session_state.article_draft_document = workspace_key(opened)
                 go_to_step(STEP_REVIEW)
-            except pipeline.ArticleError as exc:
+            except (pipeline.ArticleError, upload.UploadRefused, article_sources.NoFootnoteMap) as exc:
                 st.error(str(exc))
+
+
+def passage_label(workspace: pipeline.Workspace, chunk: dict) -> str:
+    """A passage by where it is: page, section, and its source when there are several."""
+    where = chunk.get("section") or chunk.get("chapter") or "no section title"
+    source = workspace.document_of(chunk["chunk_id"])
+    return f"{ask.page_phrase(chunk)} — " + (f"{source.author} ({source.year}), " if workspace.several else "") + where
+
+
+def render_proposal(workspace: pipeline.Workspace, record: dict) -> None:
+    """The agent's proposal, for the researcher to edit and approve. Nothing is drafted here."""
+    proposal = record["proposal"]
+    with st.expander("What the agent did — every step, with the pages each search returned"):
+        st.code(article_trace.format_trace(article_trace.exploration_rows(workspace, record)), language="text")
+    if proposal is None:
+        st.warning(f"The exploration ended without a proposal: {record['stop']}"
+                   + (f" ({record['stop_detail']})" if record.get("stop_detail") else "")
+                   + ". Nothing was sent again. You can explore once more, or write the outline yourself.")
+        return
+    stamp = record["started"]
+    st.markdown(f"**Proposed theme.** {proposal['theme']}")
+    st.caption("A proposal, not a finding. Edit a heading or a question, untick what you do not want, read the "
+               "passages, then use it. Each section you keep will be drafted only from the passages left ticked.")
+    kept = []
+    for index, section in enumerate(proposal["sections"]):
+        st.markdown(f"**Section {index + 1}**")
+        keep = st.checkbox("Keep this section", value=True, key=f"proposal_{stamp}_keep_{index}")
+        heading = st.text_input("Heading", section["heading"], key=f"proposal_{stamp}_heading_{index}")
+        question = st.text_input("The question it must answer", section["question"], key=f"proposal_{stamp}_question_{index}")
+        passages = []
+        for chunk_id in section["passages"]:
+            chunk = workspace.by_id.get(chunk_id)
+            if chunk is None:
+                continue
+            label = passage_label(workspace, chunk)
+            if st.checkbox(f"Use the passage at {label}", value=True, key=f"proposal_{stamp}_{index}_{chunk_id}"):
+                passages.append(chunk_id)
+            with st.expander(f"Read the passage at {label}"):
+                st.write(chunk["text"])
+        # More passages for this question, from the coverage map: yours to add or leave.
+        more = st.session_state.setdefault("proposal_more", {}).get((stamp, index), [])
+        if st.button("Find more passages for this question (one embedding call, no model)",
+                     key=f"proposal_{stamp}_more_{index}"):
+            found = pipeline.coverage(workspace, question)
+            more = [p["chunk_id"] for source in found["sources"] for p in source["passages"]]
+            st.session_state.proposal_more[(stamp, index)] = more
+        for chunk_id in more:
+            if chunk_id in section["passages"]:
+                continue
+            chunk = workspace.by_id[chunk_id]
+            label = passage_label(workspace, chunk)
+            if st.checkbox(f"Add the passage at {label}", value=False, key=f"proposal_{stamp}_{index}_add_{chunk_id}"):
+                passages.append(chunk_id)
+            with st.expander(f"Read the passage at {label}"):
+                st.write(chunk["text"])
+        if keep:
+            kept.append({"heading": heading.replace("|", "/"), "question": question, "passages": passages})
+    if proposal["gaps"]:
+        st.markdown("**Gaps the agent reported** (what it looked for and did not find)\n"
+                    + "\n".join(f"- {gap}" for gap in proposal["gaps"]))
+    if st.button("Use this proposal as my outline", type="primary"):
+        try:
+            approved = pipeline.approve(workspace, record, kept)
+        except pipeline.ArticleError as exc:
+            st.error(str(exc))
+            return
+        plan = article_plan()
+        plan["exploration"] = approved
+        plan["outline"] = st.session_state.article_outline = "\n".join(
+            f"{section['heading']} | {section['question']}" for section in approved["approval"]["sections"])
+        st.session_state.pop("article_exploration", None)     # approved: the proposal is now the outline below
+        st.rerun()
+
+
+def render_explore(workspace: pipeline.Workspace, document: Document) -> None:
+    """The exploring agent (ADR 0014): it searches and proposes; the researcher decides."""
+    if not st.checkbox("Let an agent explore the source and propose an outline (optional)", key="article_explore_open"):
+        return
+    st.caption(
+        "You give a topic. The model searches this source, choosing each search itself, and ends with a "
+        "proposal: a theme, an outline and the passages for each section. It writes no part of the article. "
+        "The same topic can give a different proposal another time; every step is recorded."
+    )
+    topic = st.text_input("Topic to explore (yours to write)", key="article_explore_topic")
+    budget = explorer.estimate(workspace)
+    cost = ("No price is configured, so no cost is shown." if budget["cost_ceiling_usd"] is None
+            else f"Cost, at most: ${budget['cost_ceiling_usd']:.2f}.")
+    st.markdown(
+        f"**The most this exploration can use**\n"
+        f"- Model calls: {budget['model_calls_at_most']}\n"
+        f"- Searches: {budget['searches_at_most']} (one embedding call each)\n"
+        f"- Tokens: {budget['input_tokens_ceiling']:,} in, {budget['output_tokens_ceiling']:,} out\n"
+        f"- {cost}\n\n"
+        "This is a ceiling, not a forecast: a real exploration uses a fraction of it, and it is stopped "
+        "if it reaches the ceiling."
+    )
+    accepted = st.checkbox("I accept this ceiling", key="article_explore_accept")
+    if st.button("Explore", disabled=not (accepted and topic.strip())):
+        with st.spinner("Exploring… every step is recorded."):
+            run = explorer.explore(workspace, topic)
+            explorer.save(run)
+        st.session_state.article_exploration = {"document_id": workspace_key(workspace), "record": run.as_record()}
+        st.rerun()
+    held = st.session_state.get("article_exploration")
+    if held and held["document_id"] == workspace_key(workspace):
+        render_proposal(workspace, held["record"])
 
 
 def render_step_outline(workspace: pipeline.Workspace, document: Document) -> None:
@@ -876,7 +1046,11 @@ def render_step_outline(workspace: pipeline.Workspace, document: Document) -> No
         if st.button("Fill the outline from this chapter's sections"):
             plan["outline"] = st.session_state.article_outline = outline_from(topic, kind)
             st.rerun()
+    render_explore(workspace, document)
     remembered("title", st.text_input, "Title (yours to write)")
+    if plan.get("exploration"):
+        st.caption("This outline came from a proposal you approved. A line you leave as it is will be drafted "
+                   "from the passages you approved for it; a line you rewrite is drafted by retrieval, as usual.")
     remembered(
         "outline", st.text_area,
         f"Outline — {pipeline.MIN_SECTIONS} to {pipeline.MAX_SECTIONS} sections, one per line: "
@@ -936,7 +1110,13 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
     plan = article_plan()
     outline, calls = planned(plan)
     st.markdown(f"**{plan['title'] or '(no title yet)'}**")
-    st.markdown("\n".join(f"{n}. **{heading}** — {brief}" for n, (heading, brief) in enumerate(outline, start=1)))
+    approved = {(s["heading"], s["question"]): len(s["passages"])
+                for s in (plan.get("exploration") or {}).get("approval", {}).get("sections", [])}
+    st.markdown("\n".join(
+        f"{n}. **{heading}** — {brief}" + (
+            f" *(from {approved[(heading, brief)]} passage(s) you approved)*" if (heading, brief) in approved
+            else " *(passages retrieved for this question)*" if approved else "")
+        for n, (heading, brief) in enumerate(outline, start=1)))
     st.markdown("\n".join(
         f"- {part.capitalize()}: " + ("yours" if plan[f"{part}_text"].strip() else "left out for now")
         for part in ("introduction", "transitions", "conclusion")
@@ -950,10 +1130,28 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
         f"{calls['editorial']} for the editorial pass. Nothing is "
         "retried. Each finished step is saved, so an interrupted draft can be resumed."
     )
-    if st.button("Preview what each section would draw on (no model call)"):
+    narrowed: list[list[str] | None] = [None] * len(outline)
+    if workspace.several:
+        ids = [d.document_id for d in workspace.documents]
+        names = {d.document_id: f"{d.author} ({d.year})" for d in workspace.documents}
+        kept = plan.setdefault("section_sources", {})
+        st.markdown("**Which sources each section searches.** All of them, unless you narrow it.")
+        for n, (heading, brief) in enumerate(outline):
+            if (heading, brief) in approved:
+                continue                                  # drafted from approved passages; nothing is searched
+            mine = st.multiselect(f"Sources for “{heading}”", ids, default=[i for i in kept.get(brief, ids) if i in ids],
+                                  format_func=names.get, key=f"section_sources_{n}")
+            kept[brief] = mine
+            narrowed[n] = mine if mine and len(mine) < len(ids) else None
+    label = ("Coverage map: what each source holds for each section (no model call)" if workspace.several
+             else "Preview what each section would draw on (no model call)")
+    if st.button(label):
         with st.spinner("Finding the passages each question would draw on…"):
-            st.session_state.article_preview = pipeline.format_preview(
-                [pipeline.preview(workspace, brief) for _, brief in outline])
+            st.session_state.article_preview = (
+                pipeline.format_coverage([pipeline.coverage(workspace, brief, narrowed[n])
+                                          for n, (_, brief) in enumerate(outline)])
+                if workspace.several else
+                pipeline.format_preview([pipeline.preview(workspace, brief) for _, brief in outline]))
     if st.session_state.get("article_preview"):
         st.code(st.session_state.article_preview, language="text")
         st.caption(
@@ -964,13 +1162,13 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
         st.session_state.pop("article_preview", None)
         topic = None if plan["topic"] == OWN_TOPIC else plan["topic"].split(" — ")[0]
         try:
-            draft = plan_draft(plan["title"], outline, topic, plan)
+            draft = plan_draft(plan["title"], outline, topic, plan, narrowed)
         except pipeline.ArticleError as exc:
             st.error(str(exc))
             return
         persist(workspace, draft)           # the plan is on disk before the first call
         st.session_state.article_draft = draft
-        st.session_state.article_draft_document = document.document_id
+        st.session_state.article_draft_document = workspace_key(workspace)
         st.session_state.pop("article_item", None)
         with st.spinner("Drafting from the thesis… each finished step is saved."):
             carry_out(workspace, draft)
@@ -1026,13 +1224,16 @@ def is_judged(draft: pipeline.Draft, kind: str, item: dict) -> bool:
     return bool(draft.commentary_verdicts.get(item["section"], {}).get("verdict"))
 
 
-def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict):
+def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict,
+                article: assemble.Article | None = None):
     """One sentence and one note it carries, beside the sentences of the cited passage
     that share most of its words. The matching only chooses what to show: the verdict
     is the researcher's, on reading."""
     chunk = workspace.by_id[pair["chunk_id"]]
     recorded = pipeline.pair_verdict(draft, pair) or {}
-    st.markdown(f"**Sentence with note [{pair['n']}]**, in “{pair['heading']}” — {ask.page_phrase(chunk)}")
+    source = workspace.document_of(pair["chunk_id"])
+    st.markdown(f"**Sentence with note [{pair['n']}]**, in “{pair['heading']}” — "
+                + (f"{source.author} ({source.year}), " if workspace.several else "") + ask.page_phrase(chunk))
     left, right = st.columns(2)
     with left:
         st.caption("The article says" + (" (edited by you)" if pair["edited"] else ""))
@@ -1040,12 +1241,12 @@ def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict
     with right:
         matches = article_sentences.best_matches(pair["raw"], chunk["text"])
         st.caption("Closest sentences in the passage it cites, shared words in bold"
-                   + (" (footnote text removed)" if pair["chunk_id"] in workspace.sources.removed else ""))
+                   + (" (footnote text removed)" if pair["chunk_id"] in workspace.removed else ""))
         if not matches:
             st.warning("No sentence of the cited passage shares a word of substance with this one. Read the whole passage.")
         for match in matches:
             st.markdown(f"- {article_sentences.highlight(match.text, match.shared)}")
-    for flag in pipeline.pair_flags(workspace, pair):
+    for flag in pipeline.pair_flags(workspace, pair, article):
         st.warning(f"Check the attribution: {flag}.")
     with st.expander("The whole passage"):
         # Reflowed: the index keeps the PDF's line breaks, which read as ragged short lines.
@@ -1169,7 +1370,7 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
     st.markdown(f"**{index + 1} of {len(items)}** · judged so far: {judged} of {len(items)}")
     with st.container(border=True):
         save = (render_held_back(workspace, draft, item) if kind == "held"
-                else render_pair(workspace, draft, item) if kind == "pair"
+                else render_pair(workspace, draft, item, article) if kind == "pair"
                 else render_commentary(draft, item))
     back, forward = st.columns(2)
     with back:
@@ -1222,7 +1423,8 @@ def render_resume(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
 
 def start_another() -> None:
     if st.button("Start another article"):
-        for key in ("article_draft", "article_item", "article_plan"):
+        for key in ("article_draft", "article_item", "article_plan", "article_exploration", "article_explore_open",
+                    "proposal_more"):
             st.session_state.pop(key, None)
         for name in PLAN_DEFAULTS:
             st.session_state.pop(f"article_{name}", None)
@@ -1376,10 +1578,19 @@ def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
 def render_article(document: Document) -> None:
     st.title(VIEW_ARTICLE)
     st.header(document.short_title, divider="grey")
+    # The article's further sources (PLAN_V7 §7). Kept apart from the widget that shows
+    # them, because that widget is only drawn on the first step.
+    available = {other.document_id: other for other in further_sources(document)}
+    chosen = [i for i in st.session_state.get("article_source_ids", []) if i in available]
     try:
-        workspace = load_workspace(document.document_id)
-    except article_sources.NoFootnoteMap as exc:
+        workspace = load_workspace(document.document_id, tuple(chosen))
+    except (article_sources.NoFootnoteMap, pipeline.ArticleError, upload.UploadRefused) as exc:
         st.error(str(exc))
+        if chosen:
+            st.session_state.article_source_ids = []        # fall back to the active document alone
+            st.session_state.pop("article_sources", None)
+            if st.button("Continue with this document alone"):
+                st.rerun()
         return
     except BaseException as exc:  # SystemExit (no index / model mismatch) included
         st.error("The thesis could not be loaded, so no article can be drafted yet.")
@@ -1389,7 +1600,7 @@ def render_article(document: Document) -> None:
 
     # A draft belongs to the thesis it was drafted from. If another thesis is now
     # active it leaves the screen; it is still saved, under "Saved articles".
-    if st.session_state.get("article_draft_document") != document.document_id:
+    if st.session_state.get("article_draft_document") != workspace_key(workspace):
         st.session_state.pop("article_draft", None)
     draft = st.session_state.get("article_draft")
     step = st.session_state.get("article_step", STEP_OUTLINE)
@@ -1404,7 +1615,25 @@ def render_article(document: Document) -> None:
                 "Footnotes and the reference list usually give other writers' words, so they are never "
                 "drafted from. This is a check on the shape of each page, not a proof."
             )
-            st.code("\n".join(workspace.sources.report.lines()))
+            for member in workspace.members:
+                if workspace.several:
+                    st.markdown(f"**{member.document.reference()}**")
+                st.code("\n".join(member.sources.report.lines()))
+        if available:
+            if "article_sources" not in st.session_state:
+                st.session_state.article_sources = chosen
+            picked = st.multiselect(
+                "Further sources for this article (optional)", list(available), key="article_sources",
+                format_func=lambda i: available[i].short_title,
+                help="Every source you add is searched for each section, with a few passages at most from "
+                     "any one of them. Each sentence of the draft names the source it reports, and each "
+                     "note says which source it is from.",
+            )
+            if picked != chosen:
+                st.session_state.article_source_ids = picked
+                st.session_state.pop("article_exploration", None)      # a proposal belongs to the sources it searched
+                article_plan()["exploration"] = None
+                st.rerun()
         render_step_outline(workspace, document)
     elif step == STEP_FRAME:
         render_step_frame()
@@ -1425,17 +1654,38 @@ def render_chat(document: Document) -> None:
     vectors, chunks, manifest = collection_or_stop(document)
 
     st.title(PAGE_TITLE)
-    st.header(
-        f"{document.short_title} — {manifest['chunk_count']} indexed passages",
-        divider="grey",
-    )
-    if not document.builtin:
+    # Every ready source at once (PLAN_V7 §8): offered only when there is more than one.
+    everything = [default_document(settings)] + upload.ready_documents()
+    sources = None
+    if len(everything) > 1 and st.checkbox(
+            f"Ask all {len(everything)} ready sources at once", key="ask_all_sources",
+            help="Each source gives a few passages at most, so a long document cannot crowd out a shorter "
+                 "one. Every note names the source it is from. Only the built-in thesis is evaluated."):
+        try:
+            sources = load_all_sources(tuple(d.document_id for d in everything))
+        except BaseException as exc:  # an index missing or built with another embedding model
+            st.error("These sources could not be loaded together, so the question would go to the active "
+                     "one alone. Untick the box to carry on.")
+            with st.expander(DIAGNOSTICS_LABEL):
+                st.code(f"{type(exc).__name__}: {exc}")
+            st.stop()
+    if sources is not None:
+        st.header(f"All ready sources — {len(sources)} documents, "
+                  f"{sum(len(s.chunks) for s in sources)} indexed passages", divider="grey")
+        st.caption("; ".join(s.document.short_title for s in sources))
         st.info(NOT_EVALUATED, icon="ℹ️")
+    else:
+        st.header(
+            f"{document.short_title} — {manifest['chunk_count']} indexed passages",
+            divider="grey",
+        )
+        if not document.builtin:
+            st.info(NOT_EVALUATED, icon="ℹ️")
     st.markdown(EXPLAINER)
 
-    history = session_history(chunks, document)
+    history = session_history(chunks, document, sources)
 
-    jumped = render_history_sidebar(chunks, document)
+    jumped = render_history_sidebar(chunks, document, sources)
     if jumped is not None:
         st.session_state.jump_to = jumped.get("timestamp", "")
 
@@ -1471,7 +1721,8 @@ def render_chat(document: Document) -> None:
     entry: dict = {"question": question}
     with st.spinner("Searching the collection…"):
         try:
-            entry["outcome"] = ask.run_query(question, vectors, chunks, document=document)
+            entry["outcome"] = (ask.run_query(question, None, None, collection=sources) if sources is not None
+                                else ask.run_query(question, vectors, chunks, document=document))
         except BaseException as exc:  # provider error, auth, network, bad output
             entry["error"] = f"{type(exc).__name__}: {exc}"
 
@@ -1484,8 +1735,11 @@ def render_chat(document: Document) -> None:
         items=outcome.items if outcome else [],
         failures=outcome.failures if outcome else [],
         prompt_hash=outcome.prompt_hash if outcome else "",
-        manifest=manifest,
+        manifest=manifest if sources is None else sources[0].manifest,
         error=entry.get("error"),
+        collection=None if sources is None else {
+            "document_ids": [s.document.document_id for s in sources], "prompt": ask.COLLECTION_PROMPT,
+            "prompt_sha256_12": ask.collection_prompt()[1], "per_source_passages": ask.settings.per_source_passages},
     )
     entry["timestamp"] = record.get("timestamp", "")
     if record.get("_persist_error"):
