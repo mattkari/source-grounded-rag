@@ -708,3 +708,15 @@ def test_a_second_opinion_is_offered_only_after_a_verdict_and_never_changes_it(v
     assert "It differs from your verdict (supports). Read the passage again. Your verdict stands until you change it." in shown
     assert (pair["verdict"], pair["second_opinion"]["opinion"]) == ("supports", "does not")
     assert current_verdict(view).value == "supports"
+
+
+def test_the_finish_step_offers_a_trace_of_every_step(view):
+    view.model.script["FIXTURE-C"] = payload("FIXTURE fluent text that cites nothing.", [])
+    draft(view)
+    finish(view)
+    shown = "\n".join(str(c.value) for c in view.code)
+
+    assert any(e.label == "Trace — every step this article has been through" for e in view.expander)
+    assert "DONE      Title and outline (researcher)" in shown
+    assert "BLOCKED   Validation and checks of form [FIXTURE third heading] (check)" in shown
+    assert "validation failed: ungrounded_answer" in shown and len(view.model.calls) == 3

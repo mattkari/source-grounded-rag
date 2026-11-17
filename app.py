@@ -39,7 +39,7 @@ import audit
 import runs
 import upload
 from article import assemble, pipeline, sentences as article_sentences, sources as article_sources
-from article import terms as article_terms, topics as article_topics, voice
+from article import terms as article_terms, topics as article_topics, trace as article_trace, voice
 from config import settings
 from documents import Document, default_document
 
@@ -1360,6 +1360,13 @@ def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
                         st.warning(reason)
                 if outcome["voice_after"]:
                     st.code(voice.format_comparison({"before": outcome["voice_before"], "after": outcome["voice_after"]}))
+    with st.expander("Trace — every step this article has been through"):
+        st.caption(
+            "What went into each step, what came back, and why anything was blocked, rejected or held "
+            "back. Passages are shown by page and score, and a score is a diagnostic, not a confidence. "
+            "The same steps are drawn in `docs/workflows.md`."
+        )
+        st.code(article_trace.format_trace(article_trace.trace(workspace, draft)), language="text")
     with st.expander("Voice — plain counts beside your own writing"):
         columns = pipeline.voice_columns(article, st.session_state.get("article_reference", ""))
         st.code(voice.format_comparison(columns))
