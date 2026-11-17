@@ -35,9 +35,35 @@ def is_owner(document, owner_name: str | None) -> bool | None:
     return bool(surname) and surname in owner_name.lower()
 
 
-def disclosure(document, owner_name: str | None) -> str:
+def _all(documents) -> list:
+    return list(documents) if isinstance(documents, (list, tuple)) else [documents]
+
+
+def disclosure(documents, owner_name: str | None) -> str:
     """The first paragraph. It says an AI system drafted the text and names the source.
-    When the source is another author's work it says so in plain words."""
+    When the source is another author's work it says so in plain words.
+
+    With several sources (PLAN_V7 §7) every one is named, and the paragraph says whose
+    work they are: the owner's, other authors', or both."""
+    documents = _all(documents)
+    if len(documents) > 1:
+        named = "; ".join(f"{d.author} ({d.year}), {d.title}" for d in documents)
+        mine = [is_owner(d, owner_name) for d in documents]
+        if all(m is True for m in mine):
+            return (f"This article was drafted with an AI system from my own work: {named}. "
+                    "I checked every sentence against the pages cited.")
+        if any(m is True for m in mine):
+            own = "; ".join(f"{d.author} ({d.year}), {d.title}" for d, m in zip(documents, mine) if m)
+            others = "; ".join(f"{d.author} ({d.year}), {d.title}" for d, m in zip(documents, mine) if not m)
+            return (f"This article was drafted with an AI system. It draws on my own work ({own}) and on the work "
+                    f"of other authors ({others}). Every sentence was checked against the pages cited, and each "
+                    "idea belongs to the author it is attributed to.")
+        if all(m is False for m in mine):
+            return (f"This article was drafted with an AI system. It summarises the work of other authors: {named}. "
+                    "Every sentence was checked against the pages cited, and the ideas are those authors'.")
+        return (f"This article was drafted with an AI system from several sources: {named}. "
+                "Every sentence was checked against the pages cited.")
+    document = documents[0]
     source = f"{document.author} ({document.year}), {document.title}"
     mine = is_owner(document, owner_name)
     if mine is True:
@@ -73,6 +99,24 @@ def source_line(entry: dict) -> str:
     return f"[{entry['n']}] " + ", ".join(part for part in parts if part) + "."
 
 
+def grouped_sources(article: assemble.Article) -> list[tuple[str, list[str]]]:
+    """The notes of an article with several sources, under the source each belongs to
+    (PLAN_V7 §7): (the source in one line, its notes). Sources come in the order the
+    article first cites them; a note keeps its number."""
+    groups: dict[str, tuple[str, list[str]]] = {}
+    for entry in article.sources:
+        document = ask._document(entry["document"])
+        chunk = entry["chunk"]
+        parts = [_locator(chunk), ask.page_phrase(chunk)]
+        line = f"[{entry['n']}] " + ", ".join(part for part in parts if part) + "."
+        groups.setdefault(document.document_id, (document.reference(), []))[1].append(line)
+    return list(groups.values())
+
+
+def _several(article: assemble.Article) -> bool:
+    return len({ask._document(entry["document"]).document_id for entry in article.sources}) > 1
+
+
 def markdown(article: assemble.Article, document, owner_name: str | None) -> str:
     out: list[str] = []
     limits = [text for kind, text in article.blocks if kind == "limit"]
@@ -87,8 +131,14 @@ def markdown(article: assemble.Article, document, owner_name: str | None) -> str
         out += [f"## {assemble.NOT_COVERED_HEADING}", ""] + [f"- {line}" for line in limits] + [""]
     if article.sources:
         out += [f"## {SOURCES_HEADING}", ""]
-        for entry in article.sources:
-            out += [source_line(entry), ""]
+        if _several(article):
+            for reference, notes in grouped_sources(article):
+                out += [f"**{reference}**", ""]
+                for note in notes:
+                    out += [note, ""]
+        else:
+            for entry in article.sources:
+                out += [source_line(entry), ""]
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -110,5 +160,10 @@ def as_html(article: assemble.Article, document, owner_name: str | None) -> str:
         out.append("<ul>" + "".join(f"<li>{escape(line)}</li>" for line in limits) + "</ul>")
     if article.sources:
         out.append(f"<h2>{SOURCES_HEADING}</h2>")
-        out += [f"<p>{escape(source_line(entry))}</p>" for entry in article.sources]
+        if _several(article):
+            for reference, notes in grouped_sources(article):
+                out.append(f"<p><strong>{escape(reference)}</strong></p>")
+                out += [f"<p>{escape(note)}</p>" for note in notes]
+        else:
+            out += [f"<p>{escape(source_line(entry))}</p>" for entry in article.sources]
     return "\n".join(out) + "\n"

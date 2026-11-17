@@ -44,21 +44,68 @@ class ArticleError(RuntimeError):
 
 @dataclass
 class Workspace:
+    """What an article is drafted from: one document, or several (PLAN_V7 §7).
+
+    `document`, `sources` and `manifest` are the first source's. `others` holds the
+    further sources, each a one-document workspace with its own filtered passages.
+    With no others this is exactly the single-document workspace it always was.
+    """
     document: Document
     sources: sources.Sources
     manifest: dict
+    others: list["Workspace"] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        self.by_id = {chunk["chunk_id"]: chunk for chunk in self.sources.chunks}
+        self.by_id, self._document_of = {}, {}
+        for member in self.members:
+            for chunk in member.sources.chunks:
+                self.by_id[chunk["chunk_id"]] = chunk
+                self._document_of[chunk["chunk_id"]] = member.document
+
+    @property
+    def members(self) -> list["Workspace"]:
+        return [self, *self.others]
+
+    @property
+    def several(self) -> bool:
+        return bool(self.others)
+
+    @property
+    def documents(self) -> list[Document]:
+        return [member.document for member in self.members]
+
+    @property
+    def removed(self) -> dict[str, int]:
+        """chunk id -> footnote spans cut from it, over every source."""
+        return {chunk_id: spans for member in self.members for chunk_id, spans in member.sources.removed.items()}
+
+    def document_of(self, chunk_id: str) -> Document:
+        return self._document_of[chunk_id]
+
+    def collection(self, only: list[str] | None = None) -> list[ask.Source]:
+        """The sources as `ask.run_query` takes them: each one's filtered passages.
+        `only` narrows to some document ids, in the article's own order."""
+        chosen = [member for member in self.members if only is None or member.document.document_id in only]
+        if not chosen:
+            raise ArticleError("None of the sources chosen for this section is one of the article's sources.")
+        return [ask.Source(member.document, member.sources.vectors, member.sources.chunks, member.manifest)
+                for member in chosen]
 
     def topics(self) -> list[topics.Topic]:
         return topics.list_topics(self.sources.chunks)
 
 
-def open_workspace(document: Document | None = None, *, store: bool = True) -> Workspace:
+def open_workspace(document: Document | None = None, *, store: bool = True,
+                   others: list[Document] | tuple = ()) -> Workspace:
+    """Open the document's filtered sources. `others` are further sources of the same
+    article: each must have a footnote map of its own, or the article is refused."""
     document = document or default_document(ask.settings)
+    ids = [document.document_id] + [other.document_id for other in others]
+    if len(set(ids)) != len(ids):
+        raise ArticleError("The same source was chosen twice.")
     vectors, chunks, manifest = ask.load_index(document)
-    return Workspace(document, sources.open_sources(document, vectors, chunks, manifest, store=store), manifest)
+    return Workspace(document, sources.open_sources(document, vectors, chunks, manifest, store=store), manifest,
+                     [open_workspace(other, store=store) for other in others])
 
 
 # ---------------------------------------------------------------------------
@@ -78,28 +125,45 @@ def approved_items(workspace: Workspace, approved: list[str], scores: dict[str, 
     The score, where there is one, is from the agent's own search: a diagnostic of that
     search, not of this section's question (hard rule 4)."""
     scores = scores or {}
-    return [ask.EvidenceItem(f"E{n}", workspace.by_id[chunk_id], scores.get(chunk_id, 0.0), workspace.document)
+    return [ask.EvidenceItem(f"E{n}", workspace.by_id[chunk_id], scores.get(chunk_id, 0.0), workspace.document_of(chunk_id))
             for n, chunk_id in enumerate(approved, start=1)]
 
 
+def section_prompt(workspace: Workspace) -> str:
+    """Which rules of form a section is drafted under: the several-sources version
+    when the article has more than one source."""
+    return checks.SECTION_PROMPT_SOURCES if workspace.several else checks.SECTION_PROMPT
+
+
 def draft_section(workspace: Workspace, heading: str, brief: str, approved: list[str] | None = None,
-                  scores: dict[str, float] | None = None) -> SectionDraft:
+                  scores: dict[str, float] | None = None, only: list[str] | None = None) -> SectionDraft:
     """One brief through the one pipeline, on the filtered sources.
 
     With `approved` (ADR 0014) nothing is retrieved: the section is drafted from the
     passages the researcher approved from an exploration's proposal, by the same model
     call and the same validation. A handle outside them fails validation as always.
+
+    With several sources (PLAN_V7 §7) the question goes to all of them at once through
+    `run_query(collection=...)`, or to the ones in `only`. It is the same call and the
+    same validation, under the collection instruction and the several-sources rules.
     """
-    instructions, _ = checks.load_prompt(checks.SECTION_PROMPT)
+    instructions, _ = checks.load_prompt(section_prompt(workspace))
     if approved:
+        if workspace.several:      # the same instruction a retrieved section of this article is sent with
+            instructions = f"{ask.collection_prompt()[0]}\n\n{instructions}"
         outcome, error = _attempt(
             lambda: ask.draft_from_evidence(brief, approved_items(workspace, approved, scores), instructions=instructions))
+    elif workspace.several:
+        outcome, error = _attempt(
+            lambda: ask.run_query(brief, None, None, None, collection=workspace.collection(only),
+                                  instructions=instructions))
     else:
         outcome, error = _attempt(
             lambda: ask.run_query(brief, workspace.sources.vectors, workspace.sources.chunks, None,
                                   workspace.document, instructions=instructions)
         )
-    return SectionDraft(heading.strip(), brief.strip(), outcome, error, approved=list(approved) if approved else None)
+    return SectionDraft(heading.strip(), brief.strip(), outcome, error, approved=list(approved) if approved else None,
+                        sources=list(only) if only and workspace.several and not approved else None)
 
 
 EXEMPLAR_WORDS = 300
@@ -287,12 +351,15 @@ def new_draft(title: str, outline: list[tuple[str, str]], *, topic: str | None =
               introduction: str = "none", transitions: str = "none", conclusion: str = "none",
               introduction_text: str = "", transitions_text: list[str] | None = None, conclusion_text: str = "",
               commentary: bool = False, editorial: bool = False, voice_exemplar: str = "",
-              exploration: dict | None = None) -> Draft:
+              exploration: dict | None = None, section_sources: list[list[str] | None] | None = None) -> Draft:
     """A plan and nothing else: every section pending, no model called yet. Text the
     researcher wrote is placed at once; it needs no call.
 
     `exploration` is what `approve` returned: a section of the outline whose heading and
-    question match an approved section is drafted from that section's passages."""
+    question match an approved section is drafted from that section's passages.
+
+    `section_sources` runs beside the outline: the document ids a section is narrowed
+    to, or None for every source of the article (PLAN_V7 §7)."""
     check_outline(title, outline)
     passages = {(s["heading"], s["question"]): s["passages"] for s in (exploration or {}).get("approval", {}).get("sections", [])}
     plan = {"introduction": introduction, "transitions": transitions, "conclusion": conclusion}
@@ -305,8 +372,10 @@ def new_draft(title: str, outline: list[tuple[str, str]], *, topic: str | None =
         title=title.strip(), topic=topic, commentary=commentary, editorial=editorial, frame_plan=plan, complete=False,
         voice_exemplar=voice_exemplar if editorial else "",
         sections=[SectionDraft(heading.strip(), brief.strip(), pending=True,
-                               approved=passages.get((heading.strip(), brief.strip())) or None)
-                  for heading, brief in outline],
+                               approved=passages.get((heading.strip(), brief.strip())) or None,
+                               sources=(list(section_sources[n]) if section_sources and n < len(section_sources)
+                                        and section_sources[n] else None))
+                  for n, (heading, brief) in enumerate(outline)],
         exploration=exploration,
         introduction=written(introduction_text) if introduction == RESEARCHER else None,
         transitions=[written(text) if transitions == RESEARCHER else None for text in typed],
@@ -334,10 +403,14 @@ def approve(workspace: Workspace, exploration: dict, sections: list[dict] | None
     proposal = exploration.get("proposal")
     if proposal is None:
         raise ArticleError("This exploration ended without a proposal, so there is nothing to approve.")
-    if exploration["document_id"] != workspace.document.document_id:
-        raise ArticleError(f"This exploration searched {exploration['document_id']}, not the source now open.")
-    if exploration.get("corpus_text_sha256") != workspace.manifest.get("corpus_text_sha256"):
-        raise ArticleError("The index has changed since this exploration; its passages can no longer be trusted.")
+    searched = exploration.get("document_ids") or [exploration["document_id"]]
+    open_now = [member.document.document_id for member in workspace.members]
+    if searched != open_now:
+        raise ArticleError(f"This exploration searched {', '.join(searched)}, not what is now open ({', '.join(open_now)}).")
+    hashes = exploration.get("corpora") or {exploration["document_id"]: exploration.get("corpus_text_sha256")}
+    for member in workspace.members:
+        if hashes.get(member.document.document_id) != member.manifest.get("corpus_text_sha256"):
+            raise ArticleError("The index has changed since this exploration; its passages can no longer be trusted.")
     kept = [{"heading": " ".join(s["heading"].split()), "question": " ".join(s["question"].split()),
              "passages": list(dict.fromkeys(s["passages"]))} for s in (proposal["sections"] if sections is None else sections)]
     for section in kept:
@@ -404,7 +477,7 @@ def run(workspace: Workspace, draft: Draft, out_dir: Path | None = None, referen
     for index, section in enumerate(draft.sections):
         if section.pending:
             drafted = draft_section(workspace, section.heading, section.brief, section.approved,
-                                    exploration_scores(draft))
+                                    exploration_scores(draft), section.sources)
             drafted.kept, drafted.state_gap = section.kept, section.state_gap
             draft.sections[index] = drafted
             done(f"section {index + 1}: {section.heading}")
@@ -455,7 +528,7 @@ def render(workspace: Workspace, draft: Draft) -> assemble.Article:
     """The article as it stands, marked reviewed only if the verdicts say so."""
     def build(reviewed: bool) -> assemble.Article:
         return assemble.assemble(
-            title=draft.title, document=workspace.document, sections=draft.sections,
+            title=draft.title, document=workspace.document, documents=workspace.documents, sections=draft.sections,
             introduction=draft.introduction, transitions=draft.transitions, conclusion=draft.conclusion,
             reviewed=reviewed, removed=draft.removed, commentary=draft.commentary,
             commentary_rejected={i for i, v in draft.commentary_verdicts.items() if v["verdict"] == "reject"},
@@ -505,6 +578,50 @@ def preview(workspace: Workspace, brief: str) -> dict:
         "threshold": threshold,
         "below_threshold": None if threshold is None else best < threshold,
     }
+
+
+def coverage(workspace: Workspace, brief: str, only: list[str] | None = None) -> dict:
+    """Where each source has material for one section's question (PLAN_V7 §7, ADR 0013).
+
+    From the embedding step alone: the question is embedded once and each source's own
+    best passages are listed, by page and score. No model is called. A score is a
+    diagnostic, never a confidence (hard rule 4): the map is for the researcher to
+    choose sources by, and it refuses nothing.
+    """
+    members = workspace.collection(only)
+    found = ask.retrieve_collection(brief, members, PREVIEW_PASSAGES * len(members), PREVIEW_PASSAGES)
+    threshold = ask.settings.preview_min_score
+    rows = []
+    for source in members:
+        mine = [item for item in found if item.document.document_id == source.document.document_id]
+        best = max((item.score for item in mine), default=0.0)
+        rows.append({
+            "document_id": source.document.document_id,
+            "source": f"{source.document.author} ({source.document.year})",
+            "passages": [{"chunk_id": item.chunk["chunk_id"], "pages": ask.page_phrase(item.chunk),
+                          "where": item.chunk.get("section") or item.chunk.get("chapter") or "",
+                          "score": round(item.score, 3)} for item in mine],
+            "best_score": round(best, 3),
+            "below_threshold": None if threshold is None else best < threshold,
+        })
+    return {"brief": brief, "sources": rows, "threshold": threshold}
+
+
+def format_coverage(maps: list[dict]) -> str:
+    """The coverage maps as plain text, for the command line and the view alike."""
+    lines = ["COVERAGE MAP (embedding only; scores are diagnostics, not confidence)"]
+    for number, shown in enumerate(maps, start=1):
+        lines.append(f"  {number}. {shown['brief']}")
+        for source in shown["sources"]:
+            lines.append(f"       {source['source']}")
+            for passage in source["passages"]:
+                lines.append(f"         {passage['score']:.3f}  {passage['pages']:<14} {passage['where'][:54]}")
+            if source["below_threshold"]:
+                lines.append(f"         LOOK: the best score, {source['best_score']:.3f}, is below {shown['threshold']:.3f}. "
+                             "This source may not cover the question.")
+    if maps and maps[0]["threshold"] is None:
+        lines.append("  No threshold is set (PREVIEW_MIN_SCORE), so no source is flagged.")
+    return "\n".join(lines)
 
 
 def format_preview(previews: list[dict]) -> str:
@@ -632,8 +749,8 @@ def export(workspace: Workspace, draft: Draft) -> dict[str, str]:
     if blockers:
         raise ArticleError("This article cannot be exported yet: " + "; ".join(blockers) + ".")
     owner = ask.settings.owner_name
-    return {"markdown": article_export.markdown(article, workspace.document, owner),
-            "html": article_export.as_html(article, workspace.document, owner)}
+    return {"markdown": article_export.markdown(article, workspace.documents, owner),
+            "html": article_export.as_html(article, workspace.documents, owner)}
 
 
 def pair_key(pair: dict) -> str:
@@ -664,11 +781,18 @@ def set_pair_verdict(draft: Draft, pair: dict, verdict: str, reason: str = "") -
         "verdict": verdict, "reason": reason.strip(), "judged_at": _now(), "judged_text": pair["raw"]}
 
 
-def pair_flags(workspace: Workspace, pair: dict) -> list[str]:
-    """What is raised for the researcher on this pair. Today: reported speech in the
-    passage sentence that best matches the drafted one."""
+def pair_flags(workspace: Workspace, pair: dict, article: assemble.Article | None = None) -> list[str]:
+    """What is raised for the researcher on this pair. Reported speech in the passage
+    sentence that best matches the drafted one; and, in an article with several sources,
+    notes from two sources on one sentence, an author named whose source is not the one
+    cited, and wording that claims agreement (PLAN_V7 §7). Each raises; none decides."""
     matches = sentences.best_matches(pair["raw"], workspace.by_id[pair["chunk_id"]]["text"], limit=1)
-    return checks.reported_speech_flags(pair["raw"], matches[0].text) if matches else []
+    flags = checks.reported_speech_flags(pair["raw"], matches[0].text) if matches else []
+    if workspace.several:
+        siblings = [row for row in (article.pairs if article is not None else [pair]) if row["sid"] == pair["sid"]]
+        cited = [workspace.document_of(row["chunk_id"]) for row in siblings]
+        flags += checks.source_flags(pair["raw"], cited, workspace.documents) + checks.consensus_flags(pair["raw"])
+    return flags
 
 
 _OPINIONS = {"sufficient": "supports", "partial": "partly", "insufficient": "does not"}
@@ -689,7 +813,7 @@ def second_opinion(workspace: Workspace, draft: Draft, pair: dict) -> dict:
     """
     if pair_verdict(draft, pair) is None:
         raise ArticleError("Give your own verdict on this sentence first. A second opinion comes after it.")
-    item = ask.EvidenceItem("E1", workspace.by_id[pair["chunk_id"]], 0.0, workspace.document)
+    item = ask.EvidenceItem("E1", workspace.by_id[pair["chunk_id"]], 0.0, workspace.document_of(pair["chunk_id"]))
     # The sentence as the model is shown it: its note markers removed, so that none of its
     # handles is mistaken for the one passage in front of the model.
     shown = re.sub(r"\s+([.,;:])", r"\1", re.sub(r"\s*\[E\d+\]", "", pair["raw"])).strip()
@@ -734,7 +858,7 @@ def pairs_record(draft: Draft, article: assemble.Article, workspace: Workspace |
             "in_article": True,
             # the text the verdict was given on; None for a verdict carried over from a note
             "raw": None if given.get("carried_over") or not given else pair["raw"],
-            "raised": pair_flags(workspace, pair) if workspace is not None else [],
+            "raised": pair_flags(workspace, pair, article) if workspace is not None else [],
             # The model's reading, asked for after the verdict above. Not a verdict.
             "second_opinion": opinion_on(draft, pair),
         })
@@ -913,7 +1037,7 @@ def voice_columns(article: assemble.Article, reference_text: str = "") -> dict:
 
 
 def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, reference_text: str = "") -> dict:
-    cut = workspace.sources.removed
+    cut = workspace.removed
     notes = notes_record(draft, article)
     pairs = pairs_record(draft, article, workspace)
     commentary = {entry["section"]: entry for entry in article.commentary}
@@ -946,6 +1070,8 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             # by the researcher from an exploration's proposal (ADR 0014).
             "evidence_origin": "approved from an exploration" if section.approved else "retrieved for the question",
             "approved_passages": section.approved,
+            # Of an article with several sources: the ones this section was narrowed to, or None for all.
+            "sources_searched": section.sources,
             "voice": voice.measure(answer) if answer else None,
             **_outcome_record(section.outcome, section.error, section.pending),
         }
@@ -958,12 +1084,18 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "status": status(draft, article),
         "document_id": workspace.document.document_id,
         "corpus_text_sha256": workspace.manifest.get("corpus_text_sha256"),
+        # Every source of the article, in order, with the hash of its index (PLAN_V7 §7).
+        # The two fields above name the first, as records before several sources did.
+        "document_ids": [member.document.document_id for member in workspace.members],
+        "corpora": {member.document.document_id: member.manifest.get("corpus_text_sha256") for member in workspace.members},
+        "sources": [{"document_id": d.document_id, "kind": d.kind, "reference": d.reference()} for d in workspace.documents],
         "model": ask.settings.llm_model,
         "provider": ask.settings.llm_provider,
         # Every prompt that shaped this article, by file and hash. The system prompt's
         # own hash is on each section, as on every answer.
         "prompts": {
-            checks.SECTION_PROMPT: checks.load_prompt(checks.SECTION_PROMPT)[1],
+            section_prompt(workspace): checks.load_prompt(section_prompt(workspace))[1],
+            **({ask.COLLECTION_PROMPT: ask.collection_prompt()[1]} if workspace.several else {}),
             **({checks.EDITORIAL_PROMPT: checks.load_prompt(checks.EDITORIAL_PROMPT)[1]}
                if any(section.editorial for section in draft.sections) else {}),
             **({checks.FRAME_PROMPT: checks.load_prompt(checks.FRAME_PROMPT)[1]} if draft.frame_suggestions else {}),
@@ -1005,6 +1137,7 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
         "support": {**assemble.support_rate(pairs), "notes": len({row["chunk_id"] for row in pairs})},
         "support_excludes": "text written by the researcher, which carries no notes",
         "source_filter": workspace.sources.report.to_json(),
+        "source_filters": {member.document.document_id: member.sources.report.to_json() for member in workspace.members},
         "voice": voice_columns(article, reference_text),
     }
 
@@ -1050,7 +1183,8 @@ def _outcome_from(record: dict, brief: str, workspace: Workspace) -> tuple[ask.Q
         return None, record["error"]
     try:
         items = [
-            ask.EvidenceItem(e["handle"], workspace.by_id[e["chunk_id"]], e.get("score", 0.0), workspace.document)
+            ask.EvidenceItem(e["handle"], workspace.by_id[e["chunk_id"]], e.get("score", 0.0),
+                             workspace.document_of(e["chunk_id"]))
             for e in record["evidence"]
         ]
     except KeyError as missing:
@@ -1075,10 +1209,15 @@ def load(folder: Path, workspace: Workspace) -> Draft:
     record = json.loads((Path(folder) / "record.json").read_text(encoding="utf-8"))
     if record.get("schema_version") not in READABLE_SCHEMAS:
         raise ArticleError("This article was saved by an earlier version and cannot be reopened.")
-    if record["document_id"] != workspace.document.document_id:
-        raise ArticleError(f"This article was drafted from {record['document_id']}, not the thesis now open.")
-    if record["corpus_text_sha256"] != workspace.manifest.get("corpus_text_sha256"):
-        raise ArticleError("The index has changed since this article was drafted; its notes can no longer be trusted.")
+    drafted_from = record.get("document_ids") or [record["document_id"]]
+    open_now = [member.document.document_id for member in workspace.members]
+    if drafted_from != open_now:
+        raise ArticleError(f"This article was drafted from {', '.join(drafted_from)}, not from what is now open "
+                           f"({', '.join(open_now)}).")
+    hashes = record.get("corpora") or {record["document_id"]: record["corpus_text_sha256"]}
+    for member in workspace.members:
+        if hashes.get(member.document.document_id) != member.manifest.get("corpus_text_sha256"):
+            raise ArticleError("The index has changed since this article was drafted; its notes can no longer be trusted.")
     sections = []
     for entry in record["sections"]:
         outcome, error = _outcome_from(entry, entry["brief"], workspace)
@@ -1087,6 +1226,7 @@ def load(folder: Path, workspace: Workspace) -> Draft:
             entry["heading"], entry["brief"], outcome, error,
             kept=entry["kept_by_researcher"], state_gap=entry["gap_stated"], editorial=editorial,
             pending=bool(entry.get("pending")), approved=entry.get("approved_passages"),
+            sources=entry.get("sources_searched"),
             prose=editorial["result"]["answer"] if editorial and editorial["accepted"] else None))
     return Draft(
         title=record["title"]["text"],
@@ -1142,6 +1282,7 @@ def saved_articles(out_dir: Path | None = None, document_id: str | None = None) 
         if document_id and record.get("document_id") != document_id:
             continue
         rows.append({"article_id": record["article_id"], "title": record["title"]["text"],
+                     "document_ids": record.get("document_ids") or [record["document_id"]],
                      "status": record["status"], "support": record["support"], "folder": path.parent,
                      "model_calls_remaining": record.get("drafting", {}).get("model_calls_remaining", 0)})
     return rows

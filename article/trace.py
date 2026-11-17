@@ -33,13 +33,19 @@ def _section_rows(workspace, draft, article, index: int, section) -> list[dict]:
     outcome, result = section.outcome, section.outcome.result
     shown_as = ("passages approved by the researcher from the exploration (a score is from the agent's own search):"
                 if section.approved else "passages shown to the model (scores are diagnostics, not confidence):")
+    removed = workspace.removed
     passages = [f"{item.handle}  {ask.page_phrase(item.chunk):<14} score {item.score:.3f}"
-                + ("  (footnote text cut)" if item.chunk["chunk_id"] in workspace.sources.removed else "")
+                # with several sources, say which one each passage is from
+                + (f"  {ask._document(item.document).author} ({ask._document(item.document).year})" if workspace.several else "")
+                + ("  (footnote text cut)" if item.chunk["chunk_id"] in removed else "")
                 for item in outcome.items]
+    if workspace.several:
+        searched = ", ".join(section.sources) if section.sources else "every source of the article"
+        passages.append(f"sources searched: {searched}")
     rows = [_row("section", DONE,
                  f"answered “{result.get('evidence_sufficiency')}”, citing {len(result.get('citations_used', []))} of "
                  f"{len(outcome.items)} passages",
-                 [f"question: {section.brief}", f"system prompt {outcome.prompt_hash}; rules of form {checks.SECTION_PROMPT}",
+                 [f"question: {section.brief}", f"system prompt {outcome.prompt_hash}; rules of form {pipeline.section_prompt(workspace)}",
                   shown_as, *[f"  {p}" for p in passages]],
                  where)]
     reason = assemble.block_reason(outcome, section.error)
@@ -128,9 +134,11 @@ def trace(workspace: pipeline.Workspace, draft: pipeline.Draft) -> list[dict]:
     rows = exploration_rows(workspace, draft.exploration) if draft.exploration else []
     rows.append(_row("outline", DONE, f"“{draft.title}”, {len(draft.sections)} sections",
                      [f"{n}. {s.heading}: {s.brief}" for n, s in enumerate(draft.sections, start=1)]))
-    rows.append(_row("sources", DONE,
-                     f"{workspace.sources.report.passages_available} of {workspace.sources.report.passages_in_index} "
-                     "passages may be drafted from", workspace.sources.report.lines()))
+    for member in workspace.members:
+        rows.append(_row("sources", DONE,
+                         f"{member.sources.report.passages_available} of {member.sources.report.passages_in_index} "
+                         "passages may be drafted from", member.sources.report.lines(),
+                         where=member.document.reference() if workspace.several else ""))
     for index, section in enumerate(draft.sections):
         rows += _section_rows(workspace, draft, article, index, section)
 

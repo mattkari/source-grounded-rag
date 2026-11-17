@@ -34,7 +34,10 @@ NOT_COVERED_LINE = "The thesis does not hold enough evidence to say."
 INSUFFICIENT = "the thesis does not hold enough evidence for this"
 # Limits are gathered under one closing heading, one line per section at most (ADR 0005).
 NOT_COVERED_HEADING = "What this article does not cover"
-LIMIT_OPENING = "the thesis does not"      # a line a reader can follow opens like this
+# A line a reader can follow opens like one of these. The second is what a section
+# drafted from several sources is asked for (PLAN_V7 §7).
+LIMIT_OPENING = ("the thesis does not", "the sources do not")
+NOT_COVERED_LINE_SOURCES = "The sources do not hold enough evidence to say."
 LIMIT_MAX_WORDS = 30
 RESEARCHER, GENERATED = "researcher", "generated"
 # An introduction or conclusion the model suggested from the article's own text and the
@@ -61,6 +64,9 @@ class SectionDraft:
     # Chunk ids the researcher approved for this section from an exploration's proposal
     # (ADR 0014). The section is then drafted from exactly these, and nothing is retrieved.
     approved: list[str] | None = None
+    # Document ids this section was narrowed to, of an article with several sources
+    # (PLAN_V7 §7). None: every source of the article was searched.
+    sources: list[str] | None = None
 
 
 @dataclass
@@ -265,6 +271,7 @@ def assemble(
     title: str,
     document,
     sections: list[SectionDraft],
+    documents: list | None = None,
     introduction: FrameElement | None = None,
     transitions: list[FrameElement | None] | None = None,
     conclusion: FrameElement | None = None,
@@ -284,7 +291,13 @@ def assemble(
         out += [f"*{DRAFT_LINE}*", ""]
     out += [f"# {title.strip()}", ""]
     article.blocks.append(("title", title.strip()))
-    out += [f"*Drawn from {document.author} ({document.year}), {document.title}.*", ""]
+    several = [d for d in (documents or []) if d is not None]
+    if len(several) > 1:
+        # Every source of the article is named, each by its confirmed identity (PLAN_V7 §7).
+        out += ["*Drawn from " + "; ".join(f"{d.author} ({d.year}), {d.title}" for d in several) + ".*", ""]
+    else:
+        out += [f"*Drawn from {document.author} ({document.year}), {document.title}.*", ""]
+    not_covered = NOT_COVERED_LINE_SOURCES if len(several) > 1 else NOT_COVERED_LINE
 
     intro = _frame_text(introduction, "introduction", notes, article)
     if intro:
@@ -309,7 +322,7 @@ def assemble(
     shown: list[SectionDraft] = []                           # drafted sections that reached the page
     for section, drafted in printed:
         body = (_section_body(sections.index(section), section, notes, article, edits or {}, own_words or set())
-                if drafted else [NOT_COVERED_LINE])
+                if drafted else [not_covered])
         if not body:
             continue                                         # every sentence of it was removed
         if drafted:

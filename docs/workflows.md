@@ -56,15 +56,15 @@ flowchart TD
 flowchart TD
     explore>"Explore the sources and propose a theme, an outline and passages<br/><i>agent, bounded, optional</i>"]
     outline(["Title and outline: written, or a proposal edited and approved<br/><i>researcher</i>"])
-    preview[/"Retrieval preview<br/><i>embedding call, optional</i>"/]
-    sources["Source filter: no footnotes, no reference list<br/><i>no model</i>"]
+    preview[/"Retrieval preview, or a coverage map of several sources<br/><i>embedding call, optional</i>"/]
+    sources["Source filter, for each source: no footnotes, no reference list<br/><i>no model</i>"]
     section{{"Draft each section through the Ask pipeline, or from approved passages<br/><i>model call</i>"}}
     checks[["Validation and checks of form<br/><i>check</i>"]]
     blocked["Section left out; reason shown, not retried<br/><i>no model</i>"]
     editorial{{"Editorial pass: kept only if it preserves<br/><i>model call, optional</i>"}}
     sentences[["Sentence by sentence: hold back the unnoted<br/><i>check</i>"]]
     review(["Verdict on each sentence and note; edit or delete<br/><i>researcher</i>"])
-    raised[["Raised to read: reported speech, shared terms; a second opinion on request (one model call)<br/><i>check, optional</i>"]]
+    raised[["Raised to read: reported speech, mixed or wrong sources, shared terms; a second opinion on request (one model call)<br/><i>check, optional</i>"]]
     frame(["Introduction and conclusion: written, or a suggestion edited<br/><i>researcher, optional</i>"])
     export["Export, only when every sentence is judged<br/><i>no model</i>"]
     explore --> outline
@@ -85,15 +85,15 @@ flowchart TD
 |---|---|---|
 | Explore the sources and propose a theme, an outline and passages | agent, bounded (optional) | `article.explorer.explore`, `article.explorer.check_proposal` |
 | Title and outline: written, or a proposal edited and approved | researcher | `article.topics.outline`, `article.pipeline.approve`, `article.pipeline.new_draft` |
-| Retrieval preview | embedding call (optional) | `article.pipeline.preview` |
-| Source filter: no footnotes, no reference list | no model | `article.sources.open_sources` |
-| Draft each section through the Ask pipeline, or from approved passages | model call | `article.pipeline.draft_section`, `ask.run_query`, `ask.draft_from_evidence` |
+| Retrieval preview, or a coverage map of several sources | embedding call (optional) | `article.pipeline.preview`, `article.pipeline.coverage` |
+| Source filter, for each source: no footnotes, no reference list | no model | `article.sources.open_sources` |
+| Draft each section through the Ask pipeline, or from approved passages | model call | `article.pipeline.draft_section`, `ask.run_query`, `ask.retrieve_collection`, `ask.draft_from_evidence` |
 | Validation and checks of form | check | `ask.validate`, `article.checks.prose_failures` |
 | Section left out; reason shown, not retried | no model | `article.assemble.block_reason` |
 | Editorial pass: kept only if it preserves | model call (optional) | `article.pipeline.edit_section`, `article.checks.editorial_failures` |
 | Sentence by sentence: hold back the unnoted | check | `article.assemble.assemble` |
 | Verdict on each sentence and note; edit or delete | researcher | `article.pipeline.set_pair_verdict`, `article.pipeline.edit_sentence`, `article.pipeline.delete_sentence`, `article.pipeline.keep_as_own_words` |
-| Raised to read: reported speech, shared terms; a second opinion on request (one model call) | check (optional) | `article.checks.reported_speech_flags`, `article.terms.shared_terms`, `article.pipeline.second_opinion` |
+| Raised to read: reported speech, mixed or wrong sources, shared terms; a second opinion on request (one model call) | check (optional) | `article.checks.reported_speech_flags`, `article.checks.source_flags`, `article.checks.consensus_flags`, `article.terms.shared_terms`, `article.pipeline.second_opinion` |
 | Introduction and conclusion: written, or a suggestion edited | researcher (optional) | `article.pipeline.suggest_frame`, `article.pipeline.set_frame` |
 | Export, only when every sentence is judged | no model | `article.pipeline.export_blockers`, `article.pipeline.export` |
 

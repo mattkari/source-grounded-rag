@@ -60,9 +60,11 @@ def estimate(workspace: pipeline.Workspace, draft: pipeline.Draft) -> dict:
     calls = pipeline.planned_calls(draft)
     settings = ask.settings
     prompt_tokens = len(ask._get_prompt()[0]) // CHARS_PER_TOKEN
-    rules_tokens = len(checks.load_prompt(checks.SECTION_PROMPT)[0]) // CHARS_PER_TOKEN
+    rules_tokens = len(checks.load_prompt(pipeline.section_prompt(workspace))[0]) // CHARS_PER_TOKEN
+    if workspace.several:
+        rules_tokens += len(ask.collection_prompt()[0]) // CHARS_PER_TOKEN
     editor_tokens = len(checks.load_prompt(checks.EDITORIAL_PROMPT)[0]) // CHARS_PER_TOKEN
-    largest = sorted((chunk.get("token_count", 0) for chunk in workspace.sources.chunks), reverse=True)
+    largest = sorted((chunk.get("token_count", 0) for chunk in workspace.by_id.values()), reverse=True)
     evidence_tokens = sum(largest[: settings.top_k])
     per_call = prompt_tokens + evidence_tokens + max(rules_tokens, editor_tokens) + settings.llm_max_tokens // 8
     tokens_in, tokens_out = calls["model_calls"] * per_call, calls["model_calls"] * settings.llm_max_tokens
@@ -127,8 +129,11 @@ def report(workspace: pipeline.Workspace, draft: pipeline.Draft, folder: Path, r
         print(f"\nEM DASHES: “{heading}” prints {count} (target 0). They are left as written; "
               "replace them by hand if you wish.", file=stream)
     print("\nSOURCE FILTER (footnotes and the reference list are never drafted from)", file=stream)
-    for line in workspace.sources.report.lines():
-        print(f"  {line}", file=stream)
+    for member in workspace.members:
+        if workspace.several:
+            print(f"  {member.document.reference()}", file=stream)
+        for line in member.sources.report.lines():
+            print(f"  {line}", file=stream)
     columns = pipeline.voice_columns(article, reference_text)
     print("\nVOICE (plain counts; no score)", file=stream)
     print(voice.format_comparison(columns), file=stream)
@@ -170,7 +175,12 @@ def main(argv: list[str] | None = None, stream=None) -> int:
                              "you write (its opening, about 300 words). Needs --editorial. It is sent to the model.")
     parser.add_argument("--reference", action="append", default=[], type=Path, metavar="FILE",
                         help="a file of your own published writing, for the voice comparison")
-    parser.add_argument("--document", metavar="ID", help="an approved uploaded thesis; default is the built-in one")
+    parser.add_argument("--document", action="append", metavar="ID",
+                        help="an uploaded document that is ready; default is the built-in thesis. Give it more than "
+                             "once to draft from several sources: each sentence then names its source")
+    parser.add_argument("--coverage", action="store_true",
+                        help="show, for each section's question, what each source holds: pages and scores; one "
+                             "embedding call per section and no model call")
     parser.add_argument("--preview", action="store_true",
                         help="show which passages each section's question would draw on, with pages and scores; "
                              "one embedding call per section and no model call")
@@ -197,13 +207,17 @@ def main(argv: list[str] | None = None, stream=None) -> int:
 
     try:
         # The built-in thesis comes from the one settings object; an upload from the library.
-        workspace = pipeline.open_workspace(upload.find_document(args.document) if args.document else None)
-    except (sources.NoFootnoteMap, upload.UploadRefused) as exc:
+        chosen = [upload.find_document(document_id) for document_id in args.document or []]
+        workspace = pipeline.open_workspace(chosen[0] if chosen else None, others=chosen[1:])
+    except (sources.NoFootnoteMap, upload.UploadRefused, pipeline.ArticleError) as exc:
         print(str(exc), file=stream)
         return 2
     if args.topics or args.sources:
-        print(topics.format_topics(workspace.topics()) if args.topics
-              else "\n".join(workspace.sources.report.lines()), file=stream)
+        for member in workspace.members:
+            if workspace.several:
+                print(member.document.reference(), file=stream)
+            print(topics.format_topics(member.topics()) if args.topics
+                  else "\n".join(member.sources.report.lines()), file=stream)
         return 0
 
     if args.trace:
@@ -302,9 +316,13 @@ def main(argv: list[str] | None = None, stream=None) -> int:
         print(f"  {number}. {section.heading}" + ("" if section.pending else "  (already drafted)")
               + (f"  (from {len(section.approved)} approved passage(s))" if section.approved else ""), file=stream)
     print_estimate(estimate(workspace, draft), stream)
-    if args.preview:
-        pending = [section.brief for section in draft.sections if section.pending]
-        print("\n" + pipeline.format_preview([pipeline.preview(workspace, brief) for brief in pending]), file=stream)
+    if args.preview or args.coverage:
+        pending = [section for section in draft.sections if section.pending and not section.approved]
+        if args.coverage or workspace.several:
+            print("\n" + pipeline.format_coverage([pipeline.coverage(workspace, s.brief, s.sources) for s in pending]),
+                  file=stream)
+        else:
+            print("\n" + pipeline.format_preview([pipeline.preview(workspace, s.brief) for s in pending]), file=stream)
     if args.dry_run:
         return 0
 

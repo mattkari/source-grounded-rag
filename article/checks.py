@@ -17,6 +17,8 @@ from pathlib import Path
 
 PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
 SECTION_PROMPT = "article_section_v2.md"
+# The same rules for a section drafted from several sources (PLAN_V7 §7): one source a sentence.
+SECTION_PROMPT_SOURCES = "article_section_v3.md"
 EDITORIAL_PROMPT = "article_editorial_v3.md"
 FRAME_PROMPT = "article_frame_v1.md"
 SUPPORT_PROMPT = "article_support_v1.md"
@@ -279,4 +281,60 @@ def reported_speech_flags(sentence: str, passage_sentence: str) -> list[str]:
                     f"the sentence does not name {name}")
             if flag not in flags:
                 flags.append(flag)
+    return flags
+
+
+# ---------------------------------------------------------------------------
+# Several sources (PLAN_V7 §7, ADR 0013): three checks that raise, and decide nothing
+# ---------------------------------------------------------------------------
+
+# Wording that claims agreement among writers. A pattern, so it will miss some and
+# catch some that are fair; it raises the sentence for the researcher to read.
+_CONSENSUS = re.compile(
+    r"\b(?:scholars|researchers|historians|commentators|critics|authors|writers|studies|sources)\s+"
+    r"(?:generally\s+|widely\s+|largely\s+|all\s+|both\s+)?(?:agree|concur|hold|accept|have\s+shown|show|maintain)\b"
+    r"|\bthe\s+(?:scholarly\s+)?literature\s+(?:shows|suggests|agrees|holds|establishes)\b"
+    r"|\bit\s+is\s+(?:widely|generally|commonly|universally)\s+(?:accepted|agreed|held|believed|recognised|recognized)\b"
+    r"|\b(?:there\s+is|a)\s+(?:broad\s+|general\s+|scholarly\s+)?consensus\b"
+    r"|\bmost\s+(?:scholars|researchers|historians|studies|sources)\b",
+    re.IGNORECASE,
+)
+
+
+def surname(author: str) -> str:
+    """The name a sentence would use for a source: what stands before the first comma
+    of the first author, as the researcher confirmed it."""
+    first = re.split(r"\s+and\s+|;|&", author.strip())[0]
+    return first.split(",")[0].strip()
+
+
+def consensus_flags(sentence: str) -> list[str]:
+    found = _CONSENSUS.search(sentence)
+    return [f"the sentence claims agreement (“{found.group(0)}”); the passages can show what each named source says, "
+            "not what a field holds"] if found else []
+
+
+def source_flags(sentence: str, cited: list, known: list) -> list[str]:
+    """What is raised about whose claim a sentence reports.
+
+    `cited` are the documents the sentence's notes resolve to; `known` are all the
+    sources of the article. Two patterns, neither a verdict (hard rule 12):
+      * the notes resolve to more than one source: two sources may have been merged
+        into one claim;
+      * the sentence names the author of a source its notes do not resolve to: the
+        claim may be cited to the wrong source.
+    """
+    flags = []
+    cited_ids = list(dict.fromkeys(document.document_id for document in cited))
+    if len(cited_ids) > 1:
+        names = " and ".join(f"{document.author} ({document.year})" for document in
+                             {d.document_id: d for d in cited}.values())
+        flags.append(f"this sentence carries notes from two sources ({names}); check that it does not join them into one claim")
+    for document in known:
+        name = surname(document.author)
+        if document.document_id in cited_ids or len(name) < 3:
+            continue
+        if re.search(rf"\b{re.escape(name)}\b", sentence) and not any(
+                surname(other.author) == name for other in cited):
+            flags.append(f"the sentence names {name}, but its note is to another source; check which source says this")
     return flags

@@ -821,7 +821,7 @@ def test_a_saved_draft_is_not_reopened_against_another_index_or_document(workspa
         pipeline.load(folder, changed)
     other = pipeline.Workspace(dataclasses.replace(workspace.document, document_id="another-thesis"),
                                workspace.sources, workspace.manifest)
-    with pytest.raises(pipeline.ArticleError, match="not the thesis now open"):
+    with pytest.raises(pipeline.ArticleError, match="not from what is now open"):
         pipeline.load(folder, other)
 
 

@@ -814,3 +814,89 @@ def test_an_exploration_that_ends_without_a_proposal_is_shown_and_not_run_again(
     assert any("ended without a proposal: failed (RuntimeError: FIXTURE: the provider is down)" in str(w.value)
                for w in view.warning)
     assert not any(b.label == "Use this proposal as my outline" for b in view.button)
+
+
+# --- several sources (PLAN_V7 §7) ----------------------------------------------------
+
+
+@pytest.fixture
+def second_source(tmp_path, monkeypatch):
+    """A second ready document beside the built-in thesis: its own small index in the
+    built-in index's dimension, and a stored footnote map that says it has no footnotes."""
+    import shutil
+
+    import upload
+    from article import sources
+    from documents import Document, default_document, default_layout
+
+    second_id = "article-fixture0001"
+    index_dir = tmp_path / "second-index"
+    index_dir.mkdir()
+    texts = [f"FIXTURE passage: a synthetic article passage number {n} about harbours." for n in range(3)]
+    chunks = [{"chunk_id": f"{second_id}::{n:05d}::fixture", "document_id": second_id, "kind": "source", "chapter": None,
+               "section": f"FIXTURE article section {n}", "page_start": str(101 + n), "page_end": str(101 + n),
+               "pdf_page_start": n + 1, "pdf_page_end": n + 1, "pages_unresolved": [], "token_count": 9, "text": text}
+              for n, text in enumerate(texts)]
+    np.save(index_dir / "vectors.npy", offline_embedding(texts))
+    (index_dir / "chunks.json").write_text(json.dumps(chunks), encoding="utf-8")
+    builtin_manifest = json.loads((settings.index_dir / "manifest.json").read_text(encoding="utf-8"))
+    (index_dir / "manifest.json").write_text(json.dumps({
+        "document_id": second_id, "embedding_model": builtin_manifest["embedding_model"],
+        "corpus_text_sha256": "second-corpus-hash", "chunk_count": 3}), encoding="utf-8")
+    document = Document(second_id, "Second, B.", "2020", "FIXTURE Article On Synthetic Canals",
+                        "Second, B. (2020), FIXTURE Article", default_layout(settings), tmp_path / "none.pdf",
+                        tmp_path, index_dir, kind="article")
+
+    maps = tmp_path / "footnote_maps"                     # the built-in map (ids and offsets only), and the second's
+    shutil.copytree(sources.SIDE_DIR, maps)
+    (maps / f"{second_id}.json").write_text(json.dumps({
+        "schema_version": sources.SCHEMA_VERSION, "corpus_text_sha256": "second-corpus-hash",
+        "footnotes_found": 0, "unclear_foot_blocks": 0, "spans": {}}), encoding="utf-8")
+    monkeypatch.setattr(sources, "SIDE_DIR", maps)
+    builtin = default_document(settings)
+    monkeypatch.setattr(upload, "ready_documents", lambda: [document])
+    monkeypatch.setattr(upload, "find_document", lambda i: document if i == second_id else builtin)
+    return document
+
+
+def test_an_article_can_draw_on_a_further_source_with_a_coverage_map_and_a_narrowed_section(view, second_source):
+    second_id = second_source.document_id
+    view.run()                                                           # the library now offers a second source
+    picker = next(m for m in view.multiselect if m.label.startswith("Further sources"))
+    picker.set_value([second_id])
+    view.run()
+
+    assert not view.exception and second_source.reference() in all_text(view)      # its own source filter is shown
+    fill(view)
+    button(view, "Next: frame and options").click()
+    view.run()
+    button(view, "Next: check the plan").click()
+    view.run()
+    assert "Which sources each section searches." in all_text(view)
+    button(view, "Coverage map: what each source holds for each section (no model call)").click()
+    view.run()
+    shown = "\n".join(str(c.value) for c in view.code)
+    assert "COVERAGE MAP (embedding only" in shown and "Second, B. (2020)" in shown and view.model.calls == []
+
+    view.multiselect(key="section_sources_1").set_value([second_id])     # the second section: this source only
+    view.run()
+    button(view, "Draft the article").click()
+    view.run()
+
+    saved = record(view)
+    assert not view.exception and len(view.model.calls) == 3
+    assert saved["document_ids"] == [settings.document_id, second_id]
+    assert [s["sources_searched"] for s in saved["sections"]] == [None, [second_id], None]
+    assert {e["chunk_id"].split("::")[0] for e in saved["sections"][1]["evidence"]} == {second_id}
+    assert "article_section_v3.md" in saved["prompts"] and "collection_v1.md" in saved["prompts"]
+    assert re.search(r"\*\*Sentence with note \[\d+\]\*\*, in “.+” — .+ \(\d{4}\), pp?\. ", all_text(view))
+    assert "FIXTURE Article On Synthetic Canals" in article_file(view)   # the draft names both of its sources
+
+
+def test_with_no_other_source_ready_the_view_offers_none_and_drafts_as_before(view):
+    assert not any(m.label.startswith("Further sources") for m in view.multiselect)
+    draft(view)
+
+    saved = record(view)
+    assert saved["document_ids"] == [settings.document_id] and "collection_v1.md" not in saved["prompts"]
+    assert "article_section_v2.md" in saved["prompts"]

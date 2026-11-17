@@ -96,8 +96,27 @@ TOOLS = [
 ]
 
 
-def tools_hash() -> str:
-    return hashlib.sha256(json.dumps(TOOLS, sort_keys=True).encode("utf-8")).hexdigest()[:12]
+def tools_for(workspace) -> list[dict]:
+    """The tools as this workspace's agent is offered them. With several sources
+    (PLAN_V7 §7) a search may be narrowed to one of them by its id."""
+    if not workspace.several:
+        return TOOLS
+    ids = [document.document_id for document in workspace.documents]
+    search = {
+        **TOOLS[1],
+        "description": TOOLS[1]["description"] + " Give `source` the id of one source to search only that "
+                       "one, or null to search them all; from all, at most a few passages come from any one source.",
+        "input_schema": _strict({
+            "query": {"type": "string", "description": "What to look for."},
+            "source": {"anyOf": [{"type": "string", "enum": ids}, {"type": "null"}],
+                       "description": "A source id from list_sources, or null for every source."},
+        }),
+    }
+    return [TOOLS[0], search, TOOLS[2]]
+
+
+def tools_hash(tools: list[dict] | None = None) -> str:
+    return hashlib.sha256(json.dumps(TOOLS if tools is None else tools, sort_keys=True).encode("utf-8")).hexdigest()[:12]
 
 
 def _now() -> str:
@@ -130,6 +149,9 @@ class Exploration:
     model: str = ""
     provider: str = ""
     exploration_id: str | None = None
+    # Every source searched, in order, and the hash of each one's index (PLAN_V7 §7).
+    document_ids: list[str] = field(default_factory=list)
+    corpora: dict[str, str | None] = field(default_factory=dict)
 
     @property
     def searches(self) -> int:
@@ -144,6 +166,8 @@ class Exploration:
         return {
             "exploration_id": self.exploration_id, "topic": self.topic, "document_id": self.document_id,
             "corpus_text_sha256": self.corpus_text_sha256,
+            "document_ids": self.document_ids or [self.document_id],
+            "corpora": self.corpora or {self.document_id: self.corpus_text_sha256},
             "started": self.started, "finished": self.finished,
             "model": self.model, "provider": self.provider,
             "prompt": self.prompt, "prompt_sha256_12": self.prompt_sha256_12, "tools_sha256_12": self.tools_sha256_12,
@@ -167,6 +191,7 @@ class Exploration:
             failures=record.get("failures", []), prompt=record["prompt"],
             prompt_sha256_12=record["prompt_sha256_12"], tools_sha256_12=record["tools_sha256_12"],
             model=record["model"], provider=record["provider"], exploration_id=record.get("exploration_id"),
+            document_ids=record.get("document_ids") or [], corpora=record.get("corpora") or {},
         )
 
 
@@ -187,8 +212,8 @@ def estimate(workspace, max_steps: int | None = None) -> dict:
     settings = ask.settings
     steps = max_steps or settings.explorer_max_steps
     prompt, _ = checks.load_prompt(PROMPT)
-    fixed = (len(prompt) + len(json.dumps(TOOLS))) // CHARS_PER_TOKEN
-    largest = sorted((chunk.get("token_count", 0) for chunk in workspace.sources.chunks), reverse=True)
+    fixed = (len(prompt) + len(json.dumps(tools_for(workspace)))) // CHARS_PER_TOKEN
+    largest = sorted((chunk.get("token_count", 0) for chunk in workspace.by_id.values()), reverse=True)
     per_search = sum(largest[:PASSAGES_PER_SEARCH])
     per_step = per_search + settings.explorer_step_max_tokens
     tokens_in = sum(fixed + done * per_step for done in range(1, steps + 1))
@@ -222,21 +247,34 @@ def format_estimate(numbers: dict) -> str:
 
 
 def _list_sources(workspace) -> str:
-    document = workspace.document
-    lines = [f"SOURCE: {document.short_title} — {document.author} ({document.year}), {document.title}"]
-    for topic in workspace.topics():
-        lines.append(f"  Chapter: {topic.chapter} ({topic.passages} passages)")
-        lines += [f"    Section: {section.title} ({section.passages} passages)" for section in topic.sections]
-    if len(lines) == 1:
-        lines.append("  This source prints no chapters. Search it directly.")
+    lines = []
+    for member in workspace.members:
+        document = member.document
+        opening = len(lines)
+        lines.append(f"SOURCE: {document.short_title} — {document.author} ({document.year}), {document.title}"
+                     + (f" [id: {document.document_id}; {len(member.sources.chunks)} passages]" if workspace.several else ""))
+        for topic in member.topics():
+            lines.append(f"  Chapter: {topic.chapter} ({topic.passages} passages)")
+            lines += [f"    Section: {section.title} ({section.passages} passages)" for section in topic.sections]
+        if len(lines) == opening + 1:
+            # A source with no chapters (an article): its sections, as it prints them.
+            titles = list(dict.fromkeys(chunk["section"] for chunk in member.sources.chunks if chunk.get("section")))
+            lines += [f"  Section: {title}" for title in titles] or ["  This source prints no chapters or sections. Search it directly."]
     return "\n".join(lines)
 
 
-def _search(workspace, run: Exploration, step: int, query: str) -> tuple[str, list[str]]:
+def _search(workspace, run: Exploration, step: int, query: str, source: str | None = None) -> tuple[str, list[str]]:
     """The existing retrieval over the filtered sources. Returns what the model is
-    shown (verbatim passages under stable handles; no page, no score) and the handles."""
-    found = ask.retrieve(query, workspace.sources.vectors, workspace.sources.chunks,
-                         PASSAGES_PER_SEARCH, workspace.document)
+    shown (verbatim passages under stable handles; no page, no score) and the handles.
+    With several sources it is the collection retrieval, capped per source, or one
+    source alone when the agent names it."""
+    if workspace.several:
+        members = workspace.collection([source] if source else None)
+        found = ask.retrieve_collection(query, members, PASSAGES_PER_SEARCH,
+                                        PASSAGES_PER_SEARCH if source else ask.settings.per_source_passages)
+    else:
+        found = ask.retrieve(query, workspace.sources.vectors, workspace.sources.chunks,
+                             PASSAGES_PER_SEARCH, workspace.document)
     by_chunk = {entry["chunk_id"]: handle for handle, entry in run.passages.items()}
     shown = []
     for item in found:
@@ -313,9 +351,12 @@ def explore(workspace, topic: str, max_steps: int | None = None, on_step=None) -
         topic=topic, document_id=workspace.document.document_id,
         corpus_text_sha256=workspace.manifest.get("corpus_text_sha256"),
         max_steps=steps, token_ceiling=estimate(workspace, steps)["token_ceiling"],
-        prompt_sha256_12=digest, tools_sha256_12=tools_hash(),
+        document_ids=[member.document.document_id for member in workspace.members],
+        corpora={member.document.document_id: member.manifest.get("corpus_text_sha256") for member in workspace.members},
+        prompt_sha256_12=digest, tools_sha256_12=tools_hash(tools_for(workspace)),
         model=settings.llm_model, provider=settings.llm_provider,
     )
+    tools = tools_for(workspace)
     messages = [{"role": "user", "content":
                  f"TOPIC\n=====\n{topic}\n\nSTATUS: step 0 of {steps} used; 0 searches made, {steps} left."}]
 
@@ -328,7 +369,7 @@ def explore(workspace, topic: str, max_steps: int | None = None, on_step=None) -
         if used["input"] + used["output"] >= run.token_ceiling:
             return end(CAPPED, "the token ceiling was reached")
         try:
-            reply = ask.call_explorer(prompt, messages, TOOLS)
+            reply = ask.call_explorer(prompt, messages, tools)
         except (Exception, SystemExit) as exc:      # recorded, never retried (hard rule 9)
             return end(FAILED, f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}")
         entry = {"step": step, "input_tokens": reply["usage"]["input_tokens"],
@@ -352,8 +393,11 @@ def explore(workspace, topic: str, max_steps: int | None = None, on_step=None) -
                 text = logged["error"] = "a search needs a query"
             elif name == SEARCH and run.searches >= run.max_steps:
                 text = logged["error"] = "the search budget is used; call propose with what you have"
+            elif name == SEARCH and arguments.get("source") and arguments["source"] not in run.document_ids:
+                text = logged["error"] = f"there is no source with the id {arguments['source']}"
             elif name == SEARCH:
-                text, logged["returned"] = _search(workspace, run, step, str(arguments["query"]).strip())
+                text, logged["returned"] = _search(workspace, run, step, str(arguments["query"]).strip(),
+                                                   arguments.get("source") or None)
             elif name == PROPOSE:
                 proposed = arguments
                 logged["arguments"] = {"sections": len(arguments.get("sections") or []),
@@ -392,7 +436,8 @@ def format_proposal(workspace, run: Exploration) -> str:
         for chunk_id in section["passages"]:
             chunk = workspace.by_id[chunk_id]
             where = chunk.get("section") or chunk.get("chapter") or ""
-            lines.append(f"     {ask.page_phrase(chunk):<14} {where}")
+            who = workspace.document_of(chunk_id)
+            lines.append(f"     {ask.page_phrase(chunk):<14} " + (f"{who.author} ({who.year}) — " if workspace.several else "") + where)
     if run.proposal["gaps"]:
         lines += ["", "GAPS, as the agent reported them"] + [f"  - {gap}" for gap in run.proposal["gaps"]]
     return "\n".join(lines)

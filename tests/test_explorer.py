@@ -388,7 +388,13 @@ def test_approval_records_what_the_researcher_changed_and_refuses_what_cannot_be
     with pytest.raises(pipeline.ArticleError, match="nothing to approve"):
         pipeline.approve(workspace, {**record, "proposal": None})
     with pytest.raises(pipeline.ArticleError, match="index has changed"):
-        pipeline.approve(workspace, {**record, "corpus_text_sha256": "another-hash"})
+        pipeline.approve(workspace, {**record, "corpora": {record["document_id"]: "another-hash"}})
+    before_several = {key: value for key, value in record.items() if key not in ("corpora", "document_ids")}
+    assert pipeline.approve(workspace, before_several)["approval"]["changes"]["sections_approved"] == 3
+    with pytest.raises(pipeline.ArticleError, match="index has changed"):
+        pipeline.approve(workspace, {**before_several, "corpus_text_sha256": "another-hash"})
+    with pytest.raises(pipeline.ArticleError, match="not what is now open"):
+        pipeline.approve(workspace, {**record, "document_ids": ["another-source"]})
 
 
 def test_an_article_drafted_from_a_proposal_reopens_with_its_exploration_and_resumes_without_retrieving(

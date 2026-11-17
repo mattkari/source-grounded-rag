@@ -76,3 +76,34 @@ decision in `PLAN_V7.md`.
 - Three passages per source is one system's choice, not a measured optimum for this collection.
 - The checks are heuristics that raise; they prove nothing (hard rule 12).
 - Whether a model keeps sources apart when told to is unverified until a live run.
+
+## As built in Sprints M2 and M3
+
+- **One instruction for a collection, one set of rules for a several-source section.** A question
+  of several sources is sent with `prompts/collection_v1.md`. A section of a several-source article
+  is sent with that and `prompts/article_section_v3.md`, which adds "each sentence reports one
+  source". An article of one source keeps `article_section_v2.md`, byte for byte.
+- **A workspace holds its sources in order**, each with its own filtered passages and footnote map.
+  A source with no footnote map is refused, as a single source is. An article reopens only against
+  the same sources in the same order.
+- **The coverage map** is `pipeline.coverage`: the question embedded once, each source's own best
+  three passages, by page and score. It can warn per source with `PREVIEW_MIN_SCORE`; it refuses
+  nothing.
+- **A section may be narrowed** to some of the article's sources, in the view. Not on the command
+  line.
+- **The three checks are patterns** in `article/checks.py`, raised beside a sentence in the review
+  and recorded with it. They run only on an article with more than one source. None blocks a
+  section, a verdict or the export.
+  - *Two sources on one sentence*: its notes resolve to more than one source.
+  - *Another author named*: the sentence contains, as a whole word, the surname of a source its
+    notes do not resolve to. The surname is what stands before the first comma of the confirmed
+    author. It misses a claim that names nobody, and an author cited by a different form of name.
+  - *Agreement claimed*: a list of phrasings ("scholars agree", "the literature shows", "it is
+    widely accepted", "most historians", "a consensus"). It will miss others.
+- **The export groups notes under each source**, with the source's full line once and each note's
+  place and page beneath. A note keeps its number. The disclosure names every source and says whose
+  work each is when an owner is configured.
+- **The exploring agent** searches every source, capped per source, or one source by its id. The
+  researcher can add passages to a proposal from the coverage map before approving it.
+- The record stays at schema 5. New fields are added beside the old ones; `document_id` and
+  `corpus_text_sha256` name the first source, as before.

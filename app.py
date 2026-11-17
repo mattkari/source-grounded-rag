@@ -28,6 +28,7 @@ a draft) lives in the `article` package and is tested there.
 
 from __future__ import annotations
 
+import copy
 import html
 import json
 import re
@@ -757,9 +758,22 @@ def render_library() -> None:
 # ---------------------------------------------------------------------------
 
 
-@st.cache_resource(show_spinner="Reading what the thesis offers…")
-def load_workspace(document_id: str) -> pipeline.Workspace:
-    return pipeline.open_workspace(upload.find_document(document_id))
+@st.cache_resource(show_spinner="Reading what the sources offer…")
+def load_workspace(document_id: str, others: tuple[str, ...] = ()) -> pipeline.Workspace:
+    """The active document's filtered sources, with any further sources of the article."""
+    return pipeline.open_workspace(upload.find_document(document_id),
+                                   others=[upload.find_document(other) for other in others])
+
+
+def workspace_key(workspace: pipeline.Workspace) -> str:
+    """What a draft on the screen belongs to: its sources, in order."""
+    return "|".join(document.document_id for document in workspace.documents)
+
+
+def further_sources(document: Document) -> list[Document]:
+    """Every other document that is ready to be drafted from."""
+    available = [default_document(settings)] + upload.ready_documents()
+    return [other for other in available if other.document_id != document.document_id]
 
 
 def parse_outline(text: str) -> list[tuple[str, str]]:
@@ -782,13 +796,14 @@ def persist(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
     pipeline.save(workspace, draft, reference_text=st.session_state.get("article_reference", ""))
 
 
-def plan_draft(title: str, outline: list[tuple[str, str]], topic: str | None, frame: dict) -> pipeline.Draft:
+def plan_draft(title: str, outline: list[tuple[str, str]], topic: str | None, frame: dict,
+               section_sources: list[list[str] | None] | None = None) -> pipeline.Draft:
     """The plan only: no model is called here."""
     origin = {I_WRITE: pipeline.RESEARCHER, GENERATE: pipeline.GENERATED}
     return pipeline.new_draft(
         title, outline, topic=topic, commentary=frame["commentary"], editorial=frame["editorial"],
         voice_exemplar=st.session_state.get("article_reference", "") if frame.get("voice_example") else "",
-        exploration=frame.get("exploration"),
+        exploration=frame.get("exploration"), section_sources=section_sources,
         introduction=origin[frame["introduction"]], introduction_text=frame["introduction_text"],
         transitions=origin[frame["transitions"]],
         transitions_text=[line.strip() for line in frame["transitions_text"].splitlines() if line.strip()],
@@ -810,11 +825,13 @@ PLAN_DEFAULTS = {
     "conclusion": I_WRITE, "conclusion_text": "", "commentary": False, "editorial": False, "voice_example": False,
     # An exploration's record with the researcher's approval of its proposal (ADR 0014), or None.
     "exploration": None,
+    # brief -> the document ids a section is narrowed to, of an article with several sources.
+    "section_sources": {},
 }
 
 
 def article_plan() -> dict:
-    return st.session_state.setdefault("article_plan", dict(PLAN_DEFAULTS))
+    return st.session_state.setdefault("article_plan", copy.deepcopy(PLAN_DEFAULTS))
 
 
 def remembered(name: str, widget, *args, **kwargs):
@@ -870,11 +887,23 @@ def render_saved_articles(workspace: pipeline.Workspace, document: Document) -> 
         )
         if st.button("Open this article"):
             try:
-                st.session_state.article_draft = pipeline.load(by_id[chosen]["folder"], workspace)
-                st.session_state.article_draft_document = document.document_id
+                # An article is reopened against the sources it was drafted from.
+                ids = by_id[chosen]["document_ids"]
+                opened = load_workspace(ids[0], tuple(ids[1:]))
+                st.session_state.article_draft = pipeline.load(by_id[chosen]["folder"], opened)
+                st.session_state.article_source_ids = list(ids[1:])
+                st.session_state.pop("article_sources", None)
+                st.session_state.article_draft_document = workspace_key(opened)
                 go_to_step(STEP_REVIEW)
-            except pipeline.ArticleError as exc:
+            except (pipeline.ArticleError, upload.UploadRefused, article_sources.NoFootnoteMap) as exc:
                 st.error(str(exc))
+
+
+def passage_label(workspace: pipeline.Workspace, chunk: dict) -> str:
+    """A passage by where it is: page, section, and its source when there are several."""
+    where = chunk.get("section") or chunk.get("chapter") or "no section title"
+    source = workspace.document_of(chunk["chunk_id"])
+    return f"{ask.page_phrase(chunk)} — " + (f"{source.author} ({source.year}), " if workspace.several else "") + where
 
 
 def render_proposal(workspace: pipeline.Workspace, record: dict) -> None:
@@ -902,9 +931,24 @@ def render_proposal(workspace: pipeline.Workspace, record: dict) -> None:
             chunk = workspace.by_id.get(chunk_id)
             if chunk is None:
                 continue
-            where = chunk.get("section") or chunk.get("chapter") or "no section title"
-            label = f"{ask.page_phrase(chunk)} — {where}"
+            label = passage_label(workspace, chunk)
             if st.checkbox(f"Use the passage at {label}", value=True, key=f"proposal_{stamp}_{index}_{chunk_id}"):
+                passages.append(chunk_id)
+            with st.expander(f"Read the passage at {label}"):
+                st.write(chunk["text"])
+        # More passages for this question, from the coverage map: yours to add or leave.
+        more = st.session_state.setdefault("proposal_more", {}).get((stamp, index), [])
+        if st.button("Find more passages for this question (one embedding call, no model)",
+                     key=f"proposal_{stamp}_more_{index}"):
+            found = pipeline.coverage(workspace, question)
+            more = [p["chunk_id"] for source in found["sources"] for p in source["passages"]]
+            st.session_state.proposal_more[(stamp, index)] = more
+        for chunk_id in more:
+            if chunk_id in section["passages"]:
+                continue
+            chunk = workspace.by_id[chunk_id]
+            label = passage_label(workspace, chunk)
+            if st.checkbox(f"Add the passage at {label}", value=False, key=f"proposal_{stamp}_{index}_add_{chunk_id}"):
                 passages.append(chunk_id)
             with st.expander(f"Read the passage at {label}"):
                 st.write(chunk["text"])
@@ -954,10 +998,10 @@ def render_explore(workspace: pipeline.Workspace, document: Document) -> None:
         with st.spinner("Exploring… every step is recorded."):
             run = explorer.explore(workspace, topic)
             explorer.save(run)
-        st.session_state.article_exploration = {"document_id": document.document_id, "record": run.as_record()}
+        st.session_state.article_exploration = {"document_id": workspace_key(workspace), "record": run.as_record()}
         st.rerun()
     held = st.session_state.get("article_exploration")
-    if held and held["document_id"] == document.document_id:
+    if held and held["document_id"] == workspace_key(workspace):
         render_proposal(workspace, held["record"])
 
 
@@ -1067,10 +1111,28 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
         f"{calls['editorial']} for the editorial pass. Nothing is "
         "retried. Each finished step is saved, so an interrupted draft can be resumed."
     )
-    if st.button("Preview what each section would draw on (no model call)"):
+    narrowed: list[list[str] | None] = [None] * len(outline)
+    if workspace.several:
+        ids = [d.document_id for d in workspace.documents]
+        names = {d.document_id: f"{d.author} ({d.year})" for d in workspace.documents}
+        kept = plan.setdefault("section_sources", {})
+        st.markdown("**Which sources each section searches.** All of them, unless you narrow it.")
+        for n, (heading, brief) in enumerate(outline):
+            if (heading, brief) in approved:
+                continue                                  # drafted from approved passages; nothing is searched
+            mine = st.multiselect(f"Sources for “{heading}”", ids, default=[i for i in kept.get(brief, ids) if i in ids],
+                                  format_func=names.get, key=f"section_sources_{n}")
+            kept[brief] = mine
+            narrowed[n] = mine if mine and len(mine) < len(ids) else None
+    label = ("Coverage map: what each source holds for each section (no model call)" if workspace.several
+             else "Preview what each section would draw on (no model call)")
+    if st.button(label):
         with st.spinner("Finding the passages each question would draw on…"):
-            st.session_state.article_preview = pipeline.format_preview(
-                [pipeline.preview(workspace, brief) for _, brief in outline])
+            st.session_state.article_preview = (
+                pipeline.format_coverage([pipeline.coverage(workspace, brief, narrowed[n])
+                                          for n, (_, brief) in enumerate(outline)])
+                if workspace.several else
+                pipeline.format_preview([pipeline.preview(workspace, brief) for _, brief in outline]))
     if st.session_state.get("article_preview"):
         st.code(st.session_state.article_preview, language="text")
         st.caption(
@@ -1081,13 +1143,13 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
         st.session_state.pop("article_preview", None)
         topic = None if plan["topic"] == OWN_TOPIC else plan["topic"].split(" — ")[0]
         try:
-            draft = plan_draft(plan["title"], outline, topic, plan)
+            draft = plan_draft(plan["title"], outline, topic, plan, narrowed)
         except pipeline.ArticleError as exc:
             st.error(str(exc))
             return
         persist(workspace, draft)           # the plan is on disk before the first call
         st.session_state.article_draft = draft
-        st.session_state.article_draft_document = document.document_id
+        st.session_state.article_draft_document = workspace_key(workspace)
         st.session_state.pop("article_item", None)
         with st.spinner("Drafting from the thesis… each finished step is saved."):
             carry_out(workspace, draft)
@@ -1143,13 +1205,16 @@ def is_judged(draft: pipeline.Draft, kind: str, item: dict) -> bool:
     return bool(draft.commentary_verdicts.get(item["section"], {}).get("verdict"))
 
 
-def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict):
+def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict,
+                article: assemble.Article | None = None):
     """One sentence and one note it carries, beside the sentences of the cited passage
     that share most of its words. The matching only chooses what to show: the verdict
     is the researcher's, on reading."""
     chunk = workspace.by_id[pair["chunk_id"]]
     recorded = pipeline.pair_verdict(draft, pair) or {}
-    st.markdown(f"**Sentence with note [{pair['n']}]**, in “{pair['heading']}” — {ask.page_phrase(chunk)}")
+    source = workspace.document_of(pair["chunk_id"])
+    st.markdown(f"**Sentence with note [{pair['n']}]**, in “{pair['heading']}” — "
+                + (f"{source.author} ({source.year}), " if workspace.several else "") + ask.page_phrase(chunk))
     left, right = st.columns(2)
     with left:
         st.caption("The article says" + (" (edited by you)" if pair["edited"] else ""))
@@ -1157,12 +1222,12 @@ def render_pair(workspace: pipeline.Workspace, draft: pipeline.Draft, pair: dict
     with right:
         matches = article_sentences.best_matches(pair["raw"], chunk["text"])
         st.caption("Closest sentences in the passage it cites, shared words in bold"
-                   + (" (footnote text removed)" if pair["chunk_id"] in workspace.sources.removed else ""))
+                   + (" (footnote text removed)" if pair["chunk_id"] in workspace.removed else ""))
         if not matches:
             st.warning("No sentence of the cited passage shares a word of substance with this one. Read the whole passage.")
         for match in matches:
             st.markdown(f"- {article_sentences.highlight(match.text, match.shared)}")
-    for flag in pipeline.pair_flags(workspace, pair):
+    for flag in pipeline.pair_flags(workspace, pair, article):
         st.warning(f"Check the attribution: {flag}.")
     with st.expander("The whole passage"):
         # Reflowed: the index keeps the PDF's line breaks, which read as ragged short lines.
@@ -1286,7 +1351,7 @@ def render_review(workspace: pipeline.Workspace, draft: pipeline.Draft, article:
     st.markdown(f"**{index + 1} of {len(items)}** · judged so far: {judged} of {len(items)}")
     with st.container(border=True):
         save = (render_held_back(workspace, draft, item) if kind == "held"
-                else render_pair(workspace, draft, item) if kind == "pair"
+                else render_pair(workspace, draft, item, article) if kind == "pair"
                 else render_commentary(draft, item))
     back, forward = st.columns(2)
     with back:
@@ -1339,7 +1404,8 @@ def render_resume(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
 
 def start_another() -> None:
     if st.button("Start another article"):
-        for key in ("article_draft", "article_item", "article_plan", "article_exploration", "article_explore_open"):
+        for key in ("article_draft", "article_item", "article_plan", "article_exploration", "article_explore_open",
+                    "proposal_more"):
             st.session_state.pop(key, None)
         for name in PLAN_DEFAULTS:
             st.session_state.pop(f"article_{name}", None)
@@ -1493,10 +1559,19 @@ def render_step_finish(workspace: pipeline.Workspace, draft: pipeline.Draft) -> 
 def render_article(document: Document) -> None:
     st.title(VIEW_ARTICLE)
     st.header(document.short_title, divider="grey")
+    # The article's further sources (PLAN_V7 §7). Kept apart from the widget that shows
+    # them, because that widget is only drawn on the first step.
+    available = {other.document_id: other for other in further_sources(document)}
+    chosen = [i for i in st.session_state.get("article_source_ids", []) if i in available]
     try:
-        workspace = load_workspace(document.document_id)
-    except article_sources.NoFootnoteMap as exc:
+        workspace = load_workspace(document.document_id, tuple(chosen))
+    except (article_sources.NoFootnoteMap, pipeline.ArticleError, upload.UploadRefused) as exc:
         st.error(str(exc))
+        if chosen:
+            st.session_state.article_source_ids = []        # fall back to the active document alone
+            st.session_state.pop("article_sources", None)
+            if st.button("Continue with this document alone"):
+                st.rerun()
         return
     except BaseException as exc:  # SystemExit (no index / model mismatch) included
         st.error("The thesis could not be loaded, so no article can be drafted yet.")
@@ -1506,7 +1581,7 @@ def render_article(document: Document) -> None:
 
     # A draft belongs to the thesis it was drafted from. If another thesis is now
     # active it leaves the screen; it is still saved, under "Saved articles".
-    if st.session_state.get("article_draft_document") != document.document_id:
+    if st.session_state.get("article_draft_document") != workspace_key(workspace):
         st.session_state.pop("article_draft", None)
     draft = st.session_state.get("article_draft")
     step = st.session_state.get("article_step", STEP_OUTLINE)
@@ -1521,7 +1596,25 @@ def render_article(document: Document) -> None:
                 "Footnotes and the reference list usually give other writers' words, so they are never "
                 "drafted from. This is a check on the shape of each page, not a proof."
             )
-            st.code("\n".join(workspace.sources.report.lines()))
+            for member in workspace.members:
+                if workspace.several:
+                    st.markdown(f"**{member.document.reference()}**")
+                st.code("\n".join(member.sources.report.lines()))
+        if available:
+            if "article_sources" not in st.session_state:
+                st.session_state.article_sources = chosen
+            picked = st.multiselect(
+                "Further sources for this article (optional)", list(available), key="article_sources",
+                format_func=lambda i: available[i].short_title,
+                help="Every source you add is searched for each section, with a few passages at most from "
+                     "any one of them. Each sentence of the draft names the source it reports, and each "
+                     "note says which source it is from.",
+            )
+            if picked != chosen:
+                st.session_state.article_source_ids = picked
+                st.session_state.pop("article_exploration", None)      # a proposal belongs to the sources it searched
+                article_plan()["exploration"] = None
+                st.rerun()
         render_step_outline(workspace, document)
     elif step == STEP_FRAME:
         render_step_frame()
