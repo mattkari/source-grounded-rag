@@ -292,6 +292,28 @@ chapter" when you upload. The stages are the same, with four differences.
   DOI. Nothing is looked up online.
 - **No chapter is invented.** A citation of an article gives its section and printed page.
 
+### Asking several sources at once
+
+A question can be asked of more than one ready document (`docs/plans/PLAN_V7.md` §6):
+
+```bash
+python ask.py --document thesis-<id> --document article-<id> "<question>"
+```
+
+- The question is embedded once. Each source is ranked by itself and gives at most
+  `PER_SOURCE_PASSAGES` passages (default 3), so a long thesis cannot crowd out a short article.
+  The best `top_k` of those are shown to the model.
+- It is the same model call and the same validation. One instruction is added
+  (`prompts/collection_v1.md`): name the author of the passage behind each claim, keep the sources
+  apart, and do not say that sources agree unless each is shown saying it.
+- Every note names its own source, and the run record lists the source of every passage.
+- A question of one document is sent and recorded exactly as before, and the evaluation never uses
+  a collection.
+
+Scores from different documents are merged as if comparable. That is an assumption, and a score is
+still a diagnostic, never a confidence. **Not verified:** whether a model keeps sources apart when
+told to; no live call has been made.
+
 **Status: implemented, calibrated on synthetic two-column PDFs only.** No real article has been
 ingested yet. The existing audit proves a passage's words are on its pages; it cannot tell whether
 two columns were read in the right order. The rules and their limits are in
@@ -574,6 +596,7 @@ implemented and approved — existing rows are never removed or reordered.
 | 2026-11-17 | M0 (Amendment: exploring agent) | Append §14 to `docs/plans/PLAN_V7.md` and write `docs/decisions/0014-exploring-agent.md` after the researcher asked for an agent designed from the tools research institutions use, and chose its scope: explore and propose. One agent, three tools that are plain code, a step cap and cost ceiling held by code, a proposal (theme, outline, passages per section) that the researcher edits and approves before anything is drafted, sections drafted only from approved passages by the existing call and validation, every step recorded. It never writes article prose, a page number or a verdict, and the evaluation does not use it. Sprint A1; documents only, no code. | Plan written; A1 awaiting approval | `docs/plans/PLAN_V7.md`, `docs/decisions/0014-exploring-agent.md`, `README.md` |
 | 2026-11-17 | A1 (Exploring agent) | Build the exploring agent of `PLAN_V7.md` §14. `article/explorer.py`: a plain loop in which the model chooses its own searches over the filtered source, with three tools that are code (list the sources, search, propose), a cap on model calls and on searches (`EXPLORER_MAX_STEPS`), a token ceiling counted and shown before anything is sent, and a check that every passage a proposal names was returned by a search in that run. One new model boundary, `ask.call_explorer`; a provider without tool use is refused in plain words. `pipeline.approve` records the researcher's approval and what they changed; an approved section is drafted only from its approved passages through `ask.draft_from_evidence`, with nothing retrieved. The Write view gains an optional explore area and proposal view, `write_article.py` gains `--explore`, `--explore-repeat` and `--from-exploration`, the trace and `docs/workflows.md` gain the step (a new kind, "agent, bounded"), and the article record (schema 5; 2 to 4 still open) holds the whole exploration without passage text. The agent writes no prose, page number or verdict and the evaluation cannot reach it. `CLAUDE.md` now names the second model boundary. 29 named deliberate breaks each turn a test red. **Not verified: no live exploration has been run, so tool use with the configured model, the quality of proposals and whether the agent finds more than a ranked list are all unknown; adding a passage of the researcher's own choosing in the view waits for the coverage map (M3).** | Implemented; awaiting approval | `article/explorer.py`, `prompts/explorer_v1.md`, `ask.py`, `config.py`, `.env.example`, `article/pipeline.py`, `article/assemble.py`, `article/trace.py`, `workflows.py`, `docs/workflows.md`, `app.py`, `write_article.py`, `tests/`, `CLAUDE.md`, `docs/decisions/0014-exploring-agent.md`, `README.md` |
 | 2026-11-17 | M1 (Article ingestion) | Let the library take journal articles and book chapters (`PLAN_V7.md` §5). A document now has a kind, thesis or article. `layout.py` measures whether body text is set in one or two columns and where two divide; `ingest.py` reads a two-column page down the left column and then the right, with a block across both columns dividing the page; a footnote is looked for at the foot of its own column, in the measurement and in the article writer's footnote map. In a document that prints no chapters, a section headed "References" is indexed as reference apparatus. An article's title, authors, year and DOI are proposed from its first page and confirmed by the researcher, who may add the journal, volume and pages; nothing is looked up. The audit lists pages whose reading order could not be established and does not block on them. The built-in thesis is measured and extracted exactly as before. Rules and cut-offs in `docs/decisions/0015-article-ingestion.md`. 23 named deliberate breaks each turn a test red. **Not verified: no real article has been ingested; the rules were calibrated on synthetic two-column PDFs, and the audit cannot detect columns read in the wrong order.** | Implemented; awaiting approval | `documents.py`, `layout.py`, `ingest.py`, `identity.py`, `upload.py`, `audit.py`, `article/footnotes.py`, `app.py`, `tests/`, `docs/decisions/0015-article-ingestion.md`, `README.md` |
+| 2026-11-17 | M2 (Several sources, one question) | Ask a question of several documents at once, on the one pipeline (`PLAN_V7.md` §6). `ask.retrieve_collection` embeds the question once, ranks each source's index with the existing cosine code, keeps at most `PER_SOURCE_PASSAGES` (3) from each, and merges by score; it refuses indexes built with different embedding models. `ask.run_query(collection=...)` uses it and sends one hashed instruction, `prompts/collection_v1.md`, through the existing `instructions` argument: attribute each claim to its passage's author by name, keep sources apart, claim no agreement the passages do not show. The system prompt is not changed. Each note names its own source; the run record lists the source of every passage and is re-read under each one's identity. `ask.py --document` may be given more than once. A question of one document is sent and recorded exactly as before, held by a test, and `evaluate.py` is not touched. 17 named deliberate breaks each turn a test red. **Not verified: no live call; whether a model follows the collection instruction; scores from different documents are merged as if comparable.** | Implemented; awaiting approval | `ask.py`, `runs.py`, `config.py`, `.env.example`, `prompts/collection_v1.md`, `tests/test_collection.py`, `tests/test_article.py`, `README.md` |
 
 ## Companion: Work Brain template
 

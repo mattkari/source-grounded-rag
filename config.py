@@ -190,6 +190,10 @@ class Settings:
 
     # --- retrieval ---------------------------------------------------------
     top_k: int = 5
+    # A question asked of several sources at once (PLAN_V7 §6) takes at most this many
+    # passages from any one of them, so a long thesis cannot crowd out a short article.
+    # Three is the number one published system uses (ADR 0013), not one measured here.
+    per_source_passages: int = int(os.environ.get("PER_SOURCE_PASSAGES", "3"))
 
     @property
     def openai_api_key(self) -> str:

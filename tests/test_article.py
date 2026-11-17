@@ -512,7 +512,7 @@ def test_no_shell_exposes_drafting_from_chosen_passages():
     for shell in ("app.py", "main.py", "evaluate.py"):
         assert "draft_from_evidence" not in (ROOT / shell).read_text(encoding="utf-8"), shell
     source = (ROOT / "ask.py").read_text(encoding="utf-8")
-    assert "draft_from_evidence" not in source[source.index("def main()"):]
+    assert "draft_from_evidence" not in source[source.index("def main("):]
 
 
 # =====================================================================================
