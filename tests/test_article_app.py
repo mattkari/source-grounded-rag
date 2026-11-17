@@ -900,3 +900,67 @@ def test_with_no_other_source_ready_the_view_offers_none_and_drafts_as_before(vi
     saved = record(view)
     assert saved["document_ids"] == [settings.document_id] and "collection_v1.md" not in saved["prompts"]
     assert "article_section_v2.md" in saved["prompts"]
+
+
+# --- asking every ready source at once (PLAN_V7 §8) ----------------------------------
+
+
+def ask_view(view):
+    view.radio[0].set_value("Ask questions")
+    return view.run()
+
+
+def test_a_question_can_be_asked_of_every_ready_source_and_each_note_names_its_own(view, second_source, tmp_path):
+    ask_view(view)
+    box = next(c for c in view.checkbox if c.label == "Ask all 2 ready sources at once")
+    assert box.value is False                                            # one document at a time unless asked
+
+    box.check()
+    view.run()
+    assert not view.exception and any(h.value.startswith("All ready sources — 2 documents, ") for h in view.header)
+    view.chat_input[0].set_value("FIXTURE-A what do the sources say?")
+    view.run()
+
+    (stored,) = [json.loads(line) for line in (tmp_path / "runs.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert not view.exception and view.model.calls == ["FIXTURE-A what do the sources say?"]
+    assert stored["collection"]["document_ids"] == [settings.document_id, second_source.document_id]
+    assert stored["collection"]["prompt"] == "collection_v1.md"
+    assert {entry["document_id"] for entry in stored["evidence"]} == {settings.document_id, second_source.document_id}
+    assert sum(entry["document_id"] == settings.document_id for entry in stored["evidence"]) <= 3    # the cap per source
+    assert "FIXTURE-A what do the sources say?" in all_text(view)
+
+    next(c for c in view.checkbox if c.label == "Ask all 2 ready sources at once").uncheck()
+    view.run()
+    assert "FIXTURE-A what do the sources say?" not in all_text(view)    # it is not the first source's conversation
+    view.chat_input[0].set_value("FIXTURE-B and of the thesis alone?")
+    view.run()
+    alone = json.loads((tmp_path / "runs.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert "collection" not in alone and all("document_id" not in entry for entry in alone["evidence"])
+
+
+def test_a_collection_conversation_is_rebuilt_from_disk_with_each_sources_identity(view, second_source, monkeypatch):
+    def from_the_second(question, items, instructions=None):
+        cited = next(item.handle for item in items if item.chunk["document_id"] == second_source.document_id)
+        return payload(f"FIXTURE Second says so [{cited}].", [cited]), "fixturehash"
+
+    monkeypatch.setattr(ask, "call_model", from_the_second)
+    ask_view(view)
+    next(c for c in view.checkbox if c.label == "Ask all 2 ready sources at once").check()
+    view.run()
+    view.chat_input[0].set_value("FIXTURE-A what do the sources say?")
+    view.run()
+
+    again = AppTest.from_file(str(ROOT / "app.py"), default_timeout=180).run()      # a new browser session
+    assert "FIXTURE-A what do the sources say?" not in all_text(again)   # not part of the first source's own conversation
+    next(c for c in again.checkbox if c.label == "Ask all 2 ready sources at once").check()
+    again.run()
+
+    assert not again.exception and "FIXTURE-A what do the sources say?" in all_text(again)
+    assert "1 earlier question(s) in this collection" in all_text(again)
+    assert "Second, B. (2020)" in all_text(again)                        # the note is re-read under its own source
+    assert "no longer in the collection" not in all_text(again)
+
+
+def test_with_one_document_the_ask_view_offers_no_such_choice(view):
+    ask_view(view)
+    assert not any(c.label.startswith("Ask all ") for c in view.checkbox)

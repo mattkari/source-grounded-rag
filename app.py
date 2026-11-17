@@ -172,6 +172,12 @@ def load_collection(document_id: str):
     return ask.load_index(upload.find_document(document_id))
 
 
+@st.cache_resource(show_spinner="Loading every ready source…")
+def load_all_sources(document_ids: tuple[str, ...]) -> list:
+    """Each ready document's own index, for a question asked of all of them (PLAN_V7 §8)."""
+    return ask.load_sources([upload.find_document(document_id) for document_id in document_ids])
+
+
 def collection_or_stop(document: Document):
     try:
         return load_collection(document.document_id)
@@ -405,11 +411,20 @@ def render_turn(entry: dict, key: str = "live") -> None:
 
 
 def belongs_to(record: dict, document: Document) -> bool:
-    """Runs recorded before documents were named belong to the built-in thesis."""
+    """Runs recorded before documents were named belong to the built-in thesis. A
+    question asked of several sources at once belongs to that collection, not to
+    its first source."""
+    if record.get("collection"):
+        return False
     return record.get("document_id", settings.document_id) == document.document_id
 
 
-def render_history_sidebar(chunks: list[dict], document: Document) -> dict | None:
+def asked_of(record: dict, sources: list) -> bool:
+    """A question asked of exactly these sources, in this order (PLAN_V7 §8)."""
+    return (record.get("collection") or {}).get("document_ids") == [s.document.document_id for s in sources]
+
+
+def render_history_sidebar(chunks: list[dict], document: Document, sources: list | None = None) -> dict | None:
     """Past runs, newest first. Returns a record to re-open, or None.
 
     History is read from disk, not from session state, so it survives a browser
@@ -417,7 +432,8 @@ def render_history_sidebar(chunks: list[dict], document: Document) -> dict | Non
     """
     with st.sidebar:
         st.markdown("### Past questions")
-        everything = [r for r in runs.load() if belongs_to(r, document)]
+        everything = [r for r in runs.load()
+                      if (asked_of(r, sources) if sources is not None else belongs_to(r, document))]
         records = everything[:HISTORY_LIMIT]
 
         if not records:
@@ -425,7 +441,8 @@ def render_history_sidebar(chunks: list[dict], document: Document) -> dict | Non
             return None
 
         st.caption(
-            f"{len(records)} most recent of {len(everything)} recorded for this thesis. "
+            f"{len(records)} most recent of {len(everything)} recorded for "
+            f"{'these sources together' if sources is not None else 'this thesis'}. "
             "Saved to disk — they survive a refresh."
         )
 
@@ -463,7 +480,7 @@ def render_history_sidebar(chunks: list[dict], document: Document) -> dict | Non
         return selected
 
 
-def session_history(chunks: list[dict], document: Document) -> list[dict]:
+def session_history(chunks: list[dict], document: Document, sources: list | None = None) -> list[dict]:
     """The conversation, rebuilt from disk on first load.
 
     Streamlit's session_state is per-browser-session, so relying on it alone
@@ -474,18 +491,20 @@ def session_history(chunks: list[dict], document: Document) -> list[dict]:
     Entries are rehydrated through runs.as_outcome, so citations are resolved
     against the current index rather than replayed from stored text.
     """
-    key = f"history::{document.document_id}"  # one conversation per thesis
+    # One conversation per thesis, and one per set of sources asked together.
+    key = ("history::all::" + "|".join(s.document.document_id for s in sources) if sources is not None
+           else f"history::{document.document_id}")
     if key in st.session_state:
         return st.session_state[key]
 
     rebuilt: list[dict] = []
     for record in reversed(runs.load()):  # runs.load is newest-first
-        if not belongs_to(record, document):
-            continue  # a different thesis: not part of this conversation
+        if not (asked_of(record, sources) if sources is not None else belongs_to(record, document)):
+            continue  # a different thesis, or other sources: not part of this conversation
         if record.get("error"):
             rebuilt.append({"question": record["question"], "error": record["error"]})
             continue
-        outcome, unresolved = runs.as_outcome(record, chunks, document)
+        outcome, unresolved = runs.as_outcome(record, chunks, document, sources)
         rebuilt.append(
             {
                 "question": record["question"],
@@ -1635,17 +1654,38 @@ def render_chat(document: Document) -> None:
     vectors, chunks, manifest = collection_or_stop(document)
 
     st.title(PAGE_TITLE)
-    st.header(
-        f"{document.short_title} — {manifest['chunk_count']} indexed passages",
-        divider="grey",
-    )
-    if not document.builtin:
+    # Every ready source at once (PLAN_V7 §8): offered only when there is more than one.
+    everything = [default_document(settings)] + upload.ready_documents()
+    sources = None
+    if len(everything) > 1 and st.checkbox(
+            f"Ask all {len(everything)} ready sources at once", key="ask_all_sources",
+            help="Each source gives a few passages at most, so a long document cannot crowd out a shorter "
+                 "one. Every note names the source it is from. Only the built-in thesis is evaluated."):
+        try:
+            sources = load_all_sources(tuple(d.document_id for d in everything))
+        except BaseException as exc:  # an index missing or built with another embedding model
+            st.error("These sources could not be loaded together, so the question would go to the active "
+                     "one alone. Untick the box to carry on.")
+            with st.expander(DIAGNOSTICS_LABEL):
+                st.code(f"{type(exc).__name__}: {exc}")
+            st.stop()
+    if sources is not None:
+        st.header(f"All ready sources — {len(sources)} documents, "
+                  f"{sum(len(s.chunks) for s in sources)} indexed passages", divider="grey")
+        st.caption("; ".join(s.document.short_title for s in sources))
         st.info(NOT_EVALUATED, icon="ℹ️")
+    else:
+        st.header(
+            f"{document.short_title} — {manifest['chunk_count']} indexed passages",
+            divider="grey",
+        )
+        if not document.builtin:
+            st.info(NOT_EVALUATED, icon="ℹ️")
     st.markdown(EXPLAINER)
 
-    history = session_history(chunks, document)
+    history = session_history(chunks, document, sources)
 
-    jumped = render_history_sidebar(chunks, document)
+    jumped = render_history_sidebar(chunks, document, sources)
     if jumped is not None:
         st.session_state.jump_to = jumped.get("timestamp", "")
 
@@ -1681,7 +1721,8 @@ def render_chat(document: Document) -> None:
     entry: dict = {"question": question}
     with st.spinner("Searching the collection…"):
         try:
-            entry["outcome"] = ask.run_query(question, vectors, chunks, document=document)
+            entry["outcome"] = (ask.run_query(question, None, None, collection=sources) if sources is not None
+                                else ask.run_query(question, vectors, chunks, document=document))
         except BaseException as exc:  # provider error, auth, network, bad output
             entry["error"] = f"{type(exc).__name__}: {exc}"
 
@@ -1694,8 +1735,11 @@ def render_chat(document: Document) -> None:
         items=outcome.items if outcome else [],
         failures=outcome.failures if outcome else [],
         prompt_hash=outcome.prompt_hash if outcome else "",
-        manifest=manifest,
+        manifest=manifest if sources is None else sources[0].manifest,
         error=entry.get("error"),
+        collection=None if sources is None else {
+            "document_ids": [s.document.document_id for s in sources], "prompt": ask.COLLECTION_PROMPT,
+            "prompt_sha256_12": ask.collection_prompt()[1], "per_source_passages": ask.settings.per_source_passages},
     )
     entry["timestamp"] = record.get("timestamp", "")
     if record.get("_persist_error"):
