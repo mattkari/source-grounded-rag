@@ -166,3 +166,94 @@ Each sprint is approved separately, one pull request each.
 
 Roughly seven focused days, an estimate and not a commitment: M1 three days (column order carries
 the risk), M2 one, M3 two and a half, M4 half a day.
+
+## 14. Amendment, 17 November 2026: an exploring agent (Sprint A1)
+
+Later the same day the researcher asked for an agent after all, designed from the tools that
+research institutions use, and chose its scope: **explore and propose**. This section supersedes
+the "Agent or workflow" row of §2 and the first exclusion of §4. The research and the reasons are
+in `docs/decisions/0014-exploring-agent.md`. Everything else in this plan stands.
+
+### What the agent is
+
+Given the researcher's topic and the sources they tick, the model searches those sources in a
+loop, choosing each next search itself, and ends by proposing a theme, an outline and the passages
+for each section. The researcher edits and approves the proposal. Only then is anything drafted,
+and each section is drafted **only from the approved passages**, through the same model call,
+validation, checks and per-sentence verdicts as today.
+
+The agent explores. It never writes a sentence of the article, never writes a page number, never
+gives a verdict, and is never used by the evaluation.
+
+### Its parts
+
+- **Three tools, all plain code over the existing retrieval and source filter:**
+  `list_sources` (each source's printed chapters and sections), `search(query, source)` (passages
+  with a handle, their source and section; no page number and no score is shown to the model), and
+  `propose(theme, sections, gaps)`, which ends the run.
+- **A budget set in code, not by the model:** a step cap (setting `EXPLORER_MAX_STEPS`, proposed
+  12) and a cost ceiling shown and accepted before the first call. A status line each step says
+  how many steps remain and which sources have been searched.
+- **A stop that is always recorded:** a proposal, the step cap, or a provider error. Reaching the
+  cap without a proposal is an outcome that is shown; nothing is run again by itself (hard rule 9).
+- **A check of the proposal by code:** every passage it names must be one a search actually
+  returned in this run; an unknown handle blocks the proposal. Three to six sections. A section
+  with no passage is listed as a gap, not drafted.
+- **The gate:** the proposal view shows theme, outline, and under each section its passages with
+  source and page from stored provenance. The researcher may rename, reorder, drop a section or a
+  passage, and add passages from the coverage map. Approval turns it into the article's plan.
+- **Drafting from approved passages** uses `ask.draft_from_evidence`, which already exists: the
+  same call and the same validation on passages already chosen. A handle outside them fails.
+- **The record** keeps the whole exploration: each step's tool, its arguments, the ids of the
+  passages returned, token counts, the prompt's hash (`prompts/explorer_v1.md`), the stop reason,
+  and what the researcher changed before approving. The trace view shows it. Passage text is not
+  copied into the trace.
+- **One new model boundary,** `ask.call_explorer`, beside `ask.call_model`. Tests script it; no
+  live call. The model name comes from `config.py`. A provider without tool use gets a plain
+  refusal of this feature, not a workaround.
+- **No framework.** The loop is a short plain function. The fixed path (your own outline and the
+  coverage map) stays, as the baseline to compare the agent with.
+- `workflows.py` gains one step of a new kind, "agent, bounded". The article workflow itself keeps
+  no loop; the loop is inside that one step and ends at the budget.
+
+### What is deliberately left out of A1
+
+A per-passage relevance-scoring call (PaperQA2's "RCS"), subagents, a separate citation agent,
+and any revision loop. Each adds model calls; the first can be added later if a trial shows the
+proposals pick weak passages.
+
+### Tests (offline, a failing test first)
+
+The explorer is scripted at `ask.call_explorer`. A run stops at the cap; a proposal naming a
+passage no search returned is blocked; nothing is drafted before approval; a section is drafted
+from exactly the approved passages; the record holds every step; the trace holds no passage text;
+`evaluate.py` cannot reach the explorer; a single-document question is sent exactly as before.
+
+### Acceptance
+
+The researcher gives a topic over real sources, reads the proposal and its trace, and decides
+whether it found material the coverage map alone would not have led them to. Running the same
+topic three times and reporting how many proposed passages the runs share is part of the trial.
+
+### Order
+
+A1 does not need journal articles: it can be built and tried on the thesis alone, and it gains
+several sources when M2 lands. Proposed order: **A1, M1, M2, M3, M4.** The researcher decides.
+
+### Honest limits
+
+- **The gain is unmeasured.** The one controlled result in favour of an agent (PaperQA2) came from
+  re-searching open literature. A closed collection can be swept by a ranked list; the agent may
+  add little, and the trial above is how that is found out.
+- **An exploration is not reproducible.** The same topic can give a different proposal. What is
+  reproducible is everything after approval. This is why the agent stays out of the evaluation.
+- **Cost.** Agents use roughly four times the tokens of a single call (Anthropic's figure).
+- **A proposal can anchor.** A reader shown an outline tends to accept it. The gate asks for
+  approval; it cannot make the reading careful.
+- **CLAUDE.md changes.** "Tests replace the generation model at `ask.call_model` only" gains the
+  second boundary, and ADR 0005 and 0008's "a workflow, not an agent" is narrowed to drafting,
+  checking and judging. That edit is part of A1's pull request, for the researcher to read.
+
+### Estimate
+
+About two and a half days for A1, an estimate and not a commitment.
