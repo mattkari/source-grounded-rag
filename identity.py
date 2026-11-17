@@ -24,15 +24,23 @@ TITLE_PAGE_SEARCH = 3          # look for the title page among the first few pag
 _BY_LINE = re.compile(r"^by[:\s]+(?P<name>\S.*)$", re.IGNORECASE)
 _YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
 _QUOTES = "\"'“”‘’«» "
+# A DOI as printed: "10.", a registrant code, a slash, a suffix. A proposal, like the rest.
+_DOI = re.compile(r"\b10\.\d{4,9}/[^\s\"<>]+")
+AUTHOR_LINE_MAX = 200          # a longer block under the title is an abstract, not a list of names
 
 
 def _empty(reason: str) -> dict:
     return {"value": "", "source": reason}
 
 
-def propose(pdf_path) -> dict:
-    """Return {"title", "author", "year"} proposals, each with where it came from,
-    plus the PDF's own metadata as an unverified hint."""
+def propose(pdf_path, kind: str = "thesis") -> dict:
+    """Return {"title", "author", "year", "doi"} proposals, each with where it came
+    from, plus the PDF's own metadata as an unverified hint.
+
+    For an article (PLAN_V7 §5) the first page stands in for a title page: the title
+    is its largest text, the authors the short block set under it, and a DOI is read
+    by its printed shape. No network lookup is made, and no value is cited until the
+    researcher confirms it."""
     doc = pymupdf.open(pdf_path)
     metadata = {
         key: value.strip()
@@ -46,6 +54,7 @@ def propose(pdf_path) -> dict:
         "title": _empty("no title page with text was found"),
         "author": _empty("no title page with text was found"),
         "year": _empty("no title page with text was found"),
+        "doi": _empty("no title page with text was found"),
         "pdf_metadata": metadata,
         "title_page": title_page[0].pdf_page if title_page else None,
     }
@@ -65,9 +74,22 @@ def propose(pdf_path) -> dict:
     else:
         proposal["title"] = _empty("no text on the title page is set larger than the rest")
 
+    found = [match.group(0).rstrip(".,;)]") for block in title_page for match in _DOI.finditer(block.text)]
+    proposal["doi"] = ({"value": found[0], "source": f"a DOI printed on PDF page {page_number}"} if found
+                       else _empty("no DOI is printed on the first page"))
+
     # Author: a line that reads "By <name>", or the line after a lone "by".
     proposal["author"] = _empty('no line beginning "by" was found on the title page')
-    for index, block in enumerate(title_page):
+    if kind == "article" and largest > min(sizes):
+        # An article prints its authors under the title, in smaller type.
+        titled = max(index for index, block in enumerate(title_page) if block.lead["size"] == largest)
+        under = next((block for block in title_page[titled + 1:] if not _DOI.search(block.text)), None)
+        if under is not None and len(under.text) <= AUTHOR_LINE_MAX:
+            proposal["author"] = {"value": under.text,
+                                  "source": f"the block under the title on PDF page {page_number}; check the form of the name"}
+        else:
+            proposal["author"] = _empty("no short block is set under the title")
+    for index, block in enumerate(title_page if kind != "article" else []):
         match = _BY_LINE.match(block.text)
         if match:
             proposal["author"] = {

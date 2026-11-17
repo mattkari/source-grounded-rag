@@ -277,6 +277,26 @@ What to know before relying on it:
 - The measurement rules, their cut-offs, and what running them on the built-in thesis revealed are
   in [`docs/decisions/0003-automatic-layout-measurement.md`](docs/decisions/0003-automatic-layout-measurement.md).
 
+### Journal articles and book chapters
+
+The library also takes an article (`docs/plans/PLAN_V7.md` §5): choose "A journal article or book
+chapter" when you upload. The stages are the same, with four differences.
+
+- **Columns are measured.** A two-column article is read down the left column and then the right.
+  The audit lists any page whose reading order could not be established; read the passages from
+  those pages against the PDF before you cite them.
+- **The reference list is found by its heading** ("References", "Bibliography", "Works cited") and
+  indexed as reference apparatus, never as the author's argument.
+- **Identity comes from the first page**: the title, the block under it as authors, the year, and a
+  DOI if one is printed. You correct and confirm them, and may add the journal, volume, pages and
+  DOI. Nothing is looked up online.
+- **No chapter is invented.** A citation of an article gives its section and printed page.
+
+**Status: implemented, calibrated on synthetic two-column PDFs only.** No real article has been
+ingested yet. The existing audit proves a passage's words are on its pages; it cannot tell whether
+two columns were read in the right order. The rules and their limits are in
+[`docs/decisions/0015-article-ingestion.md`](docs/decisions/0015-article-ingestion.md).
+
 ## Drafting an article from the thesis
 
 [`docs/plans/PLAN_V6.md`](docs/plans/PLAN_V6.md). The article writer turns what a thesis says into a
@@ -553,6 +573,7 @@ implemented and approved — existing rows are never removed or reordered.
 | 2026-11-17 | M0 (Several sources: plan) | Write `docs/plans/PLAN_V7.md` and `docs/decisions/0013-several-sources.md` after the researcher asked for journal-article ingestion and articles that cite several sources. Decided with the researcher: journal articles and book chapters with a text layer beside theses, no OCR; a fixed workflow with a coverage map, not an agent. Four sprints follow, each approved separately: article ingestion (M1), collection retrieval on the one pipeline (M2), the article writer over several sources with three new checks (M3), Ask across sources (M4, optional). Documents only; no code. | Plan written; M1–M4 awaiting approval | `docs/plans/PLAN_V7.md`, `docs/decisions/0013-several-sources.md`, `README.md` |
 | 2026-11-17 | M0 (Amendment: exploring agent) | Append §14 to `docs/plans/PLAN_V7.md` and write `docs/decisions/0014-exploring-agent.md` after the researcher asked for an agent designed from the tools research institutions use, and chose its scope: explore and propose. One agent, three tools that are plain code, a step cap and cost ceiling held by code, a proposal (theme, outline, passages per section) that the researcher edits and approves before anything is drafted, sections drafted only from approved passages by the existing call and validation, every step recorded. It never writes article prose, a page number or a verdict, and the evaluation does not use it. Sprint A1; documents only, no code. | Plan written; A1 awaiting approval | `docs/plans/PLAN_V7.md`, `docs/decisions/0014-exploring-agent.md`, `README.md` |
 | 2026-11-17 | A1 (Exploring agent) | Build the exploring agent of `PLAN_V7.md` §14. `article/explorer.py`: a plain loop in which the model chooses its own searches over the filtered source, with three tools that are code (list the sources, search, propose), a cap on model calls and on searches (`EXPLORER_MAX_STEPS`), a token ceiling counted and shown before anything is sent, and a check that every passage a proposal names was returned by a search in that run. One new model boundary, `ask.call_explorer`; a provider without tool use is refused in plain words. `pipeline.approve` records the researcher's approval and what they changed; an approved section is drafted only from its approved passages through `ask.draft_from_evidence`, with nothing retrieved. The Write view gains an optional explore area and proposal view, `write_article.py` gains `--explore`, `--explore-repeat` and `--from-exploration`, the trace and `docs/workflows.md` gain the step (a new kind, "agent, bounded"), and the article record (schema 5; 2 to 4 still open) holds the whole exploration without passage text. The agent writes no prose, page number or verdict and the evaluation cannot reach it. `CLAUDE.md` now names the second model boundary. 29 named deliberate breaks each turn a test red. **Not verified: no live exploration has been run, so tool use with the configured model, the quality of proposals and whether the agent finds more than a ranked list are all unknown; adding a passage of the researcher's own choosing in the view waits for the coverage map (M3).** | Implemented; awaiting approval | `article/explorer.py`, `prompts/explorer_v1.md`, `ask.py`, `config.py`, `.env.example`, `article/pipeline.py`, `article/assemble.py`, `article/trace.py`, `workflows.py`, `docs/workflows.md`, `app.py`, `write_article.py`, `tests/`, `CLAUDE.md`, `docs/decisions/0014-exploring-agent.md`, `README.md` |
+| 2026-11-17 | M1 (Article ingestion) | Let the library take journal articles and book chapters (`PLAN_V7.md` §5). A document now has a kind, thesis or article. `layout.py` measures whether body text is set in one or two columns and where two divide; `ingest.py` reads a two-column page down the left column and then the right, with a block across both columns dividing the page; a footnote is looked for at the foot of its own column, in the measurement and in the article writer's footnote map. In a document that prints no chapters, a section headed "References" is indexed as reference apparatus. An article's title, authors, year and DOI are proposed from its first page and confirmed by the researcher, who may add the journal, volume and pages; nothing is looked up. The audit lists pages whose reading order could not be established and does not block on them. The built-in thesis is measured and extracted exactly as before. Rules and cut-offs in `docs/decisions/0015-article-ingestion.md`. 23 named deliberate breaks each turn a test red. **Not verified: no real article has been ingested; the rules were calibrated on synthetic two-column PDFs, and the audit cannot detect columns read in the wrong order.** | Implemented; awaiting approval | `documents.py`, `layout.py`, `ingest.py`, `identity.py`, `upload.py`, `audit.py`, `article/footnotes.py`, `app.py`, `tests/`, `docs/decisions/0015-article-ingestion.md`, `README.md` |
 
 ## Companion: Work Brain template
 

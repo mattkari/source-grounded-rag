@@ -43,7 +43,7 @@ import identity
 import ingest
 import layout as layout_module
 from config import settings
-from documents import Document, LayoutProfile, default_document
+from documents import KIND_ARTICLE, KIND_THESIS, KINDS, Document, LayoutProfile, default_document
 from embeddings import active_model_name
 
 SCHEMA_VERSION = 1
@@ -65,6 +65,8 @@ STATE_LABELS = {
 }
 
 ID_PREFIX = "thesis-"
+# The id says what kind of document it is (PLAN_V7 §5).
+ID_PREFIXES = {KIND_THESIS: ID_PREFIX, KIND_ARTICLE: "article-"}
 
 
 class UploadRefused(Exception):
@@ -80,7 +82,7 @@ def library_dir() -> Path:
 
 
 def _folder(document_id: str) -> Path:
-    if not document_id.startswith(ID_PREFIX) or "/" in document_id or ".." in document_id:
+    if not document_id.startswith(tuple(ID_PREFIXES.values())) or "/" in document_id or ".." in document_id:
         raise UploadRefused(f"{document_id!r} is not an uploaded document.")
     return library_dir() / document_id
 
@@ -134,11 +136,17 @@ def _require(record: dict, *states: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def receive(pdf_bytes: bytes, filename: str) -> dict:
+def receive(pdf_bytes: bytes, filename: str, kind: str = KIND_THESIS) -> dict:
     """Store an uploaded PDF. Refuses, with a reason, anything that cannot be
-    ingested; a refused upload leaves no folder behind."""
+    ingested; a refused upload leaves no folder behind.
+
+    `kind` is what the researcher says the document is: a thesis, or an article (a
+    journal article or a book chapter). It decides how identity is proposed and how
+    the source is described; the layout is measured either way."""
+    if kind not in KINDS:
+        raise UploadRefused(f"A document is one of: {', '.join(KINDS)}.")
     digest = hashlib.sha256(pdf_bytes).hexdigest()
-    document_id = ID_PREFIX + digest[:12]
+    document_id = ID_PREFIXES[kind] + digest[:12]
 
     def refuse(reason: str) -> UploadRefused:
         _log({"event": "refused", "filename": filename, "sha256": digest, "reason": reason})
@@ -152,8 +160,10 @@ def receive(pdf_bytes: bytes, filename: str) -> dict:
         raise refuse("This is the built-in thesis. It is already available and is kept frozen.")
 
     folder = library_dir() / document_id
-    if folder.exists():
-        state = STATE_LABELS[load(document_id)["state"]]
+    held = next((library_dir() / (prefix + digest[:12]) for prefix in ID_PREFIXES.values()
+                 if (library_dir() / (prefix + digest[:12])).exists()), None)
+    if held is not None:                       # the same file, under either kind
+        state = STATE_LABELS[load(held.name)["state"]]
         raise refuse(
             f"This PDF is already in the library ({state}). Remove it first to ingest it again."
         )
@@ -177,6 +187,7 @@ def receive(pdf_bytes: bytes, filename: str) -> dict:
     record = {
         "schema_version": SCHEMA_VERSION,
         "document_id": document_id,
+        "kind": kind,
         "source_filename": Path(filename).name,
         "sha256": digest,
         "pages_total": pdf.page_count,
@@ -188,7 +199,8 @@ def receive(pdf_bytes: bytes, filename: str) -> dict:
         "layout_evidence": {},
         "flags": [],
         "identity_proposal": None,
-        "identity": {"author": "", "year": "", "title": "", "short_title": "", "confirmed": False},
+        "identity": {"author": "", "year": "", "title": "", "short_title": "", "container": "",
+                     "volume_issue": "", "pages": "", "doi": "", "confirmed": False},
         "audit_summary": None,
         "audited_corpus_sha256": None,
         "review": None,
@@ -219,6 +231,9 @@ def _provisional_document(record: dict, layout: LayoutProfile) -> Document:
         canonical_dir=folder / "canonical",
         index_dir=folder / "index",
         builtin=False,
+        kind=record.get("kind", KIND_THESIS),          # records from before articles are theses
+        container=who.get("container", ""), volume_issue=who.get("volume_issue", ""),
+        pages=who.get("pages", ""), doi=who.get("doi", ""),
     )
 
 
@@ -253,7 +268,16 @@ def analyse_pdf(pdf_path, document_id: str) -> dict:
         "chapters_found": len(chapters),
         "marked_as_reference_apparatus": list(apparatus),
     }
-    final_layout = dataclasses.replace(measurement.layout, apparatus_chapter_prefixes=apparatus)
+    # A document that prints no chapters keeps its reference list under a section heading.
+    sections = sorted({s.section for s in ingest.build_segments(pages, measurement.layout) if s.section})
+    reference_sections = layout_module.apparatus_prefixes(sections) if measurement.layout.chapter_source is None else ()
+    measurement.evidence["apparatus_section_prefixes"] = {
+        "rule": "in a document with no chapters, sections whose printed title marks a reference list",
+        "applies": measurement.layout.chapter_source is None,
+        "marked_as_reference_apparatus": list(reference_sections),
+    }
+    final_layout = dataclasses.replace(measurement.layout, apparatus_chapter_prefixes=apparatus,
+                                       apparatus_section_prefixes=reference_sections)
     document = dataclasses.replace(provisional, layout=final_layout)
 
     pages, segments, records = extract_and_chunk(document)
@@ -284,7 +308,8 @@ def analyse(document_id: str) -> dict:
         _step(record, "analyse", "failed", f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}")
         _save(record)
         raise UploadRefused(
-            f"This thesis could not be analysed ({type(exc).__name__}). It has been marked as unusable."
+            f"This {record.get('kind', KIND_THESIS)} could not be analysed ({type(exc).__name__}). "
+            "It has been marked as unusable."
         ) from exc
 
 
@@ -317,7 +342,7 @@ def _analyse(record: dict) -> dict:
     record["audited_corpus_sha256"] = analysis["corpus_sha256"]
     _step(record, "audit", "stopped" if result["hard_stops"] else "done", "; ".join(result["hard_stops"]))
 
-    record["identity_proposal"] = identity.propose(folder / "source.pdf")
+    record["identity_proposal"] = identity.propose(folder / "source.pdf", record.get("kind", KIND_THESIS))
     _step(record, "identity", "proposed", "waiting for confirmation")
 
     record["state"] = BLOCKED if result["hard_stops"] else AWAITING_REVIEW
@@ -338,21 +363,31 @@ def default_short_title(author: str, year: str, title: str) -> str:
     return f"{author} ({year}), {title}"
 
 
-def confirm_identity(document_id: str, *, author: str, year: str, title: str, short_title: str = "") -> dict:
+def confirm_identity(document_id: str, *, author: str, year: str, title: str, short_title: str = "",
+                     container: str = "", volume_issue: str = "", pages: str = "", doi: str = "") -> dict:
     """Record the identity the researcher confirmed. Until this is done the
-    document cannot be approved, so an unconfirmed name can never be cited."""
+    document cannot be approved, so an unconfirmed name can never be cited.
+
+    For an article the journal or book it appeared in, its volume and issue, its page
+    range and its DOI may be given too. They are the researcher's entries: none is
+    looked up, and an empty one is simply left out of the source line."""
     record = load(document_id)
     _require(record, AWAITING_REVIEW)
     author, year, title = author.strip(), year.strip(), title.strip()
     if not author or not title:
-        raise UploadRefused("Author and title are both needed before the thesis can be cited.")
+        raise UploadRefused(f"Author and title are both needed before the {record.get('kind', KIND_THESIS)} can be cited.")
     if not (year.isdecimal() and len(year) == 4):
-        raise UploadRefused("The year must be four digits, as printed on the title page.")
+        where = "first page" if record.get("kind") == KIND_ARTICLE else "title page"
+        raise UploadRefused(f"The year must be four digits, as printed on the {where}.")
+    doi = doi.strip().removeprefix("https://doi.org/").removeprefix("doi:").strip()
+    if doi and not identity._DOI.fullmatch(doi):
+        raise UploadRefused("That does not have the shape of a DOI (for example 10.1234/abc.5678). Leave it empty if unsure.")
     record["identity"] = {
         "author": author,
         "year": year,
         "title": title,
         "short_title": short_title.strip() or default_short_title(author, year, title),
+        "container": container.strip(), "volume_issue": volume_issue.strip(), "pages": pages.strip(), "doi": doi,
         "confirmed": True,
         "confirmed_at": _now(),
         "confirmed_via": "researcher, in the web UI",

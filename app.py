@@ -553,18 +553,23 @@ def render_profile(record: dict) -> None:
         st.json(evidence, expanded=False)
 
 
+KIND_LABELS = {"thesis": "A thesis", "article": "A journal article or book chapter"}
+
+
 def render_identity_form(record: dict) -> None:
     proposal = record.get("identity_proposal") or {}
     confirmed = record["identity"]
 
     def start(name: str) -> str:
-        return confirmed[name] or (proposal.get(name) or {}).get("value", "")
+        return confirmed.get(name) or (proposal.get(name) or {}).get("value", "")
 
+    is_article = record.get("kind") == "article"
     st.markdown("**Who wrote this, and when?** Nothing is cited until you confirm these.")
-    for name in ("title", "author", "year"):
+    for name in ("title", "author", "year") + (("doi",) if is_article else ()):
         source = (proposal.get(name) or {}).get("source", "")
         value = (proposal.get(name) or {}).get("value", "")
-        st.caption(f"{name.capitalize()} — proposed from {source}." if value else f"{name.capitalize()} — {source}.")
+        label = "DOI" if name == "doi" else name.capitalize()
+        st.caption(f"{label} — proposed from {source}." if value else f"{label} — {source}.")
     hint = proposal.get("pdf_metadata") or {}
     if hint:
         st.caption(
@@ -583,15 +588,25 @@ def render_identity_form(record: dict) -> None:
             "Short title shown above each passage (leave blank to build it from the three above)",
             value=confirmed["short_title"], key=f"short-{key}",
         )
+        published = {}
+        if is_article:
+            st.caption("Where it was published. These go into the source line as you type them; nothing is "
+                       "looked up. Leave empty what you do not know.")
+            published = {
+                "container": st.text_input("Journal, or the book the chapter is in", value=start("container"),
+                                           key=f"container-{key}"),
+                "volume_issue": st.text_input("Volume and issue, as printed (for example 12(3))",
+                                              value=start("volume_issue"), key=f"volume-{key}"),
+                "pages": st.text_input("Its page range (for example 45–67)", value=start("pages"), key=f"pages-{key}"),
+                "doi": st.text_input("DOI", value=start("doi"), key=f"doi-{key}"),
+            }
         if st.form_submit_button("Confirm identity"):
             if attempt(upload.confirm_identity, key, author=author, year=year, title=title,
-                       short_title=short_title):
+                       short_title=short_title, **published):
                 st.session_state.library_message = ("success", "Identity confirmed.")
             refresh()
     if confirmed["confirmed"]:
-        st.success(
-            f"Confirmed: {confirmed['author']} ({confirmed['year']}), {confirmed['title']}", icon="✅"
-        )
+        st.success(f"Confirmed: {upload._provisional_document(record, None).reference()}", icon="✅")
 
 
 def render_remove(record: dict) -> None:
@@ -701,24 +716,29 @@ def render_record(record: dict) -> None:
 def render_library() -> None:
     st.title("Thesis library")
     st.markdown(
-        "Upload another thesis as a PDF. The system measures its layout, extracts it, and checks "
+        "Upload a thesis or an article as a PDF. The system measures its layout, extracts it, and checks "
         "the extraction against the PDF. **You read the report and decide.** Nothing is sent for "
         "embedding, and nothing is spent, until you approve."
     )
     st.caption(
-        "Theses with a text layer only — not journal articles, not scans. Uploads stay on this "
-        "machine and are never committed or shared."
+        "Theses, journal articles and book chapters with a text layer, in one or two columns. Not "
+        "scans. Uploads stay on this machine and are never committed or shared."
     )
 
     message = st.session_state.pop("library_message", None)
     if message:
         (st.error if message[0] == "error" else st.success)(message[1])
 
-    uploaded = st.file_uploader("Thesis PDF", type=["pdf"], key="thesis_upload")
+    kind = st.radio(
+        "What is this document?", list(KIND_LABELS), key="upload_kind", horizontal=True, format_func=KIND_LABELS.get,
+        help="A thesis prints a title page and chapters. An article is a journal article or a book "
+             "chapter: its first page gives the title and authors, and it ends in a reference list.",
+    )
+    uploaded = st.file_uploader("PDF", type=["pdf"], key="thesis_upload")
     if uploaded is not None and st.button("Add to the library", type="primary"):
         with st.spinner("Storing, measuring and auditing…"):
             try:
-                record = upload.receive(uploaded.getvalue(), uploaded.name)
+                record = upload.receive(uploaded.getvalue(), uploaded.name, kind)
                 upload.analyse(record["document_id"])
                 st.session_state.library_message = ("success", "Analysed. Read the report below.")
             except upload.UploadRefused as exc:

@@ -87,6 +87,7 @@ class Block:
     x0: float
     spans: list[dict]          # {"text", "font", "size", "bold"}
     text: str
+    x1: float = 0.0
 
     @property
     def lead(self) -> dict:
@@ -174,6 +175,7 @@ def read_blocks(pdf_path) -> list[list[Block]]:
                         y0=block["bbox"][1],
                         y1=block["bbox"][3],
                         x0=block["bbox"][0],
+                        x1=block["bbox"][2],
                         spans=spans,
                         text=_normalise(" ".join(s["text"] for s in spans)),
                     )
@@ -374,13 +376,105 @@ def _in_zone(block: Block, header_band_y, footnote_band_y) -> bool:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Columns (PLAN_V7 §5)
+# ---------------------------------------------------------------------------
+
+# A document is read as two columns when at least this share of its pages with body
+# text set two blocks of it side by side.
+COLUMN_PAGE_SHARE = 0.5
+# Shorter blocks are table cells and labels, not a column of prose.
+MIN_COLUMN_CHARS = 80
+# How far past the split, in points, a block must reach on both sides to lie across it.
+COLUMN_GUTTER = 6.0
+
+
+def column_of(x0: float, x1: float, split_x: float | None) -> int:
+    return 0 if split_x is None or (x0 + x1) / 2 < split_x else 1
+
+
+def lies_across(x0: float, x1: float, split_x: float) -> bool:
+    return x0 < split_x - COLUMN_GUTTER and x1 > split_x + COLUMN_GUTTER
+
+
+def _page_split(blocks: list[Block], body_size: float) -> tuple[float | None, bool]:
+    """The x between two columns of body text on one page, and whether the page is
+    regular. (None, True) is a page in one column. (None, False) is a page whose
+    side-by-side text does not divide at one x: three columns, or something else."""
+    prose = [b for b in blocks if b.dominant_size() == body_size and len(b.text) >= MIN_COLUMN_CHARS]
+    pairs = [(left, right) for left in prose for right in prose
+             if left.x1 < right.x0 and min(left.y1, right.y1) > max(left.y0, right.y0)]
+    if not pairs:
+        return None, True
+    left_edge, right_edge = max(left.x1 for left, _ in pairs), min(right.x0 for _, right in pairs)
+    if left_edge >= right_edge:
+        return None, False
+    return (left_edge + right_edge) / 2, True
+
+
+def _columns(zone_pages: list[list[Block]], body_size: float, evidence: dict, flags: list[str]):
+    """How many columns the body text is set in: 1 or 2, and where 2 divide."""
+    with_body = [blocks for blocks in zone_pages if any(b.dominant_size() == body_size for b in blocks)]
+    splits, irregular = [], []
+    for blocks in with_body:
+        split, regular = _page_split(blocks, body_size)
+        if split is not None:
+            splits.append(split)
+        elif not regular:
+            irregular.append(blocks[0].pdf_page)
+    share = len(splits) / len(with_body) if with_body else 0.0
+    two = share >= COLUMN_PAGE_SHARE
+    split_x = round(sorted(splits)[len(splits) // 2], 1) if two else None
+    evidence["columns"] = {
+        "rule": f"two columns if at least {COLUMN_PAGE_SHARE:.0%} of pages with body text set blocks of it side by side",
+        "pages_with_body_text": len(with_body),
+        "pages_set_side_by_side": len(splits),
+        "pages_set_in_some_other_arrangement": irregular,
+        "split_x": split_x,
+    }
+    if irregular:
+        flags.append(
+            f"{len(irregular)} page(s) set text side by side in a way that does not divide into two columns "
+            f"(PDF page {', '.join(map(str, irregular[:8]))}{'…' if len(irregular) > 8 else ''}). "
+            "The reading order on those pages may be wrong; read the passages from them before citing."
+        )
+    return (2 if two else 1), split_x
+
+
+def last_body_row(blocks: list[Block], body_size: float, block: Block, split_x: float | None) -> float | None:
+    """The top of the last body-size block in the same column as `block`: what a
+    footnote sits below. None when that column has no body text on the page."""
+    column = column_of(block.x0, block.x1, split_x)
+    rows = [b.y0 for b in blocks if b.dominant_size() == body_size and column_of(b.x0, b.x1, split_x) == column]
+    return max(rows) if rows else None
+
+
+def unclear_column_pages(pages: list[list[Block]], profile: LayoutProfile) -> list[int]:
+    """PDF pages of a two-column document whose reading order cannot be established:
+    a block lies across the split while other text sits beside it. A title or an
+    abstract across both columns, with nothing beside it, is not unclear."""
+    if profile.columns != 2 or profile.column_split_x is None:
+        return []
+    unclear = []
+    for blocks in pages:
+        zone = [b for b in blocks if _in_zone(b, profile.header_band_y, profile.footnote_band_y)
+                and b.dominant_size() >= profile.body_min_size]
+        for block in zone:
+            if lies_across(block.x0, block.x1, profile.column_split_x) and any(
+                    other is not block and min(other.y1, block.y1) - max(other.y0, block.y0) > 1.0 for other in zone):
+                unclear.append(block.pdf_page)
+                break
+    return unclear
+
+
 def _is_marker_led(block: Block) -> bool:
     """A footnote's shape: it opens with a numeral set well below its own size."""
     lead = block.lead
     return lead["text"].strip().isdigit() and lead["size"] <= MARKER_SIZE_RATIO * block.dominant_size()
 
 
-def _body_min_size(zone_pages: list[list[Block]], body_size: float, evidence: dict, flags: list[str]) -> float:
+def _body_min_size(zone_pages: list[list[Block]], body_size: float, evidence: dict, flags: list[str],
+                   split_x: float | None = None) -> float:
     """The smallest size still read as body text.
 
     The extractor separates body from apparatus by type size alone, so the
@@ -404,13 +498,15 @@ def _body_min_size(zone_pages: list[list[Block]], body_size: float, evidence: di
         for block in blocks:
             for span in block.spans:
                 chars[span["size"]] += len(span["text"].strip())
-        body_rows = [b.y0 for b in blocks if b.dominant_size() == body_size]
-        if not body_rows:
+        if not any(b.dominant_size() == body_size for b in blocks):
             continue  # nothing to be "below" on this page
-        last_body = max(body_rows)
         for block in blocks:
             size = block.dominant_size()
             if size < body_size:
+                # In two columns a footnote sits at the foot of its own column.
+                last_body = last_body_row(blocks, body_size, block, split_x)
+                if last_body is None:
+                    continue
                 blocks_seen[size] += 1
                 if block.y0 > last_body:
                     at_foot[size] += 1
@@ -599,7 +695,8 @@ def measure(pdf_path) -> Measurement:
         [b for b in blocks if _in_zone(b, header_band_y, footnote_band_y)] for blocks in pages
     ]
 
-    body_min_size = _body_min_size(zone_pages, body_size, evidence, flags)
+    columns, split_x = _columns(zone_pages, body_size, evidence, flags)
+    body_min_size = _body_min_size(zone_pages, body_size, evidence, flags, split_x)
     heading_min_size, heading_fonts, chapter_min, section_min, chapter_pages = _headings(
         zone_pages, body_size, body_evidence["body_font"], evidence, flags
     )
@@ -617,6 +714,8 @@ def measure(pdf_path) -> Measurement:
         section_heading_min_size=section_min,
         chapter_source=chapter_source,
         apparatus_chapter_prefixes=(),
+        columns=columns,
+        column_split_x=split_x,
     )
     return Measurement(layout, evidence, flags, pages_total=len(pages), pages_with_text=text_pages)
 

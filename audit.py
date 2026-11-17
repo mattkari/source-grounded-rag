@@ -25,6 +25,7 @@ import re
 
 import pymupdf
 
+import layout as layout_module
 from documents import HEADING, RUNNING_HEADER, LayoutProfile
 
 _WHITESPACE = re.compile(r"\s+")
@@ -153,6 +154,12 @@ def audit(pdf_path, pages: list[dict], chunks: list[dict], layout: LayoutProfile
         ),
     }
 
+    # --- columns (PLAN_V7 §5) ---------------------------------------------------------
+    # Not a hard stop: the words of such a passage are on its pages, but their order may
+    # not be the reader's. The researcher is told which pages to read before citing.
+    unclear = layout_module.unclear_column_pages(layout_module.read_blocks(pdf_path), layout) if layout.columns == 2 else []
+    columns = {"count": layout.columns, "pages_where_reading_order_is_unclear": unclear}
+
     hard_stops = []
     if not with_text:
         hard_stops.append("The PDF has no text layer.")
@@ -172,6 +179,7 @@ def audit(pdf_path, pages: list[dict], chunks: list[dict], layout: LayoutProfile
         "labels_printed_on_their_page": labels,
         "label_sequence": sequence,
         "chunks": chunk_summary,
+        "columns": columns,
         "hard_stops": hard_stops,
     }
 
@@ -225,6 +233,14 @@ def format_report(result: dict) -> str:
     check("every word on the claimed pages", chunks["words_on_claimed_pages"])
     check("stay inside one chapter", chunks["within_one_chapter"])
     out.append("")
+    columns = result.get("columns")            # absent from audits made before articles could be ingested
+    if columns and columns["count"] == 2:
+        unclear = columns["pages_where_reading_order_is_unclear"]
+        out.append("COLUMNS — two, read down the left and then the right")
+        out.append(f"  pages where the order is unclear   {listed(unclear)}")
+        if unclear:
+            out.append("      read the passages from these pages against the PDF before citing them")
+        out.append("")
     if result["hard_stops"]:
         out.append("CANNOT BE APPROVED")
         out.extend(f"  ✗ {reason}" for reason in result["hard_stops"])

@@ -29,6 +29,10 @@ from config import settings as _settings
 
 RUNNING_HEADER = "running_header"
 HEADING = "heading"
+# What kind of document it is (PLAN_V7 §5). A thesis prints chapters and a title page; an
+# article is a journal article or a book chapter, often in two columns, with a reference list.
+KIND_THESIS, KIND_ARTICLE = "thesis", "article"
+KINDS = (KIND_THESIS, KIND_ARTICLE)
 
 
 @dataclass(frozen=True)
@@ -64,11 +68,19 @@ class LayoutProfile:
     chapter_source: str | None
     # Chapters indexed as reference apparatus rather than as source claims.
     apparatus_chapter_prefixes: tuple[str, ...]
+    # Text columns on a body page: 1 or 2, measured (PLAN_V7 §5). With 2, `column_split_x`
+    # is the x between them and blocks are read down the left column, then the right.
+    columns: int = 1
+    column_split_x: float | None = None
+    # In a document that prints no chapters, the section titles that open its reference
+    # list. What follows such a heading is reference apparatus, not a source claim.
+    apparatus_section_prefixes: tuple[str, ...] = ()
 
     def to_json(self) -> dict:
         data = dataclasses.asdict(self)
         data["heading_fonts"] = list(self.heading_fonts)
         data["apparatus_chapter_prefixes"] = list(self.apparatus_chapter_prefixes)
+        data["apparatus_section_prefixes"] = list(self.apparatus_section_prefixes)
         return data
 
     @classmethod
@@ -77,6 +89,7 @@ class LayoutProfile:
         values = {key: value for key, value in data.items() if key in fields}
         values["heading_fonts"] = tuple(values.get("heading_fonts") or ())
         values["apparatus_chapter_prefixes"] = tuple(values.get("apparatus_chapter_prefixes") or ())
+        values["apparatus_section_prefixes"] = tuple(values.get("apparatus_section_prefixes") or ())
         return cls(**values)
 
 
@@ -92,6 +105,20 @@ class Document:
     canonical_dir: Path
     index_dir: Path
     builtin: bool = False
+    kind: str = KIND_THESIS
+    # An article's place of publication, as the researcher confirmed it. Empty for a thesis.
+    container: str = ""      # the journal, or the book a chapter is in
+    volume_issue: str = ""   # as printed, for example "12(3)"
+    pages: str = ""          # the article's own page range, for example "45–67"
+    doi: str = ""
+
+    def reference(self) -> str:
+        """The source in one line, for a reader: built only from confirmed identity."""
+        line = f"{self.author} ({self.year}), {self.title}"
+        if self.kind == KIND_ARTICLE and self.container:
+            where = " ".join(part for part in (self.container, self.volume_issue) if part)
+            line += f", {where}" + (f", {self.pages}" if self.pages else "")
+        return line + (f". doi:{self.doi}" if self.doi else "")
 
 
 def default_layout(settings=_settings) -> LayoutProfile:
