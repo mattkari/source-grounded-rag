@@ -88,7 +88,8 @@ def test_the_committed_diagram_is_the_one_the_description_generates():
 def test_a_steps_kind_is_in_its_words_as_well_as_its_shape():
     drawn = workflows.mermaid(workflows.ARTICLE)
 
-    assert 'section{{"Draft each section through the Ask pipeline<br/><i>model call</i>"}}' in drawn
+    assert 'section{{"Draft each section through the Ask pipeline, or from approved passages<br/><i>model call</i>"}}' in drawn
+    assert 'explore>"Explore the sources and propose a theme, an outline and passages<br/><i>agent, bounded, optional</i>"]' in drawn
     assert 'review(["Verdict on each sentence and note; edit or delete<br/><i>researcher</i>"])' in drawn
     assert "<i>model call, optional</i>" in drawn and "checks -->|failed| blocked" in drawn
     assert not re.search(r"-->.*\bsection\b\s*$", "\n".join(l for l in drawn.splitlines() if l.strip().startswith("blocked")))
@@ -172,7 +173,20 @@ def test_the_command_line_prints_the_trace_of_a_saved_article(trial, tmp_path, m
 
     assert write_article.main(["--trace", folder.name, "--out-dir", str(out)], stream) == 0
     printed = stream.getvalue()
-    assert "DONE      Title and outline (researcher)" in printed
+    assert "DONE      Title and outline: written, or a proposal edited and approved (researcher)" in printed
     assert "BLOCKED   Validation and checks of form [FIXTURE heading 2] (check)" in printed
     assert "the thesis does not hold enough evidence for this" in printed
     assert write_article.main(["--trace", "no-such-article", "--out-dir", str(out)], io.StringIO()) == 2
+
+
+def test_an_agent_step_has_one_way_out_and_it_leads_to_a_person():
+    """Inside an agent step the model chooses its searches (ADR 0014). Around it the
+    workflow is unchanged: one way out, unlabelled, to a step where the researcher decides."""
+    for name, steps in workflows.WORKFLOWS.items():
+        by_id = {step.id: step for step in steps}
+        for step in steps:
+            if step.kind == workflows.AGENT:
+                assert name == "Drafting an article", "only the article writer has an agent step"
+                assert len(step.then) == 1 and step.then[0][1] == ""
+                assert by_id[step.then[0][0]].kind == workflows.RESEARCHER
+    assert not any(step.kind == workflows.AGENT for step in workflows.ASK + workflows.EVALUATION)

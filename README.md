@@ -332,6 +332,35 @@ python write_article.py --export <article-id>          # medium.md and medium.ht
 python write_article.py --trace <article-id>           # every step the article went through; no model call
 ```
 
+### Letting an agent explore first (optional)
+
+Instead of writing the outline yourself, you can give a topic and let the model explore the source
+and propose one (`PLAN_V7.md` §14, ADR 0014). In the Write view, tick "Let an agent explore the
+source and propose an outline"; on the command line:
+
+```bash
+python write_article.py --explore "<your topic>" --dry-run       # the budget and its cost ceiling; sends nothing
+python write_article.py --explore "<your topic>"                 # explores, prints the proposal, saves its record
+python write_article.py --explore "<your topic>" --explore-repeat 3   # three runs, and how many passages they share
+python write_article.py --from-exploration <record.json> --title "<your title>"   # draft from the proposal as it stands
+```
+
+What the agent may do is narrow on purpose:
+
+- It chooses its own searches, up to a limit the code holds (`EXPLORER_MAX_STEPS`, 12 model calls
+  and as many searches) and a token ceiling shown before anything is sent.
+- It ends with a **proposal**: a theme, three to six sections, and the passages for each. A proposal
+  that names a passage no search returned is blocked whole.
+- Nothing is drafted until you use the proposal. You may reword headings and questions and drop
+  sections or passages first; what you changed is recorded.
+- Each section is then drafted **only from the passages you approved**, by the same model call,
+  validation, checks and sentence-by-sentence verdicts as any other section.
+- It never writes a sentence of the article, a page number or a verdict, and the evaluation does
+  not use it. Every step is in the record and in the trace.
+
+The same topic can give a different proposal another time. An exploration is recorded, not
+reproducible; everything after your approval is.
+
 The steps are drawn in [`docs/workflows.md`](docs/workflows.md), generated from `workflows.py`
 (`python scripts/workflow_diagrams.py`). The trace says what happened at each of them for one
 article: what a section was asked, which pages it was shown, and why anything was blocked,
@@ -523,6 +552,7 @@ implemented and approved — existing rows are never removed or reordered.
 | 2026-11-16 | — (Diagram and trace) | Write the three workflows down once as data (`workflows.py`: asking a question, drafting an article, running the evaluation) and generate `docs/workflows.md` from it as Mermaid diagrams; each step states whether a researcher, a model call, an embedding call or plain code carries it out. Add a trace of one article (`article/trace.py`): what went into each step, what came back, and why anything was blocked, rejected or held back, shown in the Finish step and by `write_article.py --trace <id>`, with no call and no passage text. No graph framework is adopted, and nothing here runs the pipeline; reasons in `docs/decisions/0012-workflow-diagram-and-trace.md`. Tests fail if a step names a missing function, the committed diagram is stale, a workflow gains a loop, or a model call is followed by a branch. **Not verified: the diagrams as GitHub draws them; the trace on a phone.** | Implemented; awaiting approval | `workflows.py`, `scripts/workflow_diagrams.py`, `docs/workflows.md`, `article/trace.py`, `write_article.py`, `app.py`, `tests/test_workflows.py`, `tests/test_article_app.py`, `docs/decisions/0012-workflow-diagram-and-trace.md`, `README.md` |
 | 2026-11-17 | M0 (Several sources: plan) | Write `docs/plans/PLAN_V7.md` and `docs/decisions/0013-several-sources.md` after the researcher asked for journal-article ingestion and articles that cite several sources. Decided with the researcher: journal articles and book chapters with a text layer beside theses, no OCR; a fixed workflow with a coverage map, not an agent. Four sprints follow, each approved separately: article ingestion (M1), collection retrieval on the one pipeline (M2), the article writer over several sources with three new checks (M3), Ask across sources (M4, optional). Documents only; no code. | Plan written; M1–M4 awaiting approval | `docs/plans/PLAN_V7.md`, `docs/decisions/0013-several-sources.md`, `README.md` |
 | 2026-11-17 | M0 (Amendment: exploring agent) | Append §14 to `docs/plans/PLAN_V7.md` and write `docs/decisions/0014-exploring-agent.md` after the researcher asked for an agent designed from the tools research institutions use, and chose its scope: explore and propose. One agent, three tools that are plain code, a step cap and cost ceiling held by code, a proposal (theme, outline, passages per section) that the researcher edits and approves before anything is drafted, sections drafted only from approved passages by the existing call and validation, every step recorded. It never writes article prose, a page number or a verdict, and the evaluation does not use it. Sprint A1; documents only, no code. | Plan written; A1 awaiting approval | `docs/plans/PLAN_V7.md`, `docs/decisions/0014-exploring-agent.md`, `README.md` |
+| 2026-11-17 | A1 (Exploring agent) | Build the exploring agent of `PLAN_V7.md` §14. `article/explorer.py`: a plain loop in which the model chooses its own searches over the filtered source, with three tools that are code (list the sources, search, propose), a cap on model calls and on searches (`EXPLORER_MAX_STEPS`), a token ceiling counted and shown before anything is sent, and a check that every passage a proposal names was returned by a search in that run. One new model boundary, `ask.call_explorer`; a provider without tool use is refused in plain words. `pipeline.approve` records the researcher's approval and what they changed; an approved section is drafted only from its approved passages through `ask.draft_from_evidence`, with nothing retrieved. The Write view gains an optional explore area and proposal view, `write_article.py` gains `--explore`, `--explore-repeat` and `--from-exploration`, the trace and `docs/workflows.md` gain the step (a new kind, "agent, bounded"), and the article record (schema 5; 2 to 4 still open) holds the whole exploration without passage text. The agent writes no prose, page number or verdict and the evaluation cannot reach it. `CLAUDE.md` now names the second model boundary. 29 named deliberate breaks each turn a test red. **Not verified: no live exploration has been run, so tool use with the configured model, the quality of proposals and whether the agent finds more than a ranked list are all unknown; adding a passage of the researcher's own choosing in the view waits for the coverage map (M3).** | Implemented; awaiting approval | `article/explorer.py`, `prompts/explorer_v1.md`, `ask.py`, `config.py`, `.env.example`, `article/pipeline.py`, `article/assemble.py`, `article/trace.py`, `workflows.py`, `docs/workflows.md`, `app.py`, `write_article.py`, `tests/`, `CLAUDE.md`, `docs/decisions/0014-exploring-agent.md`, `README.md` |
 
 ## Companion: Work Brain template
 

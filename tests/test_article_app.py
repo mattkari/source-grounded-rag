@@ -11,6 +11,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import re
 
 import numpy as np
 import pytest
@@ -717,6 +718,99 @@ def test_the_finish_step_offers_a_trace_of_every_step(view):
     shown = "\n".join(str(c.value) for c in view.code)
 
     assert any(e.label == "Trace — every step this article has been through" for e in view.expander)
-    assert "DONE      Title and outline (researcher)" in shown
+    assert "DONE      Title and outline: written, or a proposal edited and approved (researcher)" in shown
     assert "BLOCKED   Validation and checks of form [FIXTURE third heading] (check)" in shown
     assert "validation failed: ungrounded_answer" in shown and len(view.model.calls) == 3
+
+
+# --- the exploring agent (ADR 0014) --------------------------------------------------
+
+
+def agent_turn(*calls):
+    content = [{"type": "tool_use", "id": f"toolu_{n}_{name}", "name": name, "input": arguments}
+               for n, (name, arguments) in enumerate(calls)]
+    return {"stop_reason": "tool_use", "content": content, "usage": {"input_tokens": 50, "output_tokens": 10},
+            "tool_calls": [{"id": block["id"], "name": block["name"], "input": block["input"]} for block in content]}
+
+
+def test_an_agent_proposes_an_outline_and_nothing_is_drafted_until_the_researcher_uses_it(view, monkeypatch, tmp_path):
+    from article import explorer
+
+    monkeypatch.setattr(explorer, "DEFAULT_DIR", tmp_path / "explorations")
+    turns = iter([
+        agent_turn(("search", {"query": "FIXTURE query one"})),
+        agent_turn(("propose", {
+            "theme": "FIXTURE: a proposed theme.", "gaps": ["FIXTURE: a reported gap"],
+            "sections": [{"heading": "FIXTURE agent one", "question": "FIXTURE-A what first?", "passages": ["P1", "P2"]},
+                         {"heading": "FIXTURE agent two", "question": "FIXTURE-B what second?", "passages": ["P3"]},
+                         {"heading": "FIXTURE agent three", "question": "FIXTURE-C what third?", "passages": ["P4"]}]})),
+    ])
+    asked = []
+    monkeypatch.setattr(ask, "call_explorer", lambda system, messages, tools: (asked.append(len(messages)), next(turns))[1])
+    for key in ("FIXTURE-A", "FIXTURE-B", "FIXTURE-C"):
+        view.model.script[key] = payload("FIXTURE a sentence from an approved passage [E1].", ["E1"])
+
+    view.checkbox(key="article_explore_open").check()
+    view.run()
+    assert button(view, "Explore").disabled                              # no topic, and the ceiling not accepted
+    assert "The most this exploration can use" in all_text(view) and "Model calls: 12" in all_text(view)
+    view.text_input(key="article_explore_topic").set_value("FIXTURE topic of mine")
+    view.checkbox(key="article_explore_accept").check()
+    view.run()
+    button(view, "Explore").click()
+    view.run()
+
+    assert len(asked) == 2 and view.model.calls == []                    # the agent ran; nothing was drafted
+    assert "FIXTURE: a proposed theme." in all_text(view) and "FIXTURE: a reported gap" in all_text(view)
+    assert len(list((tmp_path / "explorations").glob("*.json"))) == 1
+    passages = [c for c in view.checkbox if c.label.startswith("Use the passage at ")]
+    assert len(passages) == 4 and all(re.match(r"Use the passage at (p|pp|PDF p)\.", c.label) for c in passages)
+    passages[1].uncheck()                                                # the researcher drops one passage
+    next(t for t in view.text_input if t.value == "FIXTURE agent two").set_value("FIXTURE my wording")
+    view.run()
+    button(view, "Use this proposal as my outline").click()
+    view.run()
+
+    assert view.model.calls == []                                        # approving drafts nothing either
+    assert view.text_area(key="article_outline").value.splitlines()[1] == "FIXTURE my wording | FIXTURE-B what second?"
+    view.text_input(key="article_title").set_value("FIXTURE harbour title")
+    view.run()
+    button(view, "Next: frame and options").click()
+    view.run()
+    button(view, "Next: check the plan").click()
+    view.run()
+    assert "from 1 passage(s) you approved" in all_text(view)
+    button(view, "Draft the article").click()
+    view.run()
+
+    saved = record(view)
+    assert len(view.model.calls) == 3 and len(asked) == 2                # one call a section; the agent not called again
+    assert [len(s["approved_passages"]) for s in saved["sections"]] == [1, 1, 1]
+    assert saved["exploration"]["approval"]["changes"]["passages_dropped"] == 1
+    assert saved["exploration"]["approval"]["changes"]["headings_reworded"] == 1
+    assert saved["sections"][0]["evidence"][0]["chunk_id"] == saved["sections"][0]["approved_passages"][0]
+
+
+def test_an_exploration_that_ends_without_a_proposal_is_shown_and_not_run_again(view, monkeypatch, tmp_path):
+    from article import explorer
+
+    monkeypatch.setattr(explorer, "DEFAULT_DIR", tmp_path / "explorations")
+    calls = []
+
+    def failing(*args):
+        calls.append(1)
+        raise RuntimeError("FIXTURE: the provider is down")
+
+    monkeypatch.setattr(ask, "call_explorer", failing)
+    view.checkbox(key="article_explore_open").check()
+    view.run()
+    view.text_input(key="article_explore_topic").set_value("FIXTURE topic of mine")
+    view.checkbox(key="article_explore_accept").check()
+    view.run()
+    button(view, "Explore").click()
+    view.run()
+
+    assert len(calls) == 1
+    assert any("ended without a proposal: failed (RuntimeError: FIXTURE: the provider is down)" in str(w.value)
+               for w in view.warning)
+    assert not any(b.label == "Use this proposal as my outline" for b in view.button)

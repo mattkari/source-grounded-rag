@@ -34,7 +34,7 @@ from pathlib import Path
 import ask
 import upload
 from article import assemble, checks, pipeline, sources, topics, voice
-from article import trace as article_trace
+from article import explorer, trace as article_trace
 
 GENERATE, NONE = "generate", "none"
 CHARS_PER_TOKEN = 4          # a rough rule for prompt text; the provider's own count will differ
@@ -174,6 +174,15 @@ def main(argv: list[str] | None = None, stream=None) -> int:
     parser.add_argument("--preview", action="store_true",
                         help="show which passages each section's question would draw on, with pages and scores; "
                              "one embedding call per section and no model call")
+    parser.add_argument("--explore", metavar="TOPIC",
+                        help="let the exploring agent search the source on a topic of yours and propose a theme, an "
+                             "outline and passages for each section. It proposes; nothing is drafted. With --dry-run, "
+                             "print the budget and its cost ceiling and send nothing")
+    parser.add_argument("--explore-repeat", type=int, default=1, metavar="N",
+                        help="with --explore: run the same topic N times and report how many passages the proposals share")
+    parser.add_argument("--from-exploration", type=Path, metavar="EXPLORATION_JSON",
+                        help="draft from an exploration's proposal as it stands; running this is your approval of it. "
+                             "Each section is drafted only from its proposed passages. Needs --title")
     parser.add_argument("--dry-run", action="store_true", help="print the planned calls and their cost ceiling; send nothing")
     parser.add_argument("--out-dir", type=Path, default=None)
     args = parser.parse_args(argv)
@@ -205,6 +214,33 @@ def main(argv: list[str] | None = None, stream=None) -> int:
         print(article_trace.format_trace(article_trace.trace(workspace, pipeline.load(folder, workspace))), file=stream)
         return 0
 
+    if args.explore:
+        print("EXPLORATION BUDGET (nothing has been sent)", file=stream)
+        print(explorer.format_estimate(explorer.estimate(workspace)), file=stream)
+        if args.dry_run:
+            return 0
+        runs = []
+        for attempt in range(1, max(args.explore_repeat, 1) + 1):
+            print(f"\nEXPLORING, run {attempt}" if args.explore_repeat > 1 else "\nEXPLORING", file=stream)
+            run = explorer.explore(
+                workspace, args.explore,
+                on_step=lambda step: print(f"  step {step['step']}: " + (", ".join(
+                    call["tool"] + (f" “{call['arguments'].get('query', '')}”" if call["tool"] == explorer.SEARCH else "")
+                    for call in step["calls"]) or "no tool called"), file=stream))
+            path = explorer.save(run, out_dir.parent / "explorations")
+            runs.append(run)
+            print(f"\n{explorer.format_proposal(workspace, run)}", file=stream)
+            print(f"\nRecord  : {path}", file=stream)
+            if run.proposal is not None:
+                print(f"To draft from it as it stands: python write_article.py --from-exploration {path} --title \"<your title>\"",
+                      file=stream)
+        if len(runs) > 1:
+            shared = explorer.overlap(runs)
+            print(f"\nAGREEMENT BETWEEN RUNS\n  runs with a proposal        {shared['with_a_proposal']} of {shared['runs']}\n"
+                  f"  passages in every proposal  {shared['passages_in_all']} of {shared['passages_in_any']} proposed in any\n"
+                  f"  passages per run            {', '.join(map(str, shared['per_run']))}", file=stream)
+        return 0 if all(run.proposal is not None for run in runs) else 1
+
     if args.export:
         folder = out_dir / args.export
         if not (folder / "record.json").exists():
@@ -221,7 +257,7 @@ def main(argv: list[str] | None = None, stream=None) -> int:
         return 0
 
     missing = [str(path) for path in [args.outline, args.from_record, args.introduction_file, args.conclusion_file,
-                                      args.voice_example,
+                                      args.voice_example, args.from_exploration,
                                       *args.reference] if path is not None and not path.exists()]
     if missing:
         print(f"No such file: {', '.join(missing)}", file=stream)
@@ -241,8 +277,13 @@ def main(argv: list[str] | None = None, stream=None) -> int:
                 earlier = json.loads(args.from_record.read_text(encoding="utf-8"))
                 title = title or earlier["title"]["text"]
                 outline = outline or [(section["heading"], section["brief"]) for section in earlier["sections"]]
+            approved = None
+            if args.from_exploration:
+                # Running this command is the researcher's approval of the proposal as it stands.
+                approved = pipeline.approve(workspace, json.loads(args.from_exploration.read_text(encoding="utf-8")))
+                outline = [(section["heading"], section["question"]) for section in approved["approval"]["sections"]]
             if not title or not outline:
-                parser.error("give --title and --outline, or --from-record, or --resume")
+                parser.error("give --title and --outline, or --from-record, or --from-exploration, or --resume")
             introduction, introduction_text = _origin(args.frame, args.introduction_file)
             conclusion, conclusion_text = _origin(args.frame, args.conclusion_file)
             draft = pipeline.new_draft(
@@ -250,7 +291,7 @@ def main(argv: list[str] | None = None, stream=None) -> int:
                 voice_exemplar=args.voice_example.read_text(encoding="utf-8") if args.voice_example else "",
                 introduction=introduction, introduction_text=introduction_text,
                 transitions=pipeline.GENERATED if args.frame == GENERATE else "none",
-                conclusion=conclusion, conclusion_text=conclusion_text,
+                conclusion=conclusion, conclusion_text=conclusion_text, exploration=approved,
             )
     except pipeline.ArticleError as exc:
         print(str(exc), file=stream)
@@ -258,7 +299,8 @@ def main(argv: list[str] | None = None, stream=None) -> int:
 
     print(f"Title   : {draft.title}", file=stream)
     for number, section in enumerate(draft.sections, start=1):
-        print(f"  {number}. {section.heading}" + ("" if section.pending else "  (already drafted)"), file=stream)
+        print(f"  {number}. {section.heading}" + ("" if section.pending else "  (already drafted)")
+              + (f"  (from {len(section.approved)} approved passage(s))" if section.approved else ""), file=stream)
     print_estimate(estimate(workspace, draft), stream)
     if args.preview:
         pending = [section.brief for section in draft.sections if section.pending]

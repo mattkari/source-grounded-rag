@@ -39,7 +39,7 @@ import audit
 import runs
 import upload
 from article import assemble, pipeline, sentences as article_sentences, sources as article_sources
-from article import terms as article_terms, topics as article_topics, trace as article_trace, voice
+from article import explorer, terms as article_terms, topics as article_topics, trace as article_trace, voice
 from config import settings
 from documents import Document, default_document
 
@@ -768,6 +768,7 @@ def plan_draft(title: str, outline: list[tuple[str, str]], topic: str | None, fr
     return pipeline.new_draft(
         title, outline, topic=topic, commentary=frame["commentary"], editorial=frame["editorial"],
         voice_exemplar=st.session_state.get("article_reference", "") if frame.get("voice_example") else "",
+        exploration=frame.get("exploration"),
         introduction=origin[frame["introduction"]], introduction_text=frame["introduction_text"],
         transitions=origin[frame["transitions"]],
         transitions_text=[line.strip() for line in frame["transitions_text"].splitlines() if line.strip()],
@@ -787,6 +788,8 @@ PLAN_DEFAULTS = {
     "topic": OWN_TOPIC, "title": "", "outline": "",
     "introduction": I_WRITE, "introduction_text": "", "transitions": I_WRITE, "transitions_text": "",
     "conclusion": I_WRITE, "conclusion_text": "", "commentary": False, "editorial": False, "voice_example": False,
+    # An exploration's record with the researcher's approval of its proposal (ADR 0014), or None.
+    "exploration": None,
 }
 
 
@@ -854,6 +857,90 @@ def render_saved_articles(workspace: pipeline.Workspace, document: Document) -> 
                 st.error(str(exc))
 
 
+def render_proposal(workspace: pipeline.Workspace, record: dict) -> None:
+    """The agent's proposal, for the researcher to edit and approve. Nothing is drafted here."""
+    proposal = record["proposal"]
+    with st.expander("What the agent did — every step, with the pages each search returned"):
+        st.code(article_trace.format_trace(article_trace.exploration_rows(workspace, record)), language="text")
+    if proposal is None:
+        st.warning(f"The exploration ended without a proposal: {record['stop']}"
+                   + (f" ({record['stop_detail']})" if record.get("stop_detail") else "")
+                   + ". Nothing was sent again. You can explore once more, or write the outline yourself.")
+        return
+    stamp = record["started"]
+    st.markdown(f"**Proposed theme.** {proposal['theme']}")
+    st.caption("A proposal, not a finding. Edit a heading or a question, untick what you do not want, read the "
+               "passages, then use it. Each section you keep will be drafted only from the passages left ticked.")
+    kept = []
+    for index, section in enumerate(proposal["sections"]):
+        st.markdown(f"**Section {index + 1}**")
+        keep = st.checkbox("Keep this section", value=True, key=f"proposal_{stamp}_keep_{index}")
+        heading = st.text_input("Heading", section["heading"], key=f"proposal_{stamp}_heading_{index}")
+        question = st.text_input("The question it must answer", section["question"], key=f"proposal_{stamp}_question_{index}")
+        passages = []
+        for chunk_id in section["passages"]:
+            chunk = workspace.by_id.get(chunk_id)
+            if chunk is None:
+                continue
+            where = chunk.get("section") or chunk.get("chapter") or "no section title"
+            label = f"{ask.page_phrase(chunk)} — {where}"
+            if st.checkbox(f"Use the passage at {label}", value=True, key=f"proposal_{stamp}_{index}_{chunk_id}"):
+                passages.append(chunk_id)
+            with st.expander(f"Read the passage at {label}"):
+                st.write(chunk["text"])
+        if keep:
+            kept.append({"heading": heading.replace("|", "/"), "question": question, "passages": passages})
+    if proposal["gaps"]:
+        st.markdown("**Gaps the agent reported** (what it looked for and did not find)\n"
+                    + "\n".join(f"- {gap}" for gap in proposal["gaps"]))
+    if st.button("Use this proposal as my outline", type="primary"):
+        try:
+            approved = pipeline.approve(workspace, record, kept)
+        except pipeline.ArticleError as exc:
+            st.error(str(exc))
+            return
+        plan = article_plan()
+        plan["exploration"] = approved
+        plan["outline"] = st.session_state.article_outline = "\n".join(
+            f"{section['heading']} | {section['question']}" for section in approved["approval"]["sections"])
+        st.session_state.pop("article_exploration", None)     # approved: the proposal is now the outline below
+        st.rerun()
+
+
+def render_explore(workspace: pipeline.Workspace, document: Document) -> None:
+    """The exploring agent (ADR 0014): it searches and proposes; the researcher decides."""
+    if not st.checkbox("Let an agent explore the source and propose an outline (optional)", key="article_explore_open"):
+        return
+    st.caption(
+        "You give a topic. The model searches this source, choosing each search itself, and ends with a "
+        "proposal: a theme, an outline and the passages for each section. It writes no part of the article. "
+        "The same topic can give a different proposal another time; every step is recorded."
+    )
+    topic = st.text_input("Topic to explore (yours to write)", key="article_explore_topic")
+    budget = explorer.estimate(workspace)
+    cost = ("No price is configured, so no cost is shown." if budget["cost_ceiling_usd"] is None
+            else f"Cost, at most: ${budget['cost_ceiling_usd']:.2f}.")
+    st.markdown(
+        f"**The most this exploration can use**\n"
+        f"- Model calls: {budget['model_calls_at_most']}\n"
+        f"- Searches: {budget['searches_at_most']} (one embedding call each)\n"
+        f"- Tokens: {budget['input_tokens_ceiling']:,} in, {budget['output_tokens_ceiling']:,} out\n"
+        f"- {cost}\n\n"
+        "This is a ceiling, not a forecast: a real exploration uses a fraction of it, and it is stopped "
+        "if it reaches the ceiling."
+    )
+    accepted = st.checkbox("I accept this ceiling", key="article_explore_accept")
+    if st.button("Explore", disabled=not (accepted and topic.strip())):
+        with st.spinner("Exploring… every step is recorded."):
+            run = explorer.explore(workspace, topic)
+            explorer.save(run)
+        st.session_state.article_exploration = {"document_id": document.document_id, "record": run.as_record()}
+        st.rerun()
+    held = st.session_state.get("article_exploration")
+    if held and held["document_id"] == document.document_id:
+        render_proposal(workspace, held["record"])
+
+
 def render_step_outline(workspace: pipeline.Workspace, document: Document) -> None:
     render_saved_articles(workspace, document)
     step_header(STEP_OUTLINE)
@@ -876,7 +963,11 @@ def render_step_outline(workspace: pipeline.Workspace, document: Document) -> No
         if st.button("Fill the outline from this chapter's sections"):
             plan["outline"] = st.session_state.article_outline = outline_from(topic, kind)
             st.rerun()
+    render_explore(workspace, document)
     remembered("title", st.text_input, "Title (yours to write)")
+    if plan.get("exploration"):
+        st.caption("This outline came from a proposal you approved. A line you leave as it is will be drafted "
+                   "from the passages you approved for it; a line you rewrite is drafted by retrieval, as usual.")
     remembered(
         "outline", st.text_area,
         f"Outline — {pipeline.MIN_SECTIONS} to {pipeline.MAX_SECTIONS} sections, one per line: "
@@ -936,7 +1027,13 @@ def render_step_draft(workspace: pipeline.Workspace, document: Document) -> None
     plan = article_plan()
     outline, calls = planned(plan)
     st.markdown(f"**{plan['title'] or '(no title yet)'}**")
-    st.markdown("\n".join(f"{n}. **{heading}** — {brief}" for n, (heading, brief) in enumerate(outline, start=1)))
+    approved = {(s["heading"], s["question"]): len(s["passages"])
+                for s in (plan.get("exploration") or {}).get("approval", {}).get("sections", [])}
+    st.markdown("\n".join(
+        f"{n}. **{heading}** — {brief}" + (
+            f" *(from {approved[(heading, brief)]} passage(s) you approved)*" if (heading, brief) in approved
+            else " *(passages retrieved for this question)*" if approved else "")
+        for n, (heading, brief) in enumerate(outline, start=1)))
     st.markdown("\n".join(
         f"- {part.capitalize()}: " + ("yours" if plan[f"{part}_text"].strip() else "left out for now")
         for part in ("introduction", "transitions", "conclusion")
@@ -1222,7 +1319,7 @@ def render_resume(workspace: pipeline.Workspace, draft: pipeline.Draft) -> None:
 
 def start_another() -> None:
     if st.button("Start another article"):
-        for key in ("article_draft", "article_item", "article_plan"):
+        for key in ("article_draft", "article_item", "article_plan", "article_exploration", "article_explore_open"):
             st.session_state.pop(key, None)
         for name in PLAN_DEFAULTS:
             st.session_state.pop(f"article_{name}", None)

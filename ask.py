@@ -230,6 +230,52 @@ def call_model(
     return json.loads(text), prompt_hash
 
 
+class ExplorerUnavailable(Exception):
+    """The configured provider cannot run the exploring agent."""
+
+
+def call_explorer(system_prompt: str, messages: list[dict], tools: list[dict]) -> dict:
+    """One turn of the exploring agent (PLAN_V7 §14, ADR 0014).
+
+    This is the second place the generation model is called, and the only one
+    that offers it tools. It makes exactly one request and returns what came
+    back; the loop, the budget and the tools themselves are plain code in
+    `article/explorer.py`. Nothing here is used by a question, by a drafted
+    section or by the evaluation. Tests replace this function, as they replace
+    `call_model`, and never make a live call.
+
+    Returns {"stop_reason", "content", "tool_calls", "usage"}. `content` is the
+    reply exactly as the provider gave it, to be sent back unchanged on the
+    next turn; `tool_calls` is the same reply's tool requests as plain dicts.
+    """
+    if settings.llm_provider != "anthropic":
+        raise ExplorerUnavailable(
+            f"Exploring needs a provider with tool use; LLM_PROVIDER is {settings.llm_provider}. "
+            "Write the outline yourself, or use the coverage of the retrieval preview."
+        )
+    client = _get_client()
+    response = client.messages.create(
+        model=settings.llm_model,
+        max_tokens=settings.explorer_step_max_tokens,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        cache_control={"type": "ephemeral"},      # the conversation only grows, so its prefix is reused
+        tools=tools,
+        messages=messages,
+    )
+    usage = response.usage
+    return {
+        "stop_reason": response.stop_reason,
+        "content": response.content,
+        "tool_calls": [{"id": block.id, "name": block.name, "input": block.input}
+                       for block in response.content if block.type == "tool_use"],
+        "usage": {
+            "input_tokens": usage.input_tokens + (getattr(usage, "cache_read_input_tokens", 0) or 0)
+            + (getattr(usage, "cache_creation_input_tokens", 0) or 0),
+            "output_tokens": usage.output_tokens,
+        },
+    }
+
+
 def _call_ollama(system_prompt: str, user_content: str) -> dict:
     """Generation against a local Ollama server — a fallback, not the default.
 

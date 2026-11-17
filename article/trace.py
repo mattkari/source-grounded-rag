@@ -31,6 +31,8 @@ def _section_rows(workspace, draft, article, index: int, section) -> list[dict]:
     if section.outcome is None:
         return [_row("section", FAILED, f"the call failed: {section.error}", [f"question: {section.brief}"], where)]
     outcome, result = section.outcome, section.outcome.result
+    shown_as = ("passages approved by the researcher from the exploration (a score is from the agent's own search):"
+                if section.approved else "passages shown to the model (scores are diagnostics, not confidence):")
     passages = [f"{item.handle}  {ask.page_phrase(item.chunk):<14} score {item.score:.3f}"
                 + ("  (footnote text cut)" if item.chunk["chunk_id"] in workspace.sources.removed else "")
                 for item in outcome.items]
@@ -38,7 +40,7 @@ def _section_rows(workspace, draft, article, index: int, section) -> list[dict]:
                  f"answered “{result.get('evidence_sufficiency')}”, citing {len(result.get('citations_used', []))} of "
                  f"{len(outcome.items)} passages",
                  [f"question: {section.brief}", f"system prompt {outcome.prompt_hash}; rules of form {checks.SECTION_PROMPT}",
-                  "passages shown to the model (scores are diagnostics, not confidence):", *[f"  {p}" for p in passages]],
+                  shown_as, *[f"  {p}" for p in passages]],
                  where)]
     reason = assemble.block_reason(outcome, section.error)
     if reason:
@@ -79,11 +81,53 @@ def _section_rows(workspace, draft, article, index: int, section) -> list[dict]:
     return rows
 
 
+def exploration_rows(workspace: pipeline.Workspace, record: dict) -> list[dict]:
+    """What an exploration did, step by step, from its record (ADR 0014). Searches are
+    shown by the agent's own query and the pages that came back; never by passage text."""
+    def pages(handles: list[str]) -> str:
+        chunks = [workspace.by_id.get(record["passages"][handle]["chunk_id"]) for handle in handles]
+        return "; ".join(ask.page_phrase(chunk) if chunk else "a passage this index no longer holds" for chunk in chunks)
+
+    details = [f"topic: {record['topic']}",
+               f"budget: {record['budget']['max_steps']} model calls and as many searches; "
+               f"{record['budget']['token_ceiling']:,} tokens",
+               f"used: {record['model_calls']} model call(s), {record['searches']} search(es), "
+               f"{record['tokens']['input']:,} input and {record['tokens']['output']:,} output tokens",
+               f"system prompt {record['prompt']} {record['prompt_sha256_12']}; tools {record['tools_sha256_12']}"]
+    for step in record["steps"]:
+        for call in step["calls"]:
+            if call["error"]:
+                details.append(f"step {step['step']}: {call['tool']} refused: {call['error']}")
+            elif call["tool"] == "search":
+                details.append(f"step {step['step']}: search “{call['arguments'].get('query', '')}” -> {pages(call['returned'])}")
+            else:
+                details.append(f"step {step['step']}: {call['tool']}")
+    proposal, approval = record.get("proposal"), record.get("approval")
+    if proposal is None:
+        status = FAILED if record["stop"] == "failed" else BLOCKED
+        summary = f"no proposal: {record['stop']}" + (f" ({record['stop_detail']})" if record.get("stop_detail") else "")
+    elif approval is None:
+        status, summary = WAITING, f"proposed {len(proposal['sections'])} sections; waiting for the researcher's approval"
+    else:
+        changes = approval["changes"]
+        status = DONE
+        summary = (f"proposed {changes['sections_proposed']} sections with {changes['passages_proposed']} passages; "
+                   f"the researcher approved {changes['sections_approved']} with {changes['passages_approved']}")
+        details.append(f"before approving, the researcher reworded {changes['headings_reworded']} heading(s) and "
+                       f"{changes['questions_reworded']} question(s), dropped {changes['passages_dropped']} passage(s) "
+                       f"and added {changes['passages_added_by_researcher']}")
+    if proposal is not None:
+        details.append("an exploration is not reproducible: the same topic can give another proposal")
+        details += [f"gap reported by the agent: {gap}" for gap in proposal["gaps"]]
+    return [_row("explore", status, summary, details)]
+
+
 def trace(workspace: pipeline.Workspace, draft: pipeline.Draft) -> list[dict]:
     """Every step this article has been through, in order. No call is made."""
     article = pipeline.render(workspace, draft)
-    rows = [_row("outline", DONE, f"“{draft.title}”, {len(draft.sections)} sections",
-                 [f"{n}. {s.heading}: {s.brief}" for n, s in enumerate(draft.sections, start=1)])]
+    rows = exploration_rows(workspace, draft.exploration) if draft.exploration else []
+    rows.append(_row("outline", DONE, f"“{draft.title}”, {len(draft.sections)} sections",
+                     [f"{n}. {s.heading}: {s.brief}" for n, s in enumerate(draft.sections, start=1)]))
     rows.append(_row("sources", DONE,
                      f"{workspace.sources.report.passages_available} of {workspace.sources.report.passages_in_index} "
                      "passages may be drafted from", workspace.sources.report.lines()))

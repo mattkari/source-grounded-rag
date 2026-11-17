@@ -94,3 +94,19 @@ Anthropic), evidence assigned before writing (Scholar QA), the writer confined t
 - An exploration cannot be reproduced; only recorded.
 - A proposal may be approved without being read closely. The record shows what was changed before
   approval, which is the only trace of how carefully it was read.
+
+## As built in Sprint A1
+
+- The loop, tools, budget and check are `article/explorer.py`; the one model boundary is
+  `ask.call_explorer`. The request offers the tools with `tool_choice` left to the model and strict
+  schemas. No fallback to another model is configured: a refusal ends the run and is recorded, so
+  the model named in the record is the model that ran.
+- The budget is two caps and a ceiling: at most `EXPLORER_MAX_STEPS` model calls, as many searches
+  (a search past it is refused and logged), and a token ceiling computed before the first call.
+- A blocked proposal is not sent back to the model to correct. That would be a repair loop; the
+  researcher can explore again.
+- `search` takes a query only. A `source` argument arrives with several sources (Sprint M3).
+- In the view the researcher can reword, drop a section and drop a passage. Adding a passage of
+  their own choosing waits for the coverage map (Sprint M3); `pipeline.approve` already accepts and
+  counts such additions.
+- The article record moved to schema 5 here, earlier than `PLAN_V7.md` §7 said.

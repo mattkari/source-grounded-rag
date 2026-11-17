@@ -58,6 +58,9 @@ class SectionDraft:
     prose: str | None = None
     editorial: dict | None = None
     pending: bool = False                     # True: planned, not yet sent to the model
+    # Chunk ids the researcher approved for this section from an exploration's proposal
+    # (ADR 0014). The section is then drafted from exactly these, and nothing is retrieved.
+    approved: list[str] | None = None
 
 
 @dataclass

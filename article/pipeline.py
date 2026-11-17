@@ -26,8 +26,8 @@ from article.assemble import GENERATED, RESEARCHER, SUGGESTED, VERDICTS, FrameEl
 from documents import Document, default_document
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parent.parent / "output" / "articles"
-SCHEMA_VERSION = 4
-READABLE_SCHEMAS = (2, 3, 4)      # 2: before plans and step-by-step saving; read as finished
+SCHEMA_VERSION = 5
+READABLE_SCHEMAS = (2, 3, 4, 5)      # 2: before plans and step-by-step saving; read as finished
 MIN_SECTIONS, MAX_SECTIONS = 3, 6
 DRAFTING, DRAFT, REVIEWED = "drafting", "draft", "reviewed"
 FRAME_ORIGINS = (RESEARCHER, GENERATED, "none")
@@ -73,14 +73,33 @@ def _attempt(call, *args) -> tuple[ask.QueryOutcome | None, str | None]:
         return None, f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}"
 
 
-def draft_section(workspace: Workspace, heading: str, brief: str) -> SectionDraft:
-    """One brief through the one pipeline, on the filtered sources."""
+def approved_items(workspace: Workspace, approved: list[str], scores: dict[str, float] | None = None) -> list[ask.EvidenceItem]:
+    """The approved passages as evidence, under fresh handles E1..En, in the approved order.
+    The score, where there is one, is from the agent's own search: a diagnostic of that
+    search, not of this section's question (hard rule 4)."""
+    scores = scores or {}
+    return [ask.EvidenceItem(f"E{n}", workspace.by_id[chunk_id], scores.get(chunk_id, 0.0), workspace.document)
+            for n, chunk_id in enumerate(approved, start=1)]
+
+
+def draft_section(workspace: Workspace, heading: str, brief: str, approved: list[str] | None = None,
+                  scores: dict[str, float] | None = None) -> SectionDraft:
+    """One brief through the one pipeline, on the filtered sources.
+
+    With `approved` (ADR 0014) nothing is retrieved: the section is drafted from the
+    passages the researcher approved from an exploration's proposal, by the same model
+    call and the same validation. A handle outside them fails validation as always.
+    """
     instructions, _ = checks.load_prompt(checks.SECTION_PROMPT)
-    outcome, error = _attempt(
-        lambda: ask.run_query(brief, workspace.sources.vectors, workspace.sources.chunks, None,
-                              workspace.document, instructions=instructions)
-    )
-    return SectionDraft(heading.strip(), brief.strip(), outcome, error)
+    if approved:
+        outcome, error = _attempt(
+            lambda: ask.draft_from_evidence(brief, approved_items(workspace, approved, scores), instructions=instructions))
+    else:
+        outcome, error = _attempt(
+            lambda: ask.run_query(brief, workspace.sources.vectors, workspace.sources.chunks, None,
+                                  workspace.document, instructions=instructions)
+        )
+    return SectionDraft(heading.strip(), brief.strip(), outcome, error, approved=list(approved) if approved else None)
 
 
 EXEMPLAR_WORDS = 300
@@ -259,15 +278,23 @@ class Draft:
     voice_exemplar: str = ""
     frame_done: set[str] = field(default_factory=set)   # generated frame steps already made
     complete: bool = True                               # False while steps of the plan remain
+    # The exploration this article's plan came from, if any, with the researcher's approval
+    # of its proposal (ADR 0014): the exploration's record plus "approval".
+    exploration: dict | None = None
 
 
 def new_draft(title: str, outline: list[tuple[str, str]], *, topic: str | None = None,
               introduction: str = "none", transitions: str = "none", conclusion: str = "none",
               introduction_text: str = "", transitions_text: list[str] | None = None, conclusion_text: str = "",
-              commentary: bool = False, editorial: bool = False, voice_exemplar: str = "") -> Draft:
+              commentary: bool = False, editorial: bool = False, voice_exemplar: str = "",
+              exploration: dict | None = None) -> Draft:
     """A plan and nothing else: every section pending, no model called yet. Text the
-    researcher wrote is placed at once; it needs no call."""
+    researcher wrote is placed at once; it needs no call.
+
+    `exploration` is what `approve` returned: a section of the outline whose heading and
+    question match an approved section is drafted from that section's passages."""
     check_outline(title, outline)
+    passages = {(s["heading"], s["question"]): s["passages"] for s in (exploration or {}).get("approval", {}).get("sections", [])}
     plan = {"introduction": introduction, "transitions": transitions, "conclusion": conclusion}
     for part, origin in plan.items():
         if origin not in FRAME_ORIGINS:
@@ -277,11 +304,66 @@ def new_draft(title: str, outline: list[tuple[str, str]], *, topic: str | None =
     return Draft(
         title=title.strip(), topic=topic, commentary=commentary, editorial=editorial, frame_plan=plan, complete=False,
         voice_exemplar=voice_exemplar if editorial else "",
-        sections=[SectionDraft(heading.strip(), brief.strip(), pending=True) for heading, brief in outline],
+        sections=[SectionDraft(heading.strip(), brief.strip(), pending=True,
+                               approved=passages.get((heading.strip(), brief.strip())) or None)
+                  for heading, brief in outline],
+        exploration=exploration,
         introduction=written(introduction_text) if introduction == RESEARCHER else None,
         transitions=[written(text) if transitions == RESEARCHER else None for text in typed],
         conclusion=written(conclusion_text) if conclusion == RESEARCHER else None,
     )
+
+
+def exploration_scores(draft: Draft) -> dict[str, float]:
+    """chunk id -> the score the agent's own search gave it, for the record and the trace."""
+    return {entry["chunk_id"]: entry["score"] for entry in ((draft.exploration or {}).get("passages") or {}).values()}
+
+
+def approve(workspace: Workspace, exploration: dict, sections: list[dict] | None = None) -> dict:
+    """The researcher's approval of an exploration's proposal (ADR 0014).
+
+    `exploration` is the exploration's record. `sections` is the proposal as the
+    researcher left it, each {"heading", "question", "passages": [chunk ids]}; None
+    approves it unchanged. Returns the record with an "approval" entry: what was
+    approved, when, and what the researcher changed first. Nothing is drafted here.
+
+    The researcher may rename, reorder and drop sections and passages. A passage may
+    only be one the index holds; which approved passages the agent did not propose is
+    recorded, because those are the researcher's own additions.
+    """
+    proposal = exploration.get("proposal")
+    if proposal is None:
+        raise ArticleError("This exploration ended without a proposal, so there is nothing to approve.")
+    if exploration["document_id"] != workspace.document.document_id:
+        raise ArticleError(f"This exploration searched {exploration['document_id']}, not the source now open.")
+    if exploration.get("corpus_text_sha256") != workspace.manifest.get("corpus_text_sha256"):
+        raise ArticleError("The index has changed since this exploration; its passages can no longer be trusted.")
+    kept = [{"heading": " ".join(s["heading"].split()), "question": " ".join(s["question"].split()),
+             "passages": list(dict.fromkeys(s["passages"]))} for s in (proposal["sections"] if sections is None else sections)]
+    for section in kept:
+        missing = [chunk_id for chunk_id in section["passages"] if chunk_id not in workspace.by_id]
+        if missing:
+            raise ArticleError(f"“{section['heading']}” names a passage this index does not hold: {missing[0]}.")
+        if not section["passages"]:
+            raise ArticleError(f"“{section['heading']}” has no passage left. Drop the section, or keep a passage.")
+    check_outline("approved", [(s["heading"], s["question"]) for s in kept])
+    before = {(s["heading"], s["question"]): set(s["passages"]) for s in proposal["sections"]}
+    proposed_passages = set().union(*before.values()) if before else set()
+    approved_passages = {chunk_id for s in kept for chunk_id in s["passages"]}
+    headings_before, questions_before = {h for h, _ in before}, {q for _, q in before}
+    after = [(s["heading"], s["question"]) for s in kept]
+    return {**exploration, "approval": {
+        "approved_by": RESEARCHER, "approved_at": _now(), "sections": kept,
+        "changes": {
+            "sections_proposed": len(before), "sections_approved": len(kept),
+            "headings_reworded": sum(1 for s in kept if s["heading"] not in headings_before),
+            "questions_reworded": sum(1 for s in kept if s["question"] not in questions_before),
+            "passages_proposed": len(proposed_passages), "passages_approved": len(approved_passages),
+            "passages_dropped": len(proposed_passages - approved_passages),
+            "passages_added_by_researcher": len(approved_passages - proposed_passages),
+            "sections_reordered": [key for key in before if key in after] != [key for key in after if key in before],
+        },
+    }}
 
 
 def planned_calls(draft: Draft) -> dict[str, int]:
@@ -299,7 +381,8 @@ def planned_calls(draft: Draft) -> dict[str, int]:
         "conclusion": int(plan.get("conclusion") == GENERATED and "conclusion" not in draft.frame_done),
     }
     remaining["model_calls"] = sum(remaining.values())
-    remaining["embedding_calls"] = pending          # one question embedded per section
+    # one question embedded per section, except a section drafted from approved passages
+    remaining["embedding_calls"] = sum(1 for s in draft.sections if s.pending and not s.approved)
     return remaining
 
 
@@ -320,7 +403,8 @@ def run(workspace: Workspace, draft: Draft, out_dir: Path | None = None, referen
         save(workspace, draft, out_dir, reference_text)        # the plan is on disk before any call
     for index, section in enumerate(draft.sections):
         if section.pending:
-            drafted = draft_section(workspace, section.heading, section.brief)
+            drafted = draft_section(workspace, section.heading, section.brief, section.approved,
+                                    exploration_scores(draft))
             drafted.kept, drafted.state_gap = section.kept, section.state_gap
             draft.sections[index] = drafted
             done(f"section {index + 1}: {section.heading}")
@@ -858,6 +942,10 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
             "commentary": commentary_record(draft.sections.index(section)),
             "editorial": section.editorial,
             "footnote_text_cut_from": [chunk_id for chunk_id in retrieved if chunk_id in cut],
+            # Where this section's passages came from: retrieved for its question, or approved
+            # by the researcher from an exploration's proposal (ADR 0014).
+            "evidence_origin": "approved from an exploration" if section.approved else "retrieved for the question",
+            "approved_passages": section.approved,
             "voice": voice.measure(answer) if answer else None,
             **_outcome_record(section.outcome, section.error, section.pending),
         }
@@ -880,7 +968,10 @@ def build_record(workspace: Workspace, draft: Draft, article: assemble.Article, 
                if any(section.editorial for section in draft.sections) else {}),
             **({checks.FRAME_PROMPT: checks.load_prompt(checks.FRAME_PROMPT)[1]} if draft.frame_suggestions else {}),
             **({checks.SUPPORT_PROMPT: checks.load_prompt(checks.SUPPORT_PROMPT)[1]} if draft.second_opinions else {}),
+            **({draft.exploration["prompt"]: draft.exploration["prompt_sha256_12"]} if draft.exploration else {}),
         },
+        # The exploration the plan came from and the researcher's approval of it, or None.
+        "exploration": draft.exploration,
         "title": {"origin": RESEARCHER, "text": draft.title},
         "topic": draft.topic,
         "commentary_switched_on": draft.commentary,
@@ -995,7 +1086,7 @@ def load(folder: Path, workspace: Workspace) -> Draft:
         sections.append(SectionDraft(
             entry["heading"], entry["brief"], outcome, error,
             kept=entry["kept_by_researcher"], state_gap=entry["gap_stated"], editorial=editorial,
-            pending=bool(entry.get("pending")),
+            pending=bool(entry.get("pending")), approved=entry.get("approved_passages"),
             prose=editorial["result"]["answer"] if editorial and editorial["accepted"] else None))
     return Draft(
         title=record["title"]["text"],
@@ -1036,6 +1127,7 @@ def load(folder: Path, workspace: Workspace) -> Draft:
         voice_exemplar=record.get("plan", {}).get("voice_exemplar", ""),
         frame_done=set(record.get("drafting", {}).get("frame_steps_done", [])),
         complete=record.get("drafting", {}).get("complete", True),
+        exploration=record.get("exploration"),
     )
 
 

@@ -26,7 +26,8 @@ ingest.py, layout.py    extraction and chunking; layout measurement for uploaded
 upload.py, audit.py, identity.py, documents.py   the thesis library (PLAN_V4)
 app.py, main.py         shells: Streamlit web UI, interactive loop
 evaluate.py, evaluation/   the evaluation harness and its metrics (PLAN_V3, PLAN_V5)
-article/, write_article.py   the article writer and its command line (PLAN_V6)
+article/, write_article.py   the article writer and its command line (PLAN_V6); article/explorer.py is
+                        the exploring agent (PLAN_V7 §14, ADR 0014)
 runs.py                 the query run log
 scripts/                check_gold.py, results_tables.py, measure_thesis.py
 prompts/                versioned prompt files, hashed into every run and article record
@@ -78,7 +79,14 @@ python write_article.py --dry-run --title "<t>" --outline outline.txt   # planne
 
 `ask.py`, `main.py`, `app.py`, `evaluate.py` and the article writer (`article/`, `write_article.py`)
 all go through `ask.run_query()`. Never add a second
-pipeline. Tests replace the generation model at `ask.call_model` only, and never make a live call.
+pipeline. Tests replace the generation model at `ask.call_model`, and the exploring agent's model at
+`ask.call_explorer`, and nowhere else; they never make a live call.
+
+The exploring agent (`article/explorer.py`) is the one place a model chooses its own next step: which
+search to make, up to a budget that code holds. It proposes a theme, an outline and passages; the
+researcher approves before anything is drafted. It never writes article prose, a page number or a
+verdict, and it is never used by `ask.py`, `main.py` or `evaluate.py`. Drafting, checking and judging
+stay a fixed workflow: do not add a loop, a retry, or a model-chosen branch there.
 
 ### Environment variables
 
