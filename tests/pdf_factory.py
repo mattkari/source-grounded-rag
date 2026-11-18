@@ -230,6 +230,14 @@ class ArticleSpec:
     short_left_column: bool = False    # the left column ends, with its footnote, above the foot of the right
     references: bool = True            # a "References" heading and entries, closing the last page
     wide_figure_beside_text: bool = False   # a block across both columns with text beside it
+    # What real journals do (ADR 0015):
+    line_jitter: bool = False          # one line a page set a hair smaller, as justified text is
+    journal_furniture: bool = False    # a running head on left-hand pages only; the page number inside a
+                                       # footer line that changes side: "102 | Journal | Vol 12 | ... 2021"
+    appended_form_pages: int = 0       # pages of a form at the end, close to body size, numbered 1, 2 ...
+    panel_letters: bool = False        # figure panel letters "a", "b" close to body size
+    margin_stamp: bool = False         # a repository's stamp turned on its side in the margin of page 1
+    cited_year: str | None = None      # a year cited in the abstract, earlier than the article's own
 
 
 def _short(seed: int) -> str:
@@ -238,10 +246,16 @@ def _short(seed: int) -> str:
     return f"FIXTURE the {a} and the {b} met"
 
 
-def _column_paragraph(page, x: float, y: float, size: float, seed: int, tag: str, lines: int = 4) -> float:
+def _column_paragraph(page, x: float, y: float, size: float, seed: int, tag: str, lines: int = 4,
+                      small_line: str | None = None) -> float:
+    """`small_line` sets the third line a tenth of a point smaller and tags it: what a
+    journal does to a line when it justifies it."""
     leading = size * 1.25
     for line in range(lines):
         text = _short(seed * 10 + line)
+        if small_line and line == 2:
+            page.insert_text((x, y + line * leading), f"{small_line} {text}", fontname="tiro", fontsize=size - 0.1)
+            continue
         page.insert_text((x, y + line * leading), f"{tag} {text}" if line == 0 else text, fontname="tiro", fontsize=size)
     return y + lines * leading + size * 1.4
 
@@ -256,9 +270,19 @@ def make_article(path, spec: ArticleSpec | None = None) -> dict:
     for number in range(1, spec.pages + 1):
         page = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
         label = str(spec.first_page_number + number - 1)
-        page.insert_text((COL_LEFT, 34), spec.journal, fontname="tiit", fontsize=8)
-        page.insert_text((PAGE_WIDTH - 70, 34), label, fontname="tiro", fontsize=8)
+        if spec.journal_furniture:
+            left_hand = number % 2 == 0
+            if left_hand:
+                page.insert_text((COL_LEFT, 32), "FIXTURE Running Head", fontname="tibo", fontsize=14)
+            line = "FIXTURE Journal | Vol 12 | 26 August 2021"
+            page.insert_text((COL_LEFT if left_hand else PAGE_WIDTH - 230, 815),
+                             f"{label} | {line}" if left_hand else f"{line} | {label}", fontname="tiro", fontsize=8)
+        else:
+            page.insert_text((COL_LEFT, 34), spec.journal, fontname="tiit", fontsize=8)
+            page.insert_text((PAGE_WIDTH - 70, 34), label, fontname="tiro", fontsize=8)
         expected["labels"][number] = label
+        if spec.margin_stamp and number == 1:
+            page.insert_text((24, 620), "fixture:1810.00000v2 [xx.YY] 24 May 2031", fontname="tiro", fontsize=20, rotate=90)
         order, y = [], ARTICLE_TOP
         if number == 1:
             page.insert_text((COL_LEFT, y + 10), spec.title, fontname="tibo", fontsize=18)
@@ -275,7 +299,8 @@ def make_article(path, spec: ArticleSpec | None = None) -> dict:
             # the abstract runs across both columns
             for line in range(3):
                 page.insert_text((COL_LEFT, y + line * spec.body_size * 1.25),
-                                 ("abstractword " if line == 0 else "") + _sentence(500 + line) + " " + _short(600 + line),
+                                 ("abstractword " if line == 0 else "") + _sentence(500 + line) + " " + _short(600 + line)
+                                 + (f" (Example, {spec.cited_year})" if spec.cited_year and line == 2 else ""),
                                  fontname="tiro", fontsize=spec.body_size)
             order.append("abstractword")
             y += 3 * spec.body_size * 1.25 + 20
@@ -289,10 +314,15 @@ def make_article(path, spec: ArticleSpec | None = None) -> dict:
                 y += spec.body_size * 2.2
             closing = spec.references and number == spec.pages and column == len(columns) - 1
             short = spec.short_left_column and column == 0 and spec.columns == 2
+            if spec.panel_letters:
+                page.insert_text((x, y), "a" if column == 0 else "b", fontname="hebo", fontsize=spec.body_size - 0.2)
+                y += spec.body_size * 2.2
             for paragraph in range(2 if closing or short else 5):
                 seed += 1
                 tag = f"{side}{number}x{paragraph}"
-                y = _column_paragraph(page, x, y, spec.body_size, seed, tag)
+                jitter = spec.line_jitter and column == 0 and paragraph == 1
+                y = _column_paragraph(page, x, y, spec.body_size, seed, tag,
+                                      small_line=f"jitterword{number}" if jitter else None)
                 order.append(tag)
             if closing:
                 page.insert_text((x, y), "References", fontname="tibo", fontsize=spec.body_size)
@@ -317,7 +347,15 @@ def make_article(path, spec: ArticleSpec | None = None) -> dict:
             page.insert_text((COL_LEFT + 150, top + 4), "wideword FIXTURE a wide block lying across both columns here",
                              fontname="tiro", fontsize=spec.body_size)
         expected["order"][number] = order
+    expected["form_pages"] = []
+    for form in range(1, spec.appended_form_pages + 1):
+        page = doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+        for line in range(22):
+            page.insert_text((COL_LEFT, ARTICLE_TOP + line * 14), f"formword{form} " + _sentence(3000 + form * 40 + line),
+                             fontname="tiro", fontsize=spec.body_size - 0.2)
+        page.insert_text((PAGE_WIDTH / 2, 815), str(form), fontname="tiro", fontsize=8)
+        expected["form_pages"].append(spec.pages + form)
     doc.save(path)
     doc.close()
-    expected["pages"] = spec.pages
+    expected["pages"] = spec.pages + spec.appended_form_pages
     return expected

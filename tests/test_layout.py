@@ -143,7 +143,7 @@ def test_a_thesis_with_no_page_numbers_is_flagged_and_gets_no_labels(measured):
     assert m.layout.page_number_band is None
     assert set(m.labels.values()) == {None}
     assert m.measurement.flags == [
-        "No printed page number was found. Every citation of this thesis will read "
+        "No printed page number was found. Every citation of this document will read "
         "'PDF p. N [VERIFY]' instead of a page number."
     ]
 

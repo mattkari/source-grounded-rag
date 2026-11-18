@@ -64,3 +64,52 @@ the text means.
   audit's "printed on its own page" check may count it as failing. That check counts; it does not
   block.
 - Three or more columns are not supported. Such pages are flagged.
+
+## Calibrated on real articles (18 November 2026)
+
+The rules above were then run on three real, openly available articles, with the repository's
+own measurement, extraction and audit. No text of theirs is in the repository; the PDFs were
+read in a scratch folder and discarded. No model or embedding call was made.
+
+| Article | Layout | What it tested |
+|---|---|---|
+| Devlin et al., *BERT* (arXiv:1810.04805v2) | conference, two columns, footnotes, no page numbers | reading order, a repository's stamp in the margin |
+| Jumper et al., *Highly accurate protein structure prediction with AlphaFold*, Nature 596 (2021) | journal, two columns, running head, footer with page number, appended form | furniture, page numbers, line sizes |
+| Piwowar et al., PLoS ONE 2(3) e308 (2007) | journal, two columns | a third layout, to see that the fixes generalise |
+
+Reading order came out right on every page read against the PDF. Six other things were wrong.
+Each is now fixed and held by a test built on a synthetic PDF that does what the real one did.
+
+| Found | Cause | Rule now |
+|---|---|---|
+| **Body text was silently lost**: about 3% of one article's lines, in the middle of paragraphs | A journal justifies lines by scaling them, so "8.2pt" text is set from 8.13 to 8.37pt. Lines that rounded just below the commonest size were read as a smaller size with too little text to be prose, and dropped | A size within 5% of the body size is body text when at least 80% of its characters sit inside blocks of body text. A size that close but set apart from the body text (figure panel letters, an appended form) is not |
+| The running head ("Article") became a chapter, and no footer was found | Furniture was looked for on the page before and after. A journal prints its running head on left-hand pages only and its footer on alternate sides, with a page number that changes | The next page of the same side is looked at too; a line counts as repeated when it differs only by a number at one end; and furniture on at least half the left-hand or half the right-hand pages (never fewer than three) is enough |
+| Every citation read `PDF p. N [VERIFY]` | The page number shares its line with the journal's name, so it is never a lone token | A number at an end of a furniture line is the page number when it keeps a constant distance from the PDF page on at least half the pages with text. On each page only the number that equals the PDF page plus that distance is taken, so "2021" at the end of the same line is never the page |
+| A form appended to the article, numbered 1 and 2, would have been cited as pages 1 and 2 of the article | Its lone numbers were read as labels | Where a distance is measured, a number that does not keep it is not a label. Those pages are cited as `PDF p. N [VERIFY]` |
+| A repository's stamp, printed up the side of page 1, was proposed as the title and read as a chapter heading in the middle of the abstract | It is the largest type on the page | Text not set left to right is not read, by the measurement or the extractor |
+| The proposed year was 1953 | "The last year on the page" is a work the first page cites | For an article, the latest year on the first page: nothing it cites can be later than itself |
+
+Also changed: an article's top-level heading is cited as a section (`§ 3 Method`), not as a chapter.
+
+### What the real articles still show wrong
+
+These were seen and are **not** fixed. Each is a reason to read an article's first passages against
+its PDF before relying on it.
+
+- **Small type inside a sentence is dropped with the rest of the small type.** Subscripts are the
+  case seen: two model names that differ only by a subscript came out as the same word twice. A
+  passage can therefore read differently from the page. The audit does not catch it: every word
+  that remains is on the page.
+- **The title block is one long heading.** Title, authors, affiliations and the word "Abstract" are
+  all set larger than body text and merge into the heading of the abstract.
+- **Figures and tables leave fragments**: axis labels, a caption without its table, a formula
+  reduced to a full stop.
+- **A page number in the middle of a furniture line is not read** (one of the three articles). Its
+  citations read `PDF p. N [VERIFY]`.
+- **The proposed authors are the whole block under the title**, affiliations and addresses
+  included, or nothing when the list is long. The researcher types them.
+- **Three articles are not many.** All three are from the sciences. A humanities journal with long
+  footnotes across the foot of both columns has not been tried.
+
+The built-in thesis is unaffected: its extraction is still held byte for byte, and
+`scripts/measure_thesis.py --builtin` reports what it reported before.

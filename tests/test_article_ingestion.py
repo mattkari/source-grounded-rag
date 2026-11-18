@@ -285,3 +285,144 @@ def test_an_indexed_article_is_cited_by_its_own_author_section_and_printed_page(
     assert note.startswith("1. Fixture, A. and Fixture, S. (2020), § ")
     assert re.search(r"pp?\. 10[1-4]", note) and "None" not in note
     assert [d.document_id for d in upload.ready_documents()] == [key]
+
+
+# =====================================================================================
+# What two real articles showed (ADR 0015, "calibrated on real articles")
+#
+# These fixtures reproduce, with synthetic text, five things real journal PDFs did that
+# the first synthetic article did not: lines of body text a hair smaller than the rest,
+# furniture that differs between left- and right-hand pages, a page number inside a
+# footer line, a form appended with its own numbering, and a stamp turned on its side.
+# =====================================================================================
+
+
+def test_a_line_of_body_text_set_a_hair_smaller_is_not_dropped(article):
+    path, expected = article(line_jitter=True)
+    measured = layout.measure(path)
+    pages = ingest.extract_document(path, measured.layout)
+
+    read = measured.evidence["body_min_size"]["sizes_below_body"]["9.9"]
+    assert read["read_as"] == "body text" and read["share_of_characters"] < layout.MINOR_SIZE_SHARE
+    assert read["share_inside_blocks_of_body_text"] >= layout.NEAR_BODY_IN_BLOCK
+    assert measured.layout.body_min_size == 9.9
+    assert [f"jitterword{n}" in pages[n - 1].body for n in range(1, 5)] == [True] * 4      # no line is lost
+    assert [tags(page) for page in pages] == [expected["order"][n] for n in range(1, 5)]
+
+
+def test_text_close_to_the_body_size_but_set_apart_from_it_is_not_body_text(article):
+    path, expected = article(line_jitter=True, panel_letters=True, appended_form_pages=2)
+    measured = layout.measure(path)
+    pages = ingest.extract_document(path, measured.layout)
+
+    read = measured.evidence["body_min_size"]["sizes_below_body"]["9.8"]
+    assert read["share_of_characters"] >= layout.MINOR_SIZE_SHARE          # too much text to dismiss by its amount
+    assert read["read_as"] == "apparatus (close to the body size, but set apart from the body text)"
+    assert measured.layout.body_min_size == 9.9
+    assert not any(line.strip() in {"a", "b"} for page in pages for line in page.body.split("\n"))
+    assert not any("formword" in page.body for page in pages)
+    assert all(f"jitterword{n}" in pages[n - 1].body for n in range(1, 5))
+
+
+def test_furniture_that_differs_between_left_and_right_pages_is_still_furniture(article):
+    path, expected = article(journal_furniture=True, pages=8)
+    measured = layout.measure(path)
+    profile = measured.layout
+    pages = ingest.extract_document(path, profile)
+
+    assert profile.header_band_y is not None and profile.footnote_band_y is not None
+    assert not any("FIXTURE Running Head" in title for page in pages for _, _, title in page.headings)
+    assert not any("FIXTURE Running Head" in page.body or "Vol 12" in page.body for page in pages)
+    assert [page.running_header for page in pages] == [None, "FIXTURE Running Head"] * 4      # printed on left-hand pages only
+    analysis = upload.analyse_pdf(path, "article-fixture")
+    assert all("FIXTURE Running Head" not in (chunk["chapter"] or "") for chunk in analysis["records"])
+
+    # Seven pages: the running head is on three of them, fewer than half of all pages but
+    # every left-hand one. It is furniture all the same.
+    odd, _ = article(journal_furniture=True, pages=7)
+    seven = layout.measure(odd)
+    assert seven.evidence["header_band_y"]["pages_with_header_furniture"] == 3
+    assert seven.layout.header_band_y is not None
+    assert not any("FIXTURE Running Head" in page.body for page in ingest.extract_document(odd, seven.layout))
+
+
+def test_a_page_number_inside_a_footer_line_is_read_and_checked_against_the_page(article):
+    path, expected = article(journal_furniture=True, pages=8)
+    measured = layout.measure(path)
+    profile = measured.layout
+    pages = ingest.extract_document(path, profile)
+    found = measured.evidence["page_number_band"]
+
+    assert (profile.page_number_band, profile.page_number_inline, profile.page_label_offset) == ("footer", True, 100)
+    assert found["pages_agreeing"] == 8 and found["printed_minus_pdf_page"] == 100
+    assert {page.pdf_page: page.printed_page for page in pages} == expected["labels"]     # "2021" is never the page
+    assert not any("No printed page number" in flag for flag in measured.flags)
+    result = upload.analyse_pdf(path, "article-fixture")["audit"]
+    assert result["labels_printed_on_their_page"] == {"n": 8, "N": 8, "failing": []}
+    assert result["chunks"]["page_labels_match_the_pdf"]["failing"] == []
+
+
+def test_a_form_appended_with_its_own_numbering_gets_no_page_of_the_article(article):
+    path, expected = article(journal_furniture=True, pages=6, appended_form_pages=2)
+    profile = layout.measure(path).layout
+    pages = ingest.extract_document(path, profile)
+
+    assert profile.page_label_offset == 100                               # six of eight pages agree; that is enough
+    assert [page.printed_page for page in pages[:6]] == ["101", "102", "103", "104", "105", "106"]
+    assert [page.printed_page for page in pages[6:]] == [None, None]      # its "1" and "2" are not pages 1 and 2 of this
+
+
+def test_a_number_in_a_furniture_line_is_taken_only_where_it_matches_the_page():
+    profile = dataclasses.replace(default_layout(ask.settings), page_number_inline=True, page_label_offset=582)
+
+    assert ingest.inline_label("584 | FIXTURE Journal | Vol 596 | 26 August 2021", 2, profile) == (
+        "584", "FIXTURE Journal | Vol 596 | 26 August 2021")
+    assert ingest.inline_label("FIXTURE Journal | Vol 596 | 26 August 2021 | 585", 3, profile) == (
+        "585", "FIXTURE Journal | Vol 596 | 26 August 2021")
+    assert ingest.inline_label("584 | FIXTURE Journal | Vol 596 | 26 August 2021", 9, profile)[0] is None
+    assert ingest.inline_label("FIXTURE Journal 584 Vol 596", 2, profile)[0] is None       # not at an end of the line
+    assert ingest.inline_label("584 | FIXTURE", 2, default_layout(ask.settings))[0] is None  # the built-in profile reads none
+    assert layout.edge_numbers("584 | FIXTURE Journal | 26 August 2021") == ["584", "2021"]
+    assert layout.furniture_key("584 | FIXTURE Journal | Vol 12") == layout.furniture_key("586 | FIXTURE Journal | Vol 12")
+    assert layout.furniture_key("FIXTURE Chapter Alpha") == "FIXTURE Chapter Alpha"
+
+
+def test_a_stamp_turned_on_its_side_is_neither_the_title_nor_a_heading(article):
+    path, _ = article(margin_stamp=True)
+    profile = layout.measure(path).layout
+    pages = ingest.extract_document(path, profile)
+    proposal = identity.propose(path, KIND_ARTICLE)
+
+    assert proposal["title"]["value"] == "FIXTURE Article On Synthetic Canals"
+    assert not any("fixture:1810" in title for page in pages for _, _, title in page.headings)
+    assert not any("fixture:1810" in page.body for page in pages)
+    assert proposal["year"]["value"] == "2020"                            # the stamp's 2031 is not read at all
+
+
+def test_an_articles_year_is_the_latest_on_its_first_page_not_a_work_it_cites(article):
+    path, _ = article(cited_year="1953")
+
+    proposed = identity.propose(path, KIND_ARTICLE)["year"]
+    assert proposed == {"value": "2020", "source": "the latest year printed on PDF page 1"}
+    assert identity.propose(path)["year"]["source"] == "the last year printed on PDF page 1"   # a thesis: as before
+
+
+def test_an_articles_top_level_heading_is_cited_as_a_section_not_a_chapter(tmp_path):
+    chunk = {"chunk_id": "article-x::00000::f", "document_id": "article-x", "kind": "source", "chapter": "3 FIXTURE Method",
+             "section": "3.1 FIXTURE Detail", "page_start": "585", "page_end": "586", "pdf_page_start": 3,
+             "pdf_page_end": 4, "pages_unresolved": [], "text": "FIXTURE"}
+    article_doc = Document("article-x", "Fixture, A.", "2021", "T", "T", None, tmp_path, tmp_path, tmp_path, kind=KIND_ARTICLE)
+    thesis_doc = dataclasses.replace(article_doc, kind=KIND_THESIS)
+
+    assert ask.footnote(1, ask.EvidenceItem("E1", chunk, 0.0, article_doc)) == (
+        "1. Fixture, A. (2021), § 3 FIXTURE Method, § 3.1 FIXTURE Detail, pp. 585–586.")
+    assert ask.footnote(1, ask.EvidenceItem("E1", chunk, 0.0, thesis_doc)) == (
+        "1. Fixture, A. (2021), Ch. “3 FIXTURE Method”, § 3.1 FIXTURE Detail, pp. 585–586.")
+
+
+def test_the_builtin_profile_reads_no_number_out_of_a_line_and_old_profiles_still_load():
+    builtin = default_layout(ask.settings)
+    assert (builtin.page_number_inline, builtin.page_label_offset) == (False, None)
+    stored = builtin.to_json()
+    stored.pop("page_number_inline"), stored.pop("page_label_offset")
+    assert LayoutProfile.from_json(stored) == builtin

@@ -62,6 +62,14 @@ class PdfReader:
     def has_text(self, pdf_page: int) -> bool:
         return bool(self.stream(pdf_page))
 
+    def edge_tokens(self, pdf_page: int) -> set[str]:
+        """The first and last word of each line: where a journal prints a page number
+        beside its name (ADR 0015)."""
+        lines: dict[tuple[int, int], list[str]] = {}
+        for word in self._doc[pdf_page - 1].get_text("words"):
+            lines.setdefault((word[5], word[6]), []).append(_clean(word[4]).strip())
+        return {words[position] for words in lines.values() for position in (0, -1)}
+
     def lone_tokens(self, pdf_page: int) -> set[str]:
         """Words that stand alone on their line — where a page number is printed."""
         if pdf_page not in self._lone_tokens:
@@ -97,8 +105,15 @@ def audit(pdf_path, pages: list[dict], chunks: list[dict], layout: LayoutProfile
     }
 
     # --- every stored label is printed on its page ---------------------------------
+    def printed(pdf_page: int) -> bool:
+        """The stored label is printed on its page: alone on a line, or, where the
+        profile says the number shares its line, at an end of one."""
+        label = label_of[pdf_page]
+        return label in reader.lone_tokens(pdf_page) or (
+            layout.page_number_inline and label in reader.edge_tokens(pdf_page))
+
     labelled = [p for p in label_of if label_of[p] is not None]
-    label_failures = [p for p in labelled if label_of[p] not in reader.lone_tokens(p)]
+    label_failures = [p for p in labelled if not printed(p)]
     labels = _ratio(len(labelled) - len(label_failures), len(labelled), label_failures)
 
     arabic = [(p, int(label_of[p])) for p in sorted(labelled) if label_of[p].isdecimal()]
@@ -120,9 +135,7 @@ def audit(pdf_path, pages: list[dict], chunks: list[dict], layout: LayoutProfile
 
         # 1. The stored labels are the ones printed on the chunk's first and last page.
         ends_match = chunk["page_start"] == label_of.get(first) and chunk["page_end"] == label_of.get(last)
-        printed_ok = all(
-            label_of.get(p) is None or label_of[p] in reader.lone_tokens(p) for p in (first, last)
-        )
+        printed_ok = all(label_of.get(p) is None or printed(p) for p in (first, last))
         if not (ends_match and printed_ok):
             label_bad.append(chunk["chunk_id"])
 

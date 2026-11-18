@@ -512,7 +512,8 @@ def footnote(index: int, item: EvidenceItem) -> str:
     source = _document(item.document)
     parts = [f"{source.author} ({source.year})"]
     if c["chapter"]:
-        parts.append(f"Ch. “{c['chapter']}”")
+        # An article prints sections, not chapters: its top-level heading is named as one.
+        parts.append(f"§ {c['chapter']}" if source.kind == "article" else f"Ch. “{c['chapter']}”")
     if c["section"]:
         parts.append(f"§ {c['section']}")
     parts.append(page_phrase(c))

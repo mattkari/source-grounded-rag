@@ -71,6 +71,12 @@ MARKER_SIZE_RATIO = 0.75
 # different headers, each typically printed on at least two consecutive pages.
 MIN_DISTINCT_HEADERS = 2
 MIN_MEDIAN_HEADER_RUN = 2
+# Calibrated on real articles (ADR 0015). A journal justifies its lines by scaling them, so
+# body text is set at sizes a hair apart (8.1 to 8.4pt for "8.2"). A size within this
+# fraction of the body size is the body size itself when at least `NEAR_BODY_IN_BLOCK` of
+# its characters sit inside blocks of body text.
+NEAR_BODY = 0.05
+NEAR_BODY_IN_BLOCK = 0.8
 # Chapter titles that mark reference apparatus rather than the author's claims.
 APPARATUS_TITLES = ("bibliography", "references", "reference list", "works cited", "list of references")
 
@@ -132,6 +138,40 @@ def _normalise(text: str) -> str:
     return re.sub(r"\s{2,}", " ", text).strip()
 
 
+def near_body(size: float, body_size: float) -> bool:
+    """Whether a size is the body size, give or take the scaling of a justified line."""
+    return abs(size - body_size) <= NEAR_BODY * body_size
+
+
+def upright(line: dict) -> bool:
+    """A line set left to right. Text turned on its side (a repository's stamp in the
+    margin) is not part of what a reader reads down the page."""
+    direction = line.get("dir") or (1.0, 0.0)
+    return abs(direction[0] - 1.0) < 0.01 and abs(direction[1]) < 0.01
+
+
+_FURNITURE_EDGES = " |·•–—-,:"
+
+
+def edge_numbers(text: str) -> list[str]:
+    """Arabic numbers standing at the start or the end of a line of furniture: where a
+    journal prints the page number beside its name."""
+    tokens = _normalise(text).replace("|", " | ").split()
+    found = [token for token in (tokens[:1] + tokens[-1:] if len(tokens) > 1 else tokens) if ARABIC_RE.match(token)]
+    return list(dict.fromkeys(found))
+
+
+def furniture_key(text: str) -> str:
+    """A line of furniture without the numbers at its ends, so that "584 | Journal" and
+    "586 | Journal" are seen to be the same line."""
+    tokens = _normalise(text).replace("|", " | ").split()
+    if len(tokens) > 1 and ARABIC_RE.match(tokens[0]):
+        tokens = tokens[1:]
+    if len(tokens) > 1 and ARABIC_RE.match(tokens[-1]):
+        tokens = tokens[:-1]
+    return " ".join(tokens).strip(_FURNITURE_EDGES)
+
+
 def is_page_label(text: str) -> bool:
     token = _normalise(text).lower()
     return bool(ARABIC_RE.match(token) or ROMAN_RE.match(token))
@@ -165,6 +205,7 @@ def read_blocks(pdf_path) -> list[list[Block]]:
                     "bold": bool(s["flags"] & 16) or "bold" in s["font"].lower(),
                 }
                 for line in block["lines"]
+                if upright(line)
                 for s in line["spans"]
                 if s["text"].strip()
             ]
@@ -220,9 +261,12 @@ def _body_size(pages: list[list[Block]]) -> tuple[float | None, dict]:
 
 
 def _repeats_on_neighbour(block: Block, neighbours: list[list[Block]]) -> bool:
-    """The same line, at the same height, on the page before or after."""
+    """The same line, at the same height, on a neighbouring page. "The same" allows a
+    number at either end to differ: that is where a journal prints its page number."""
+    mine = furniture_key(block.key)
     return any(
-        other.key == block.key and abs(other.y0 - block.y0) <= POSITION_TOLERANCE
+        (other.key == block.key or (mine and furniture_key(other.key) == mine))
+        and abs(other.y0 - block.y0) <= POSITION_TOLERANCE
         for blocks in neighbours
         for other in blocks
     )
@@ -245,7 +289,9 @@ def _furniture(pages: list[list[Block]], *, top: bool) -> list[Block]:
     """
     found: list[Block] = []
     for index, blocks in enumerate(pages):
-        neighbours = [pages[i] for i in (index - 1, index + 1) if 0 <= i < len(pages)]
+        # The page before and after, and the next of the same side: a journal sets its
+        # running head on left-hand pages only, and its footer on alternate sides.
+        neighbours = [pages[i] for i in (index - 1, index + 1, index - 2, index + 2) if 0 <= i < len(pages)]
         ordered = sorted(blocks, key=lambda b: b.y0, reverse=not top)
         previous: Block | None = None
         for block in ordered:
@@ -275,9 +321,52 @@ def _label_sequence(labelled: list[tuple[int, str]]) -> tuple[int, int]:
     return sum(1 for pdf_step, label_step in steps if pdf_step == label_step), len(steps)
 
 
+def _inline_page_numbers(furniture: list[Block], text_pages: int) -> tuple[int | None, dict]:
+    """Page numbers printed inside a line of furniture ("584 | Journal | Vol 12").
+
+    Every number at an end of such a line is a candidate. The page number is the one
+    that keeps a constant distance from the PDF page: the offset shared by the most
+    pages. It is accepted when at least half the pages with text agree on it, and never
+    on fewer than three. Pages that do not agree (a form appended with its own
+    numbering) simply get no label: the extractor takes a number only where it equals
+    the PDF page plus this offset.
+    """
+    by_page: dict[int, set[int]] = {}
+    for block in furniture:
+        for token in edge_numbers(block.text):
+            by_page.setdefault(block.pdf_page, set()).add(int(token) - block.pdf_page)
+    offsets = Counter(offset for found in by_page.values() for offset in found)
+    if not offsets:
+        return None, {}
+    offset, agreeing = offsets.most_common(1)[0]
+    detail = {
+        "rule": "a number at an end of a furniture line that keeps a constant distance from the PDF page",
+        "pages_with_a_candidate": len(by_page), "pages_agreeing": agreeing,
+        "pages_with_text": text_pages, "printed_minus_pdf_page": offset,
+    }
+    accepted = agreeing >= max(RECURRING_PAGES, FURNITURE_PAGE_SHARE * text_pages)
+    return (offset if accepted else None), detail
+
+
+def _on_enough_pages(with_furniture: set[int], pages: list[list[Block]]) -> bool:
+    """Furniture is on enough pages when it is on half of all pages with text, or on
+    half of the left-hand pages, or of the right-hand ones (never fewer than three)."""
+    with_text = {index + 1 for index, blocks in enumerate(pages) if blocks}
+    if len(with_furniture) >= FURNITURE_PAGE_SHARE * len(with_text):
+        return True
+    for parity in (0, 1):
+        side = {page for page in with_text if page % 2 == parity}
+        found = {page for page in with_furniture if page % 2 == parity}
+        if len(found) >= RECURRING_PAGES and len(found) >= FURNITURE_PAGE_SHARE * len(side):
+            return True
+    return False
+
+
 def _measure_bands(pages: list[list[Block]], text_pages: int, evidence: dict, flags: list[str]):
-    """Return (header_band_y, footnote_band_y, page_number_band)."""
+    """Return (header_band_y, footnote_band_y, page_number_band, page_label_offset).
+    The offset is set only when the page number shares its line with other furniture."""
     header_band_y = footnote_band_y = page_number_band = None
+    page_label_offset = None
     needed = FURNITURE_PAGE_SHARE * text_pages
 
     # --- top of the page -----------------------------------------------------
@@ -286,7 +375,7 @@ def _measure_bands(pages: list[list[Block]], text_pages: int, evidence: dict, fl
     top = [b for b in top if round(b.y0) in top_positions]
     top_pages = len({b.pdf_page for b in top})
     top_labels = [b for b in top if b.label is not None]
-    if top_pages >= needed:
+    if _on_enough_pages({b.pdf_page for b in top}, pages):
         limit = max(top_positions) + POSITION_TOLERANCE
         below = [b.y0 for blocks in pages for b in blocks if b.y0 > limit]
         if below:
@@ -311,7 +400,7 @@ def _measure_bands(pages: list[list[Block]], text_pages: int, evidence: dict, fl
     bottom = [b for b in bottom if round(b.y0) in bottom_positions]
     bottom_pages = len({b.pdf_page for b in bottom})
     bottom_labels = [b for b in bottom if b.label is not None]
-    if bottom_pages >= needed:
+    if _on_enough_pages({b.pdf_page for b in bottom}, pages):
         limit = min(bottom_positions) - POSITION_TOLERANCE
         above = [b.y0 for blocks in pages for b in blocks if b.y0 < limit]
         if above:
@@ -352,15 +441,24 @@ def _measure_bands(pages: list[list[Block]], text_pages: int, evidence: dict, fl
             break
         evidence["page_number_band"] = {**detail, "rejected": "labels do not advance with the pages"}
     if page_number_band is None:
+        # No lone label: look for a number inside a line of furniture (ADR 0015).
+        for band, furniture in (("footer", bottom if footnote_band_y is not None else []),
+                                ("header", top if header_band_y is not None else [])):
+            offset, detail = _inline_page_numbers(furniture, text_pages)
+            if offset is not None:
+                page_number_band, page_label_offset = band, offset
+                evidence["page_number_band"] = {**detail, "band": band}
+                break
+    if page_number_band is None:
         evidence.setdefault(
             "page_number_band",
             {"rule": "no lone page label recurs at either edge of enough pages"},
         )
         flags.append(
-            "No printed page number was found. Every citation of this thesis will read "
+            "No printed page number was found. Every citation of this document will read "
             "'PDF p. N [VERIFY]' instead of a page number."
         )
-    return header_band_y, footnote_band_y, page_number_band
+    return header_band_y, footnote_band_y, page_number_band, page_label_offset
 
 
 def _in_zone(block: Block, header_band_y, footnote_band_y) -> bool:
@@ -401,7 +499,7 @@ def _page_split(blocks: list[Block], body_size: float) -> tuple[float | None, bo
     """The x between two columns of body text on one page, and whether the page is
     regular. (None, True) is a page in one column. (None, False) is a page whose
     side-by-side text does not divide at one x: three columns, or something else."""
-    prose = [b for b in blocks if b.dominant_size() == body_size and len(b.text) >= MIN_COLUMN_CHARS]
+    prose = [b for b in blocks if near_body(b.dominant_size(), body_size) and len(b.text) >= MIN_COLUMN_CHARS]
     pairs = [(left, right) for left in prose for right in prose
              if left.x1 < right.x0 and min(left.y1, right.y1) > max(left.y0, right.y0)]
     if not pairs:
@@ -414,7 +512,7 @@ def _page_split(blocks: list[Block], body_size: float) -> tuple[float | None, bo
 
 def _columns(zone_pages: list[list[Block]], body_size: float, evidence: dict, flags: list[str]):
     """How many columns the body text is set in: 1 or 2, and where 2 divide."""
-    with_body = [blocks for blocks in zone_pages if any(b.dominant_size() == body_size for b in blocks)]
+    with_body = [blocks for blocks in zone_pages if any(near_body(b.dominant_size(), body_size) for b in blocks)]
     splits, irregular = [], []
     for blocks in with_body:
         split, regular = _page_split(blocks, body_size)
@@ -441,11 +539,16 @@ def _columns(zone_pages: list[list[Block]], body_size: float, evidence: dict, fl
     return (2 if two else 1), split_x
 
 
+def _is_body_block(block: Block, body_size: float) -> bool:
+    """A block of body text: its commonest size is the body size, or a hair above it."""
+    return body_size <= block.dominant_size() <= body_size * (1 + NEAR_BODY)
+
+
 def last_body_row(blocks: list[Block], body_size: float, block: Block, split_x: float | None) -> float | None:
     """The top of the last body-size block in the same column as `block`: what a
     footnote sits below. None when that column has no body text on the page."""
     column = column_of(block.x0, block.x1, split_x)
-    rows = [b.y0 for b in blocks if b.dominant_size() == body_size and column_of(b.x0, b.x1, split_x) == column]
+    rows = [b.y0 for b in blocks if _is_body_block(b, body_size) and column_of(b.x0, b.x1, split_x) == column]
     return max(rows) if rows else None
 
 
@@ -494,11 +597,14 @@ def _body_min_size(zone_pages: list[list[Block]], body_size: float, evidence: di
     blocks_seen: Counter[float] = Counter()
     footnote_shaped: Counter[float] = Counter()
     footnote_pages: dict[float, set[int]] = {}
+    in_body_blocks: Counter[float] = Counter()
     for blocks in zone_pages:
         for block in blocks:
             for span in block.spans:
                 chars[span["size"]] += len(span["text"].strip())
-        if not any(b.dominant_size() == body_size for b in blocks):
+                if _is_body_block(block, body_size):
+                    in_body_blocks[span["size"]] += len(span["text"].strip())
+        if not any(_is_body_block(b, body_size) for b in blocks):
             continue  # nothing to be "below" on this page
         for block in blocks:
             size = block.dominant_size()
@@ -520,7 +626,15 @@ def _body_min_size(zone_pages: list[list[Block]], body_size: float, evidence: di
     for size in sorted((s for s in chars if s < body_size), reverse=True):
         share = chars[size] / total_chars
         foot_share = at_foot[size] / blocks_seen[size] if blocks_seen[size] else 0.0
-        if share < MINOR_SIZE_SHARE:
+        inside = in_body_blocks[size] / chars[size] if chars[size] else 0.0
+        if near_body(size, body_size) and inside >= NEAR_BODY_IN_BLOCK:
+            # Lines of the body text itself, scaled a little to justify them (ADR 0015).
+            reading = "body text"
+        elif near_body(size, body_size):
+            # As close to the body size, but not inside the body text: figure panel
+            # letters, furniture, an appended form. Not running prose.
+            reading = "apparatus (close to the body size, but set apart from the body text)"
+        elif share < MINOR_SIZE_SHARE:
             reading = "apparatus (too little text to be running prose)"
         elif foot_share >= FOOT_SHARE:
             reading = "footnote apparatus (sits at the foot of the column)"
@@ -531,6 +645,7 @@ def _body_min_size(zone_pages: list[list[Block]], body_size: float, evidence: di
             "blocks_on_pages_with_body_text": blocks_seen[size],
             "of_which_at_the_foot_of_the_column": at_foot[size],
             "of_which_open_with_a_footnote_numeral": footnote_shaped[size],
+            "share_inside_blocks_of_body_text": round(inside, 3),
             "read_as": reading,
         }
         if reading != "body text":
@@ -690,7 +805,8 @@ def measure(pdf_path) -> Measurement:
         )
     evidence["body_size"] = body_evidence
 
-    header_band_y, footnote_band_y, page_number_band = _measure_bands(pages, text_pages, evidence, flags)
+    header_band_y, footnote_band_y, page_number_band, page_label_offset = _measure_bands(
+        pages, text_pages, evidence, flags)
     zone_pages = [
         [b for b in blocks if _in_zone(b, header_band_y, footnote_band_y)] for blocks in pages
     ]
@@ -716,6 +832,8 @@ def measure(pdf_path) -> Measurement:
         apparatus_chapter_prefixes=(),
         columns=columns,
         column_split_x=split_x,
+        page_number_inline=page_label_offset is not None,
+        page_label_offset=page_label_offset,
     )
     return Measurement(layout, evidence, flags, pages_total=len(pages), pages_with_text=text_pages)
 
