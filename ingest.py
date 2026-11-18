@@ -27,7 +27,7 @@ import tiktoken
 
 from config import settings
 from documents import HEADING, RUNNING_HEADER, Document, LayoutProfile, default_document
-from layout import column_of, lies_across
+from layout import ARABIC_RE, _FURNITURE_EDGES, column_of, lies_across, upright
 from embeddings import active_model_name, embed_texts
 
 # --- layout ---------------------------------------------------------------
@@ -129,9 +129,29 @@ def reading_order(blocks: list[dict], split_x: float) -> list[dict]:
     return sorted(blocks, key=key)
 
 
+def inline_label(text: str, pdf_page: int, layout: LayoutProfile) -> tuple[str | None, str]:
+    """The page number printed inside a line of furniture, and the line without it.
+
+    Only a number that stands at an end of the line and equals this PDF page plus the
+    measured offset is taken: it is read off the page, never worked out (hard rule 2).
+    """
+    if not layout.page_number_inline or layout.page_label_offset is None:
+        return None, text
+    tokens = text.replace("|", " | ").split()
+    wanted = str(pdf_page + layout.page_label_offset)
+    for position in (0, -1):
+        if tokens and tokens[position] == wanted and ARABIC_RE.match(wanted):
+            rest = tokens[1:] if position == 0 else tokens[:-1]
+            return wanted, " ".join(rest).strip(_FURNITURE_EDGES)
+    return None, text
+
+
 def extract_page(page: pymupdf.Page, pdf_page: int, layout: LayoutProfile | None = None) -> Page:
     layout = _layout(layout)
     blocks = [b for b in page.get_text("dict")["blocks"] if b["type"] == 0]
+    # Text turned on its side (a repository's stamp in the margin) is not read (ADR 0015).
+    if any(not upright(line) for block in blocks for line in block["lines"]):
+        blocks = [{**block, "lines": [line for line in block["lines"] if upright(line)]} for block in blocks]
     blocks.sort(key=lambda b: (round(b["bbox"][1], 1), round(b["bbox"][0], 1)))
     if layout.columns == 2 and layout.column_split_x is not None:
         blocks = reading_order(blocks, layout.column_split_x)
@@ -155,7 +175,7 @@ def extract_page(page: pymupdf.Page, pdf_page: int, layout: LayoutProfile | None
             lines = []
             for line in block["lines"]:
                 kept = [s for s in line["spans"] if s["text"].strip()]
-                if layout.page_number_band == "header":
+                if layout.page_number_band == "header" and not layout.page_number_inline:
                     # The page number shares the band with the running header:
                     # read it as the label and keep it out of the chapter title.
                     labels = [s for s in kept if _is_page_label(s["text"])]
@@ -163,13 +183,24 @@ def extract_page(page: pymupdf.Page, pdf_page: int, layout: LayoutProfile | None
                         printed_page = normalise(labels[-1]["text"])
                     kept = [s for s in kept if not _is_page_label(s["text"])]
                 if kept:
-                    lines.append("".join(s["text"] for s in kept))
+                    text = "".join(s["text"] for s in kept)
+                    if layout.page_number_band == "header" and printed_page is None:
+                        found, text = inline_label(normalise(text), pdf_page, layout)
+                        printed_page = found or printed_page
+                    if text:
+                        lines.append(text)
             if lines:
                 header_parts.append(normalise(" ".join(lines)))
             continue
 
         if layout.footnote_band_y is not None and y_top > layout.footnote_band_y:
-            if layout.page_number_band == "footer":
+            if layout.page_number_band == "footer" and layout.page_number_inline:
+                # Only the number that keeps the measured distance from the PDF page: a
+                # form appended with its own "1", "2" is not a page of this document.
+                for line in block["lines"]:
+                    found, _ = inline_label(normalise("".join(s["text"] for s in line["spans"])), pdf_page, layout)
+                    printed_page = found or printed_page
+            elif layout.page_number_band == "footer":
                 for span in spans:
                     if _is_page_label(span["text"]):
                         printed_page = normalise(span["text"])

@@ -75,6 +75,11 @@ class LayoutProfile:
     # In a document that prints no chapters, the section titles that open its reference
     # list. What follows such a heading is reference apparatus, not a source claim.
     apparatus_section_prefixes: tuple[str, ...] = ()
+    # True when the page number shares its line with other furniture, as in a journal's
+    # "584 | Journal | Vol 12" (ADR 0015). It is then read as the number at the start or
+    # end of that line which equals the PDF page plus `page_label_offset`.
+    page_number_inline: bool = False
+    page_label_offset: int | None = None
 
     def to_json(self) -> dict:
         data = dataclasses.asdict(self)

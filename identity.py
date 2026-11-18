@@ -106,9 +106,14 @@ def propose(pdf_path, kind: str = "thesis") -> dict:
 
     # Year: the last four-digit year printed on the page.
     years = [year for block in title_page for year in _YEAR.findall(block.text)]
-    proposal["year"] = (
-        {"value": years[-1], "source": f"the last year printed on PDF page {page_number}"}
-        if years
-        else _empty("no four-digit year was found on the title page")
-    )
+    if kind == "article" and years:
+        # An article's first page carries its text, and with it the years of the works it
+        # cites. None of those can be later than the article itself (ADR 0015).
+        proposal["year"] = {"value": max(years), "source": f"the latest year printed on PDF page {page_number}"}
+    else:
+        proposal["year"] = (
+            {"value": years[-1], "source": f"the last year printed on PDF page {page_number}"}
+            if years
+            else _empty("no four-digit year was found on the title page")
+        )
     return proposal
